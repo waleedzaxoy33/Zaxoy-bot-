@@ -1929,10 +1929,11 @@ async def process_video_to_voice(
             return
 
         # convert to telegram opus voice
-        exit_code = os.system(
-            f"ffmpeg -y -i {video_path} -vn -acodec libopus -b:a 64k {audio_path} -loglevel quiet"
-        )
+        print(f"VIDEO SIZE: {os.path.getsize(video_path)}")
 
+exit_code = os.system(
+    f'ffmpeg -y -i "{video_path}" -map 0:a -c:a libopus -b:a 64k "{audio_path}" -loglevel quiet'
+)
         # verify output
         if (
             exit_code == 0
