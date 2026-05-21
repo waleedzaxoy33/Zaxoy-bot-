@@ -1934,7 +1934,7 @@ async def process_video_to_voice(
 
         # convert using ffmpeg
         exit_code = os.system(
-            f'ffmpeg -y -i "{video_path}" -map 0:a -c:a libopus -b:a 64k "{audio_path}"'
+            f'ffmpeg -y -i "{video_path}" -vn -map 0:a -c:a libopus -b:a 64k "{audio_path}"'
         )
 
         print(f"FFMPEG EXIT CODE: {exit_code}")
@@ -1990,6 +1990,103 @@ async def process_video_to_voice(
             except Exception:
                 pass
 
+
+# ─────────────────────────────────────────────────────────────
+# //voice Command
+# ─────────────────────────────────────────────────────────────
+
+async def voice_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
+    msg = update.message
+    chat_id = msg.chat_id
+
+    # delete only //voice command
+    try:
+        await msg.delete()
+    except Exception:
+        pass
+
+    target = msg.reply_to_message
+
+    if not target:
+        await ctx.bot.send_message(
+            chat_id,
+            "↩️ Reply to a video with //voice"
+        )
+        return
+
+    # reject photos
+    if target.photo:
+        await ctx.bot.send_message(
+            chat_id,
+            "🧠 Photos don't contain audio."
+        )
+        return
+
+    # detect video sources
+    video_media = None
+
+    if target.video:
+        video_media = target.video
+
+    elif target.video_note:
+        video_media = target.video_note
+
+    elif (
+        target.document
+        and target.document.mime_type
+        and target.document.mime_type.startswith("video/")
+    ):
+        video_media = target.document
+
+    if video_media:
+
+        await process_video_to_voice(
+            video_media,
+            chat_id=chat_id,
+            ctx=ctx,
+            reply_to_id=target.message_id
+        )
+
+        return
+
+    # already voice/audio
+    if target.voice or target.audio:
+        await ctx.bot.send_message(
+            chat_id,
+            "🤔 That's already audio."
+        )
+        return
+
+    await ctx.bot.send_message(
+        chat_id,
+        "🤔 Unsupported media type."
+    )
+
+
+# ─────────────────────────────────────────────────────────────
+# Monitor mentions
+# ─────────────────────────────────────────────────────────────
+
+async def monitor_mentions(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
+    msg = update.message
+
+    if not msg or not msg.caption:
+        return
+
+    video = msg.video or msg.video_note
+
+    if f"@{ctx.bot.username}" in msg.caption and video:
+
+        await process_video_to_voice(
+            video,
+            chat_id=msg.chat_id,
+            ctx=ctx,
+            reply_to_id=msg.message_id
+        )
+
+
 # ─────────────────────────────────────────────────────────────
 # //if System — Auto-Responder
 # ─────────────────────────────────────────────────────────────
@@ -2025,7 +2122,6 @@ class _IfSessionActiveFilter(filters.MessageFilter):
 
 IF_SESSION_ACTIVE = _IfSessionActiveFilter()
 
-
 async def if_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID:
@@ -2043,11 +2139,19 @@ async def if_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if msg.chat.type != "private":
         return
 
-    if_sessions[OWNER_ID] = {"step": "waiting_trigger", "trigger": None, "editing": None, "edit_type": None}
-    await msg.reply_text("📩 Send me the trigger\n(sticker file_id, word, or sentence)")
+    if_sessions[OWNER_ID] = {
+        "step": "waiting_trigger",
+        "trigger": None,
+        "editing": None,
+        "edit_type": None
+    }
 
+    await msg.reply_text(
+        "📩 Send me the trigger\n(sticker file_id, word, or sentence)"
+    )
 
 async def show_if_list(msg, ctx):
+
     global if_store
     if_store = load_if_store()
 
@@ -2055,24 +2159,39 @@ async def show_if_list(msg, ctx):
         await msg.reply_text("📭 No if rules yet.")
         return
 
-    await msg.reply_text(f"📋 *{len(if_store)} rule(s) saved:*", parse_mode="Markdown")
+    await msg.reply_text(
+        f"📋 *{len(if_store)} rule(s) saved:*",
+        parse_mode="Markdown"
+    )
 
     for trigger, reply in if_store.items():
+
         short_trigger = trigger[:30] + "..." if len(trigger) > 30 else trigger
-        short_reply   = reply[:30]   + "..." if len(reply)   > 30 else reply
+        short_reply   = reply[:30] + "..." if len(reply) > 30 else reply
 
         text = f"🔹 If: `{short_trigger}`\n↩️ Reply: `{short_reply}`"
 
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🗑 Delete", callback_data=f"ifdel_{trigger[:40]}"),
-            InlineKeyboardButton("✏️ Edit",   callback_data=f"ifedit_{trigger[:40]}")
+            InlineKeyboardButton(
+                "🗑 Delete",
+                callback_data=f"ifdel_{trigger[:40]}"
+            ),
+            InlineKeyboardButton(
+                "✏️ Edit",
+                callback_data=f"ifedit_{trigger[:40]}"
+            )
         ]])
 
-        await msg.reply_text(text, parse_mode="Markdown", reply_markup=kb)
-
+        await msg.reply_text(
+            text,
+            parse_mode="Markdown",
+            reply_markup=kb
+        )
 
 async def if_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
     msg = update.message
+
     if msg.chat.type != "private" or msg.from_user.id != OWNER_ID:
         return
 
@@ -2083,6 +2202,7 @@ async def if_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     session = if_sessions.get(OWNER_ID)
+
     if not session:
         return
 
@@ -2090,63 +2210,89 @@ async def if_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # ── Step 1: receive trigger ──
     if step == "waiting_trigger":
+
         trigger = None
 
         if msg.sticker:
             trigger = msg.sticker.file_id
+
         elif msg.text:
             trigger = msg.text.strip()
 
         if not trigger:
-            await msg.reply_text("⚠️ Send a valid trigger (text or sticker)")
+            await msg.reply_text(
+                "⚠️ Send a valid trigger (text or sticker)"
+            )
             return
 
         session["trigger"] = trigger
         session["step"] = "waiting_reply"
-        await msg.reply_text("✅ Got it!\nNow send me the reply\n(text or sticker file_id)")
+
+        await msg.reply_text(
+            "✅ Got it!\nNow send me the reply\n(text or sticker file_id)"
+        )
 
     # ── Step 2: receive reply ──
     elif step == "waiting_reply":
+
         reply = None
 
         if msg.sticker:
             reply = f"STICKER:{msg.sticker.file_id}"
+
         elif msg.text and not msg.text.startswith("//"):
             reply = msg.text.strip()
 
         if not reply:
-            await msg.reply_text("⚠️ Send a valid reply (text or sticker)")
+            await msg.reply_text(
+                "⚠️ Send a valid reply (text or sticker)"
+            )
             return
 
         editing = session.get("editing")
         edit_type = session.get("edit_type")
 
         if editing and edit_type == "reply":
+
             # Editing existing reply
             if_store[editing] = reply
             save_if_store(if_store)
+
             del if_sessions[OWNER_ID]
+
             await msg.reply_text("✅ Reply updated!")
 
         elif editing and edit_type == "trigger":
+
             # Editing existing trigger — move key
             old_reply = if_store.pop(editing, "")
+
             new_trigger = session["trigger"]
+
             if_store[new_trigger] = old_reply
+
             save_if_store(if_store)
+
             del if_sessions[OWNER_ID]
+
             await msg.reply_text("✅ Trigger updated!")
 
         else:
+
             # New rule
             trigger = session["trigger"]
+
             if_store[trigger] = reply
+
             save_if_store(if_store)
+
             del if_sessions[OWNER_ID]
+
             await msg.reply_text("✅ Done! Rule saved 🎯")
 
 
 async def if_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
     query = update.callback_query
     await query.answer()
 
@@ -2157,34 +2303,61 @@ async def if_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # ── Delete ──
     if data.startswith("ifdel_"):
+
         trigger_part = data[6:]
-        # Find full key
-        full_key = next((k for k in if_store if k.startswith(trigger_part) or k == trigger_part), None)
+
+        full_key = next(
+            (k for k in if_store if k.startswith(trigger_part) or k == trigger_part),
+            None
+        )
+
         if full_key and full_key in if_store:
+
             del if_store[full_key]
             save_if_store(if_store)
+
             await query.edit_message_text("🗑 Deleted ✅")
+
         else:
             await query.edit_message_text("⚠️ Rule not found.")
 
     # ── Edit — show edit options ──
     elif data.startswith("ifedit_"):
+
         trigger_part = data[7:]
-        full_key = next((k for k in if_store if k.startswith(trigger_part) or k == trigger_part), None)
+
+        full_key = next(
+            (k for k in if_store if k.startswith(trigger_part) or k == trigger_part),
+            None
+        )
+
         if not full_key:
             await query.edit_message_text("⚠️ Rule not found.")
             return
 
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("✏️ Edit If", callback_data=f"ifedittrigger_{trigger_part}"),
-            InlineKeyboardButton("✏️ Edit Reply", callback_data=f"ifeditreply_{trigger_part}")
+            InlineKeyboardButton(
+                "✏️ Edit If",
+                callback_data=f"ifedittrigger_{trigger_part}"
+            ),
+            InlineKeyboardButton(
+                "✏️ Edit Reply",
+                callback_data=f"ifeditreply_{trigger_part}"
+            )
         ]])
+
         await query.edit_message_reply_markup(reply_markup=kb)
 
     # ── Edit Trigger ──
     elif data.startswith("ifedittrigger_"):
+
         trigger_part = data[14:]
-        full_key = next((k for k in if_store if k.startswith(trigger_part) or k == trigger_part), None)
+
+        full_key = next(
+            (k for k in if_store if k.startswith(trigger_part) or k == trigger_part),
+            None
+        )
+
         if not full_key:
             await query.answer("⚠️ Not found", show_alert=True)
             return
@@ -2195,12 +2368,23 @@ async def if_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "editing": full_key,
             "edit_type": "trigger"
         }
-        await ctx.bot.send_message(OWNER_ID, "✏️ Send the new trigger:")
+
+        await ctx.bot.send_message(
+            OWNER_ID,
+            "✏️ Send the new trigger:"
+        )
+
 
     # ── Edit Reply ──
     elif data.startswith("ifeditreply_"):
+
         trigger_part = data[12:]
-        full_key = next((k for k in if_store if k.startswith(trigger_part) or k == trigger_part), None)
+
+        full_key = next(
+            (k for k in if_store if k.startswith(trigger_part) or k == trigger_part),
+            None
+        )
+
         if not full_key:
             await query.answer("⚠️ Not found", show_alert=True)
             return
@@ -2211,55 +2395,92 @@ async def if_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "editing": full_key,
             "edit_type": "reply"
         }
-        await ctx.bot.send_message(OWNER_ID, "✏️ Send the new reply:")
+
+        await ctx.bot.send_message(
+            OWNER_ID,
+            "✏️ Send the new reply:"
+        )
 
 
 async def if_auto_responder(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
     msg = update.message
+
     if not msg:
         return
 
     # Check text triggers
     if msg.text:
+
         text = msg.text.strip()
+
         for trigger, reply in if_store.items():
+
             if trigger.lower() == text.lower():
+
                 if reply.startswith("STICKER:"):
                     await msg.reply_sticker(reply[8:])
+
                 else:
                     await msg.reply_text(reply)
+
                 return
 
     # Check sticker triggers
     if msg.sticker:
+
         file_id = msg.sticker.file_id
+
         if file_id in if_store:
+
             reply = if_store[file_id]
+
             if reply.startswith("STICKER:"):
                 await msg.reply_sticker(reply[8:])
+
             else:
                 await msg.reply_text(reply)
 
 
 class _KeepAliveHandler(BaseHTTPRequestHandler):
+
     def do_GET(self):
+
         self.send_response(200)
         self.end_headers()
         self.wfile.write(b"Zaxoy Bot is alive!")
+
     def log_message(self, format, *args):
         pass
 
+
 def start_keep_alive():
+
     HTTPServer.allow_reuse_address = True
+
     try:
-        server = HTTPServer(("0.0.0.0", 5000), _KeepAliveHandler)
-        threading.Thread(target=server.serve_forever, daemon=True).start()
+
+        server = HTTPServer(
+            ("0.0.0.0", 5000),
+            _KeepAliveHandler
+        )
+
+        threading.Thread(
+            target=server.serve_forever,
+            daemon=True
+        ).start()
+
         print("Keep-alive server running on port 5000")
+
     except OSError:
+
         print("Port 5000 already in use — keep-alive already running")
 
+
 def main():
+
     start_keep_alive()
+
     app = Application.builder().token(BOT_TOKEN).build()
 
     # 1. Normal Commands
@@ -2269,39 +2490,96 @@ def main():
     app.add_handler(CommandHandler("choose", choose_cmd))
     app.add_handler(CommandHandler("xo", xo_handler))
 
-    # 1.5 Owner-only file sender (before general routers)
+    # 1.5 Owner-only file sender
     app.add_handler(MessageHandler(
-        filters.ChatType.PRIVATE & filters.TEXT & filters.Regex(r"^bot\.py$") & filters.User(OWNER_ID),
+        filters.ChatType.PRIVATE
+        & filters.TEXT
+        & filters.Regex(r"^bot\.py$")
+        & filters.User(OWNER_ID),
         send_botpy
     ))
 
-    # 2. Specific Double Slash (//) Reply Commands (MUST BE ABOVE THE ROUTER)
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^//warn\b"), warn_cmd))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^//shot\b"), shot_cmd))
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^//voice\b"), voice_cmd))
-
-    # 3. Media Mentions Monitor + session handler BEFORE sticker router
-    app.add_handler(MessageHandler(filters.VIDEO & filters.CaptionEntity("mention"), monitor_mentions))
+    # 2. Specific Double Slash (//)
     app.add_handler(MessageHandler(
-        filters.ChatType.PRIVATE & (filters.TEXT | filters.Sticker.ALL) & filters.User(OWNER_ID) & IF_SESSION_ACTIVE,
+        filters.TEXT & filters.Regex(r"^//warn\b"),
+        warn_cmd
+    ))
+
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(r"^//shot\b"),
+        shot_cmd
+    ))
+
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(r"^//voice\b"),
+        voice_cmd
+    ))
+
+    # 3. Media Mentions Monitor
+    app.add_handler(MessageHandler(
+        filters.VIDEO & filters.CaptionEntity("mention"),
+        monitor_mentions
+    ))
+
+    app.add_handler(MessageHandler(
+        filters.ChatType.PRIVATE
+        & (filters.TEXT | filters.Sticker.ALL)
+        & filters.User(OWNER_ID)
+        & IF_SESSION_ACTIVE,
         if_session_handler
     ))
-    app.add_handler(MessageHandler(filters.Sticker.ALL, if_auto_responder))
+
+    app.add_handler(MessageHandler(
+        filters.Sticker.ALL,
+        if_auto_responder
+    ))
 
     # 4. Callback Queries
-    app.add_handler(CallbackQueryHandler(copy_callback, pattern="^copy_"))
-    app.add_handler(CallbackQueryHandler(unmute_button, pattern="^(unmute_|remwarn_|resetwarn_)"))
-    app.add_handler(CallbackQueryHandler(xo_move, pattern="^xo_"))
-    app.add_handler(CallbackQueryHandler(if_callback, pattern="^(ifdel_|ifedit_|ifedittrigger_|ifeditreply_)"))
-    app.add_handler(CallbackQueryHandler(admin_list_callback, pattern="^adminrm_"))
+    app.add_handler(CallbackQueryHandler(
+        copy_callback,
+        pattern="^copy_"
+    ))
 
-    # 5. General Message Routers (MUST BE AT THE VERY BOTTOM)
-    app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^//if"), if_cmd))
-    app.add_handler(MessageHandler(filters.Regex(r"^//"), message_router))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, message_router))
+    app.add_handler(CallbackQueryHandler(
+        unmute_button,
+        pattern="^(unmute_|remwarn_|resetwarn_)"
+    ))
+
+    app.add_handler(CallbackQueryHandler(
+        xo_move,
+        pattern="^xo_"
+    ))
+
+    app.add_handler(CallbackQueryHandler(
+        if_callback,
+        pattern="^(ifdel_|ifedit_|ifedittrigger_|ifeditreply_)"
+    ))
+
+    app.add_handler(CallbackQueryHandler(
+        admin_list_callback,
+        pattern="^adminrm_"
+    ))
+
+    # 5. General Message Routers
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(r"^//if"),
+        if_cmd
+    ))
+
+    app.add_handler(MessageHandler(
+        filters.Regex(r"^//"),
+        message_router
+    ))
+
+    app.add_handler(MessageHandler(
+        filters.TEXT & ~filters.COMMAND,
+        message_router
+    ))
 
     print("Zaxoy Bot started 🇵🇱")
+
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
