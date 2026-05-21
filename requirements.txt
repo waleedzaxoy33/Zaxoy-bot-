@@ -2,3 +2,5 @@ python-telegram-bot==21.9
 Pillow
 httpx
 requests
+moviepy
+
