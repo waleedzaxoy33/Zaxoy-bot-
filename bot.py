@@ -2220,8 +2220,9 @@ async def show_if_list(msg, ctx):
 
     for trigger, reply in if_store.items():
 
-        short_trigger = trigger[:30] + "..." if len(trigger) > 30 else trigger
-        short_reply   = reply[:30] + "..." if len(reply) > 30 else reply
+        short_trigger = "🎭 Sticker" if len(trigger) > 40 else (trigger[:30] + "..." if len(trigger) > 30 else trigger)
+        short_reply   = "🎭 Sticker" if reply.startswith("STICKER:") else (reply[:30] + "..." if len(reply) > 30 else reply)
+
 
         text = f"🔹 If: `{short_trigger}`\n↩️ Reply: `{short_reply}`"
 
