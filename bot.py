@@ -1165,6 +1165,27 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ─── //add ────────────────────────────────────────────────────────────
+def load_admin_perms():
+    res = sb.table("admin_perms").select("*").execute()
+    data = res.data
+    if not data:
+        return {}
+
+    result = {}
+    for row in data:
+        result[row["user_id"]] = set(row["perms"])
+    return result
+
+
+def save_admin_perms(store: dict):
+    sb.table("admin_perms").delete().neq("user_id", "").execute()
+
+    for uid, perms in store.items():
+        sb.table("admin_perms").insert({
+            "user_id": str(uid),
+            "perms": list(perms)
+        }).execute()
+
 VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
