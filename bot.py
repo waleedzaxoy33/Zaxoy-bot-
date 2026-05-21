@@ -1906,16 +1906,9 @@ async def process_video_to_voice(video_obj, chat_id: int, ctx: ContextTypes.DEFA
         video_file = await ctx.bot.get_file(video_obj.file_id)
         await video_file.download_to_drive(video_path)
 
-        from moviepy import VideoFileClip
-        clip = VideoFileClip(video_path)
-        audio = clip.audio
-        if audio is None:
-            await ctx.bot.send_message(chat_id, "⚠️ This video has no audio track.")
-            clip.close()
-            return
-        audio.write_audiofile(audio_path, codec="libvorbis", logger=None)
-        clip.close()
-        exit_code = 0 if os.path.exists(audio_path) and os.path.getsize(audio_path) > 0 else 1
+        exit_code = os.system(
+    f'ffmpeg -y -i "{video_path}" -vn -acodec libopus -b:a 64k "{audio_path}"'
+)
 
         if exit_code == 0 and os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
             with open(audio_path, "rb") as vf:
