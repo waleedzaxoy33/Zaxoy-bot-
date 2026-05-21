@@ -1907,10 +1907,12 @@ async def process_video_to_voice(video_obj, chat_id: int, ctx: ContextTypes.DEFA
         await video_file.download_to_drive(video_path)
 
         import subprocess
-        result = subprocess.run(
-            ["ffmpeg", "-y", "-i", video_path, "-vn", "-acodec", "libopus", "-b:a", "64k", audio_path],
-            capture_output=True, timeout=60
-        )
+os.system("apt-get install -y ffmpeg > /dev/null 2>&1")
+result = subprocess.run(
+    ["ffmpeg", "-y", "-i", video_path, "-vn", "-acodec", "libopus", "-b:a", "64k", audio_path],
+    capture_output=True, timeout=60
+)
+
         exit_code = result.returncode
 
         if exit_code == 0 and os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
