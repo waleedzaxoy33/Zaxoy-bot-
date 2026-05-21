@@ -49,8 +49,8 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "7735152814"))
 
 OPENROUTER_API_KEY = "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"
 
-SUPABASE_URL = os.environ.get("SUPABASE_URL", "https://bjxiptbtwgfqrydklthb.supabase.co")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY", "sb_publishable_G8C099u_CVMJgXVYFhH5IQ_wF4dyz80")
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 
 logging.basicConfig(level=logging.INFO)
 
