@@ -1898,48 +1898,90 @@ async def shot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(f"⚠️ Shot failed: {str(e)}")
 
 
-async def process_video_to_voice(video_obj, chat_id: int, ctx: ContextTypes.DEFAULT_TYPE,
-                                 reply_to_id: int = None, delete_msg_id: int = None):
+async def process_video_to_voice(
+    video_obj,
+    chat_id: int,
+    ctx: ContextTypes.DEFAULT_TYPE,
+    reply_to_id: int = None
+):
     video_path = f"temp_video_{chat_id}.mp4"
     audio_path = f"temp_voice_{chat_id}.ogg"
+
     try:
+        # get telegram file
         video_file = await ctx.bot.get_file(video_obj.file_id)
-        await video_file.download_to_drive(video_path)
 
+        # download with strong timeouts
+        await video_file.download_to_drive(
+            custom_path=video_path,
+            read_timeout=300,
+            write_timeout=300,
+            connect_timeout=300,
+            pool_timeout=300
+        )
+
+        # verify file downloaded correctly
+        if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+            await ctx.bot.send_message(
+                chat_id,
+                "⚠️ Failed to download video properly."
+            )
+            return
+
+        # convert to telegram opus voice
         exit_code = os.system(
-    f"ffmpeg -y -i {video_path} -vn -acodec libopus -b:a 64k {audio_path} 2>/dev/null"
-)
+            f"ffmpeg -y -i {video_path} -vn -acodec libopus -b:a 64k {audio_path} -loglevel quiet"
+        )
 
-        if exit_code == 0 and os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
+        # verify output
+        if (
+            exit_code == 0
+            and os.path.exists(audio_path)
+            and os.path.getsize(audio_path) > 1000
+        ):
+
             with open(audio_path, "rb") as vf:
                 await ctx.bot.send_voice(
                     chat_id=chat_id,
                     voice=vf,
                     caption="🎙️ Zaxoy Bot",
-                    reply_to_message_id=reply_to_id
+                    reply_to_message_id=reply_to_id,
+                    read_timeout=300,
+                    write_timeout=300,
+                    connect_timeout=300,
+                    pool_timeout=300
                 )
-            if delete_msg_id:
-                try:
-                    await ctx.bot.delete_message(chat_id, delete_msg_id)
-                except Exception:
-                    pass
+
         else:
-            await ctx.bot.send_message(chat_id, "⚠️ Failed to extract audio from this video.")
+            await ctx.bot.send_message(
+                chat_id,
+                "⚠️ Failed to extract audio from this video."
+            )
+
     except Exception as e:
         try:
-            await ctx.bot.send_message(chat_id, f"⚠️ Voice conversion failed: {e}")
+            await ctx.bot.send_message(
+                chat_id,
+                f"⚠️ Voice conversion failed:\n{e}"
+            )
         except Exception:
             pass
+
     finally:
         for p in (video_path, audio_path):
-            if os.path.exists(p):
-                os.remove(p)
+            try:
+                if os.path.exists(p):
+                    os.remove(p)
+            except Exception:
+                pass
 
 
 async def voice_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
     msg = update.message
     chat_id = msg.chat_id
 
+    # delete only //voice command
     try:
         await msg.delete()
     except Exception:
@@ -1948,51 +1990,78 @@ async def voice_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     target = msg.reply_to_message
 
     if not target:
-        await ctx.bot.send_message(chat_id, "↩️ Reply to a video (or round video) with //voice to convert it!")
+        await ctx.bot.send_message(
+            chat_id,
+            "↩️ Reply to a video with //voice"
+        )
         return
 
+    # reject photos
     if target.photo:
-        await ctx.bot.send_message(chat_id, "🧠 Static images have no audio track.")
+        await ctx.bot.send_message(
+            chat_id,
+            "🧠 Photos don't contain audio."
+        )
         return
 
+    # detect video sources
     video_media = None
+
     if target.video:
         video_media = target.video
+
     elif target.video_note:
         video_media = target.video_note
-    elif target.document and target.document.mime_type and target.document.mime_type.startswith("video/"):
+
+    elif (
+        target.document
+        and target.document.mime_type
+        and target.document.mime_type.startswith("video/")
+    ):
         video_media = target.document
 
     if video_media:
+
         await process_video_to_voice(
             video_media,
             chat_id=chat_id,
             ctx=ctx,
-            reply_to_id=target.message_id,
-            delete_msg_id=target.message_id
+            reply_to_id=target.message_id
+        )
+
+        return
+
+    # already voice/audio
+    if target.voice or target.audio:
+        await ctx.bot.send_message(
+            chat_id,
+            "🤔 That's already audio."
         )
         return
 
-    if target.voice or target.audio:
-        await ctx.bot.send_message(chat_id, "🤔 That's already a voice note.")
-        return
-
-    await ctx.bot.send_message(chat_id, "🤔 This message type doesn't contain any audio data.")
+    await ctx.bot.send_message(
+        chat_id,
+        "🤔 Unsupported media type."
+    )
 
 
 async def monitor_mentions(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
     msg = update.message
-    if not msg or not msg.caption: return
+
+    if not msg or not msg.caption:
+        return
+
     video = msg.video or msg.video_note
+
     if f"@{ctx.bot.username}" in msg.caption and video:
+
         await process_video_to_voice(
             video,
             chat_id=msg.chat_id,
             ctx=ctx,
-            reply_to_id=msg.message_id,
-            delete_msg_id=msg.message_id
+            reply_to_id=msg.message_id
         )
-
 
 # ─────────────────────────────────────────────────────────────
 # //if System — Auto-Responder
