@@ -1904,14 +1904,16 @@ async def process_video_to_voice(
     ctx: ContextTypes.DEFAULT_TYPE,
     reply_to_id: int = None
 ):
+
     video_path = f"temp_video_{chat_id}.mp4"
     audio_path = f"temp_voice_{chat_id}.ogg"
 
     try:
+
         # get telegram file
         video_file = await ctx.bot.get_file(video_obj.file_id)
 
-        # download with strong timeouts
+        # download video
         await video_file.download_to_drive(
             custom_path=video_path,
             read_timeout=300,
@@ -1920,20 +1922,23 @@ async def process_video_to_voice(
             pool_timeout=300
         )
 
-        # verify file downloaded correctly
-        if not os.path.exists(video_path) or os.path.getsize(video_path) == 0:
+        # check file exists
+        if not os.path.exists(video_path):
             await ctx.bot.send_message(
                 chat_id,
-                "⚠️ Failed to download video properly."
+                "⚠️ Video failed to download."
             )
             return
 
-        # convert to telegram opus voice
         print(f"VIDEO SIZE: {os.path.getsize(video_path)}")
 
+        # convert using ffmpeg
         exit_code = os.system(
-     f'ffmpeg -y -i "{video_path}" -map 0:a -c:a libopus -b:a 64k "{audio_path}" -loglevel quiet'
-)
+            f'ffmpeg -y -i "{video_path}" -map 0:a -c:a libopus -b:a 64k "{audio_path}"'
+        )
+
+        print(f"FFMPEG EXIT CODE: {exit_code}")
+
         # verify output
         if (
             exit_code == 0
@@ -1941,7 +1946,10 @@ async def process_video_to_voice(
             and os.path.getsize(audio_path) > 1000
         ):
 
+            print(f"AUDIO SIZE: {os.path.getsize(audio_path)}")
+
             with open(audio_path, "rb") as vf:
+
                 await ctx.bot.send_voice(
                     chat_id=chat_id,
                     voice=vf,
@@ -1954,12 +1962,16 @@ async def process_video_to_voice(
                 )
 
         else:
+
             await ctx.bot.send_message(
                 chat_id,
                 "⚠️ Failed to extract audio from this video."
             )
 
     except Exception as e:
+
+        print(f"VOICE ERROR: {e}")
+
         try:
             await ctx.bot.send_message(
                 chat_id,
@@ -1969,100 +1981,14 @@ async def process_video_to_voice(
             pass
 
     finally:
+
         for p in (video_path, audio_path):
+
             try:
                 if os.path.exists(p):
                     os.remove(p)
             except Exception:
                 pass
-
-
-async def voice_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-
-    msg = update.message
-    chat_id = msg.chat_id
-
-    # delete only //voice command
-    try:
-        await msg.delete()
-    except Exception:
-        pass
-
-    target = msg.reply_to_message
-
-    if not target:
-        await ctx.bot.send_message(
-            chat_id,
-            "↩️ Reply to a video with //voice"
-        )
-        return
-
-    # reject photos
-    if target.photo:
-        await ctx.bot.send_message(
-            chat_id,
-            "🧠 Photos don't contain audio."
-        )
-        return
-
-    # detect video sources
-    video_media = None
-
-    if target.video:
-        video_media = target.video
-
-    elif target.video_note:
-        video_media = target.video_note
-
-    elif (
-        target.document
-        and target.document.mime_type
-        and target.document.mime_type.startswith("video/")
-    ):
-        video_media = target.document
-
-    if video_media:
-
-        await process_video_to_voice(
-            video_media,
-            chat_id=chat_id,
-            ctx=ctx,
-            reply_to_id=target.message_id
-        )
-
-        return
-
-    # already voice/audio
-    if target.voice or target.audio:
-        await ctx.bot.send_message(
-            chat_id,
-            "🤔 That's already audio."
-        )
-        return
-
-    await ctx.bot.send_message(
-        chat_id,
-        "🤔 Unsupported media type."
-    )
-
-
-async def monitor_mentions(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-
-    msg = update.message
-
-    if not msg or not msg.caption:
-        return
-
-    video = msg.video or msg.video_note
-
-    if f"@{ctx.bot.username}" in msg.caption and video:
-
-        await process_video_to_voice(
-            video,
-            chat_id=msg.chat_id,
-            ctx=ctx,
-            reply_to_id=msg.message_id
-        )
 
 # ─────────────────────────────────────────────────────────────
 # //if System — Auto-Responder
