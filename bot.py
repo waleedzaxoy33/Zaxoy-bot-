@@ -105,7 +105,7 @@ def sb_load_if_store() -> dict:
 def sb_save_if_store(store: dict):
     try:
         requests.delete(
-            f"{SUPABASE_URL}/rest/v1/if_store?trigger=neq.__none__",
+            f"{SUPABASE_URL}/rest/v1/if_store?trigger=neq.ZAXOY_PLACEHOLDER_NONE",
             headers=sb_headers(), timeout=10
         )
         rows = [{"trigger": k, "reply": v} for k, v in store.items()]
@@ -1257,6 +1257,61 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(f"⚠️ {target_name} didn't have {specific_cmd}")
 
 
+# ─── //admin //list ──────────────────────────────────────────────────
+async def admin_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if msg.from_user.id != OWNER_ID:
+        return
+
+    # Refresh from Supabase
+    global admin_perms
+    admin_perms = load_admin_perms()
+
+    if not admin_perms:
+        await msg.reply_text("📭 No admins yet.")
+        return
+
+    await msg.reply_text(f"📋 *{len(admin_perms)} admin(s):*", parse_mode="Markdown")
+
+    for uid, perms in admin_perms.items():
+        try:
+            chat_member = await ctx.bot.get_chat_member(chat_id=msg.chat_id, user_id=uid)
+            name = chat_member.user.full_name
+            username = f"@{chat_member.user.username}" if chat_member.user.username else ""
+        except Exception:
+            name = str(uid)
+            username = ""
+
+        if "all" in perms:
+            perms_text = "👑 Full Admin"
+        else:
+            perms_text = ", ".join(sorted(perms)) if perms else "No permissions"
+
+        text = f"👤 *{name}* {username}\n🆔 `{uid}`\n🔑 {perms_text}"
+
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🗑 Remove All", callback_data=f"adminrm_{uid}"),
+        ]])
+
+        await msg.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+
+
+async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.from_user.id != OWNER_ID:
+        return
+
+    data = query.data
+
+    if data.startswith("adminrm_"):
+        uid = int(data[8:])
+        admin_perms.pop(uid, None)
+        save_admin_perms(admin_perms)
+        await query.edit_message_text("✅ Admin removed 🇵🇱")
+
+
 async def react_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not has_perm(msg.from_user.id, "//re"):
@@ -1335,6 +1390,8 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await zaxo_msg(update, ctx)
     elif text.startswith("//add"):
         await add_cmd(update, ctx)
+    elif text.startswith("//admin"):
+        await admin_list_cmd(update, ctx)
     elif text.startswith("//remove"):
         await remove_cmd(update, ctx)
     elif text.startswith("//st"):
@@ -1849,9 +1906,12 @@ async def process_video_to_voice(video_obj, chat_id: int, ctx: ContextTypes.DEFA
         video_file = await ctx.bot.get_file(video_obj.file_id)
         await video_file.download_to_drive(video_path)
 
-        exit_code = os.system(
-            f"ffmpeg -y -i {video_path} -vn -acodec libopus -b:a 64k {audio_path} 2>/dev/null"
+        import subprocess
+        result = subprocess.run(
+            ["ffmpeg", "-y", "-i", video_path, "-vn", "-acodec", "libopus", "-b:a", "64k", audio_path],
+            capture_output=True, timeout=60
         )
+        exit_code = result.returncode
 
         if exit_code == 0 and os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
             with open(audio_path, "rb") as vf:
@@ -2240,6 +2300,7 @@ def main():
     app.add_handler(CallbackQueryHandler(unmute_button, pattern="^(unmute_|remwarn_|resetwarn_)"))
     app.add_handler(CallbackQueryHandler(xo_move, pattern="^xo_"))
     app.add_handler(CallbackQueryHandler(if_callback, pattern="^(ifdel_|ifedit_|ifedittrigger_|ifeditreply_)"))
+    app.add_handler(CallbackQueryHandler(admin_list_callback, pattern="^adminrm_"))
 
     # 5. General Message Routers (MUST BE AT THE VERY BOTTOM)
     app.add_handler(MessageHandler(filters.TEXT & filters.Regex(r"^//if"), if_cmd))
