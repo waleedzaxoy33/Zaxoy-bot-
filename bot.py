@@ -1091,78 +1091,55 @@ async def say_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ─────────────────────────────────────────────────────────────
-# //ask — AI via OpenRouter
-# ─────────────────────────────────────────────────────────────
-
-
+# ─── //ask — AI via OpenRouter ─────────────────────────────
 
 async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-
     msg = update.message
+    if not msg or not msg.text:
+        return
 
     text_parts = msg.text.split(None, 1)
 
-    question = (
-        text_parts[1]
-        if len(text_parts) > 1
-        else None
-    )
+    question = text_parts[1].strip() if len(text_parts) > 1 else None
 
     if not question:
-
         await msg.reply_text(
-            "🤖 Ask me anything!\n"
-            "Usage: //ask [your question]"
+            "🤖 Ask me anything!\nUsage: //ask [your question]"
         )
-
         return
 
-    thinking = await msg.reply_text(
-        "🤔 Thinking..."
-    )
+    thinking = await msg.reply_text("🤔 Thinking...")
 
     try:
-
         async with httpx.AsyncClient(timeout=30) as client:
-
             resp = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
-
                 headers={
                     "Authorization": f"Bearer {OPENROUTER_API_KEY}",
                     "Content-Type": "application/json",
                     "HTTP-Referer": "https://t.me/",
                     "X-Title": "ZaxoyBot",
-
                 },
-
                 json={
-                    "model": "mistralai/mistral-7b-instruct:free",
+                    "model": "google/gemma-2-9b-it:free",
                     "messages": [
-                        {
-                            "role": "user",
-                            "content": question
-                        }
+                        {"role": "user", "content": question}
                     ],
-
                     "max_tokens": 1000,
                 }
             )
 
         data = resp.json()
-        if "choices" in data:
+
+        if "choices" in data and len(data["choices"]) > 0:
             answer = data["choices"][0]["message"]["content"]
         else:
             answer = str(data)
 
     except Exception as e:
-
         answer = f"⚠️ Error: {str(e)}"
 
-    await thinking.edit_text(
-        f"🤖 {answer}"
-    )
-
+    await thinking.edit_text(f"🤖 {answer}")
 
 # ─── //add ────────────────────────────────────────────────────────────
 def load_admin_perms():
