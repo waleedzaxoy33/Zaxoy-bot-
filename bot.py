@@ -18,6 +18,7 @@ import random
 import asyncio
 import re
 from datetime import timedelta, datetime, timezone
+from supabase import create_client
 
 # Install ffmpeg at startup
 os.system("apt-get update -qq && apt-get install -y ffmpeg -qq > /dev/null 2>&1 || true")
@@ -51,6 +52,7 @@ OPENROUTER_API_KEY = "sk-or-v1-53ec5b7ef5b9bd6460d89827a1f3897e520d0b19fa3244a88
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+sb = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -2101,7 +2103,27 @@ async def monitor_mentions(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────────────────────
 # //if System — Auto-Responder
 # ─────────────────────────────────────────────────────────────
+def sb_load_if_store():
+    res = sb.table("if_store").select("*").execute()
+    data = res.data
+    if not data:
+        return {}
+
+    return {row["trigger"]: row["reply"] for row in data}
+
+
+def sb_save_if_store(store: dict):
+    sb.table("if_store").delete().neq("trigger", "").execute()
+
+    for k, v in store.items():
+        sb.table("if_store").insert({
+            "trigger": k,
+            "reply": v
+        }).execute()
+
+
 IF_STORE_FILE = "if_store.json"
+
 
 def load_if_store() -> dict:
     # Try Supabase first, fallback to local file
