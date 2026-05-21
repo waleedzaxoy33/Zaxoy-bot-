@@ -1907,7 +1907,7 @@ async def process_video_to_voice(video_obj, chat_id: int, ctx: ContextTypes.DEFA
         await video_file.download_to_drive(video_path)
 
         exit_code = os.system(
-    f'ffmpeg -y -i "{video_path}" -vn -acodec libopus -b:a 64k "{audio_path}"'
+    f"ffmpeg -y -i {video_path} -vn -acodec libopus -b:a 64k {audio_path} 2>/dev/null"
 )
 
         if exit_code == 0 and os.path.exists(audio_path) and os.path.getsize(audio_path) > 0:
