@@ -2598,6 +2598,8 @@ async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 f"⚠️ Failed to unban:\n{e}"
             )
 
+
+
 # ─── //unban ─────────────────────────────────────────────────────────
 
 async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2610,12 +2612,12 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = None
     user_name = None
 
-    
+    # طريقة 1: رد على رسالة
     if msg.reply_to_message:
         user_id = msg.reply_to_message.from_user.id
         user_name = msg.reply_to_message.from_user.full_name
 
-    
+    # طريقة 2: منشن @username
     elif msg.entities:
         for entity in msg.entities:
             if entity.type == "mention":
@@ -2639,9 +2641,10 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         await msg.reply_text(f"🔓 {user_name} has been unbanned 🇵🇱")
     except Exception as e:
-        await msg.reply_text(f"⚠️ Failed to unban:\n{e}")
-
-
+        if "USER_NOT_BANNED" in str(e):
+            await msg.reply_text(f"⚠️ {user_name} is not banned! 🇵🇱")
+        else:
+            await msg.reply_text(f"⚠️ Failed to unban:\n{e}")
 
 
 def main():
