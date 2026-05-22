@@ -2565,6 +2565,30 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         await _reply(f"⚠️ Failed to ban user:\n{e}")
 
+# ─── UNBAN Button ────────────────────────────────────────────────
+
+async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not has_perm(query.from_user.id, "//ban"):
+        await query.answer("💀 No power here", show_alert=True)
+        return
+
+    data = query.data
+
+    if data.startswith("unban_"):
+        user_id = int(data.split("_")[1])
+        try:
+            await ctx.bot.unban_chat_member(
+                chat_id=query.message.chat.id,
+                user_id=user_id
+            )
+            await query.edit_message_text("🔓 User has been unbanned 🇵🇱")
+        except Exception as e:
+            await query.edit_message_text(f"⚠️ Failed to unban:\n{e}")
+
+
 # ─── //unban ─────────────────────────────────────────────────────────
 
 async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
