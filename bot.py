@@ -1409,6 +1409,9 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await unmute_cmd(update, ctx)
     elif text.startswith("//if"):
         await if_cmd(update, ctx)
+    elif text.startswith("//ban"):
+        await ban_cmd(update, ctx)
+
     else:
         await zaxo_defense_handler(update, ctx)
 
@@ -2509,17 +2512,17 @@ def start_keep_alive():
         print("Port 5000 already in use — keep-alive already running")
 
 
-
 # ─── //ban ─────────────────────────────────────────────────────────
 
 async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     msg = update.message
 
-    async def _reply(text):
+    async def _reply(text, reply_markup=None):
         await msg.reply_text(
             text,
-            reply_to_message_id=msg.message_id
+            reply_to_message_id=msg.message_id,
+            reply_markup=reply_markup
         )
 
     if not has_perm(msg.from_user.id, "//ban"):
@@ -2533,17 +2536,65 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     target = msg.reply_to_message.from_user
 
     try:
+
         await ctx.bot.ban_chat_member(
             chat_id=msg.chat.id,
             user_id=target.id
         )
 
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton(
+                "🔓 UNBAN",
+                callback_data=f"unban_{target.id}"
+            )
+        ]])
+
         await _reply(
-            f"🔨 {target.full_name} has been banned 🇵🇱"
+            f"🔨 {target.full_name} has been banned 🇵🇱",
+            reply_markup=kb
         )
 
     except Exception as e:
         await _reply(f"⚠️ Failed to ban user:\n{e}")
+
+
+# ─── UNBAN Button ────────────────────────────────────────────────
+
+async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
+    query = update.callback_query
+    await query.answer()
+
+    if not has_perm(query.from_user.id, "//ban"):
+        await query.answer(
+            "💀 No power here",
+            show_alert=True
+        )
+        return
+
+    data = query.data
+
+    if data.startswith("unban_"):
+
+        user_id = int(data.split("_")[1])
+
+        try:
+
+            await ctx.bot.unban_chat_member(
+                chat_id=query.message.chat.id,
+                user_id=user_id
+            )
+
+            await query.edit_message_text(
+                "🔓 User has been unbanned 🇵🇱"
+            )
+
+        except Exception as e:
+
+            await query.edit_message_text(
+                f"⚠️ Failed to unban:\n{e}"
+            )
+
 
 
 def main():
