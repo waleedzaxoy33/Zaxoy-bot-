@@ -1212,6 +1212,15 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── //remove ────────────────────────────────────────────────────────
 async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
+    elif msg.entities:
+    for entity in msg.entities:
+
+        if entity.type == "mention":
+
+            await msg.reply_text(
+                "⚠️ Normal @mentions are unreliable.\nReply to the user instead."
+            )
+            return
     if msg.from_user.id != OWNER_ID:
         return
     target = msg.reply_to_message
@@ -1263,6 +1272,7 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── //admin //list ──────────────────────────────────────────────────
 async def admin_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
+    
     if msg.from_user.id != OWNER_ID:
         return
 
@@ -1555,6 +1565,15 @@ async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
+    elif msg.entities:
+    for entity in msg.entities:
+
+        if entity.type == "mention":
+
+            await msg.reply_text(
+                "⚠️ Normal @mentions are unreliable.\nReply to the user instead."
+            )
+            return
     chat_id = msg.chat_id
 
     async def _reply(text):
@@ -1620,6 +1639,15 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
+    elif msg.entities:
+    for entity in msg.entities:
+
+        if entity.type == "mention":
+
+            await msg.reply_text(
+                "⚠️ Normal @mentions are unreliable.\nReply to the user instead."
+            )
+            return
     user_id = msg.from_user.id
     target = msg.reply_to_message
 
@@ -2529,6 +2557,17 @@ BAN_MESSAGES = [
 async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
 
+    elif msg.entities:
+    for entity in msg.entities:
+
+        if entity.type == "mention":
+
+            await msg.reply_text(
+                "⚠️ Normal @mentions are unreliable.\nReply to the user instead."
+            )
+            return
+
+
     async def _reply(text, reply_markup=None):
         await msg.reply_text(text, reply_to_message_id=msg.message_id, reply_markup=reply_markup)
 
@@ -2611,9 +2650,16 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         for entity in msg.entities:
             if entity.type == "mention":
                 username = msg.text[entity.offset+1:entity.offset+entity.length]
-                try:
-                    chat = await ctx.bot.get_chat(f"@{username}")
-                    user_id = chat.id
+                
+                    elif msg.entities:
+    for entity in msg.entities:
+
+        if entity.type == "mention":
+
+            await msg.reply_text(
+                "⚠️ Normal @mentions are unreliable.\nReply to the user instead."
+            )
+            return
                     user_name = chat.full_name
                 except Exception:
                     await msg.reply_text(f"⚠️ User @{username} not found.")
