@@ -1163,7 +1163,7 @@ def save_admin_perms(store: dict):
             "perms": list(perms)
         }).execute()
 
-VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn"}
+VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -2507,6 +2507,43 @@ def start_keep_alive():
     except OSError:
 
         print("Port 5000 already in use — keep-alive already running")
+
+
+
+# ─── //ban ─────────────────────────────────────────────────────────
+
+async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
+    msg = update.message
+
+    async def _reply(text):
+        await msg.reply_text(
+            text,
+            reply_to_message_id=msg.message_id
+        )
+
+    if not has_perm(msg.from_user.id, "//ban"):
+        await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
+        return
+
+    if not msg.reply_to_message:
+        await _reply("↩️ Reply to a user to ban them.")
+        return
+
+    target = msg.reply_to_message.from_user
+
+    try:
+        await ctx.bot.ban_chat_member(
+            chat_id=msg.chat.id,
+            user_id=target.id
+        )
+
+        await _reply(
+            f"🔨 {target.full_name} has been banned 🇵🇱"
+        )
+
+    except Exception as e:
+        await _reply(f"⚠️ Failed to ban user:\n{e}")
 
 
 def main():
