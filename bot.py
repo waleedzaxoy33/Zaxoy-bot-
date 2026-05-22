@@ -2517,16 +2517,20 @@ def start_keep_alive():
 
 # ─── //ban ─────────────────────────────────────────────────────────
 
-async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+BAN_MESSAGES = [
+    "🔨 {name} has been banned from Zaxo's domain! No return. 🇵🇱",
+    "⛓️ {name} is gone for good! Zaxo's law is final. 🇵🇱",
+    "🚫 {name} — you crossed the line. Banned by order of Zaxoy Bot. 🇵🇱",
+    "💀 {name} has been erased from Zaxo's kingdom! 🇵🇱",
+    "⚔️ The sword has fallen! {name} is permanently banned! 🇵🇱",
+    "🌑 {name} has entered the void — no way back. 🇵🇱",
+]
 
+async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
 
     async def _reply(text, reply_markup=None):
-        await msg.reply_text(
-            text,
-            reply_to_message_id=msg.message_id,
-            reply_markup=reply_markup
-        )
+        await msg.reply_text(text, reply_to_message_id=msg.message_id, reply_markup=reply_markup)
 
     if not has_perm(msg.from_user.id, "//ban"):
         await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
@@ -2538,67 +2542,28 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     target = msg.reply_to_message.from_user
 
-    try:
+    if msg.from_user.id == target.id:
+        await _reply("🧠 Ban yourself? That's not how it works bro! 🇵🇱")
+        return
 
-        await ctx.bot.ban_chat_member(
-            chat_id=msg.chat.id,
-            user_id=target.id
-        )
+    try:
+        chat_member = await ctx.bot.get_chat_member(chat_id=msg.chat.id, user_id=target.id)
+        if chat_member.status in ['administrator', 'creator']:
+            await _reply("🛡️ Friendly fire! You can't ban an admin! 🇵🇱")
+            return
+
+        await ctx.bot.ban_chat_member(chat_id=msg.chat.id, user_id=target.id)
+
+        ban_msg = random.choice(BAN_MESSAGES).format(name=target.full_name)
 
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton(
-                "🔓 UNBAN",
-                callback_data=f"unban_{target.id}"
-            )
+            InlineKeyboardButton("🔓 UNBAN", callback_data=f"unban_{target.id}")
         ]])
 
-        await _reply(
-            f"🔨 {target.full_name} has been banned 🇵🇱",
-            reply_markup=kb
-        )
+        await _reply(ban_msg, reply_markup=kb)
 
     except Exception as e:
         await _reply(f"⚠️ Failed to ban user:\n{e}")
-
-
-# ─── UNBAN Button ────────────────────────────────────────────────
-
-async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-
-    query = update.callback_query
-    await query.answer()
-
-    if not has_perm(query.from_user.id, "//ban"):
-        await query.answer(
-            "💀 No power here",
-            show_alert=True
-        )
-        return
-
-    data = query.data
-
-    if data.startswith("unban_"):
-
-        user_id = int(data.split("_")[1])
-
-        try:
-
-            await ctx.bot.unban_chat_member(
-                chat_id=query.message.chat.id,
-                user_id=user_id
-            )
-
-            await query.edit_message_text(
-                "🔓 User has been unbanned 🇵🇱"
-            )
-
-        except Exception as e:
-
-            await query.edit_message_text(
-                f"⚠️ Failed to unban:\n{e}"
-            )
-
-
 
 # ─── //unban ─────────────────────────────────────────────────────────
 
