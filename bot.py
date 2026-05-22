@@ -1163,7 +1163,7 @@ def save_admin_perms(store: dict):
             "perms": list(perms)
         }).execute()
 
-VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban"}
+VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -1411,6 +1411,9 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await if_cmd(update, ctx)
     elif text.startswith("//ban"):
         await ban_cmd(update, ctx)
+    elif text.startswith("//unban"):
+        await unban_cmd(update, ctx)
+
 
     else:
         await zaxo_defense_handler(update, ctx)
@@ -2594,6 +2597,50 @@ async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(
                 f"⚠️ Failed to unban:\n{e}"
             )
+
+# ─── //unban ─────────────────────────────────────────────────────────
+
+async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+
+    if not has_perm(msg.from_user.id, "//ban"):
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
+        return
+
+    user_id = None
+    user_name = None
+
+    
+    if msg.reply_to_message:
+        user_id = msg.reply_to_message.from_user.id
+        user_name = msg.reply_to_message.from_user.full_name
+
+    
+    elif msg.entities:
+        for entity in msg.entities:
+            if entity.type == "mention":
+                username = msg.text[entity.offset+1:entity.offset+entity.length]
+                try:
+                    chat = await ctx.bot.get_chat(f"@{username}")
+                    user_id = chat.id
+                    user_name = chat.full_name
+                except Exception:
+                    await msg.reply_text(f"⚠️ User @{username} not found.")
+                    return
+
+    if not user_id:
+        await msg.reply_text("↩️ Reply to a user or mention them: //unban @username")
+        return
+
+    try:
+        await ctx.bot.unban_chat_member(
+            chat_id=msg.chat.id,
+            user_id=user_id
+        )
+        await msg.reply_text(f"🔓 {user_name} has been unbanned 🇵🇱")
+    except Exception as e:
+        await msg.reply_text(f"⚠️ Failed to unban:\n{e}")
+
 
 
 
