@@ -1212,7 +1212,7 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── //remove ────────────────────────────────────────────────────────
 async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-        if msg.entities:
+            if msg.entities:
         for entity in msg.entities:
             if entity.type == "mention":
                 await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
@@ -1561,7 +1561,7 @@ async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-        if msg.entities:
+            if msg.entities:
         for entity in msg.entities:
             if entity.type == "mention":
                 await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
@@ -1631,7 +1631,7 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-        if msg.entities:
+            if msg.entities:
         for entity in msg.entities:
             if entity.type == "mention":
                 await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
@@ -2546,7 +2546,7 @@ BAN_MESSAGES = [
 async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
 
-    if msg.entities:
+        if msg.entities:
     for entity in msg.entities:
 
         if entity.type == "mention":
@@ -2620,19 +2620,48 @@ async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── //unban ─────────────────────────────────────────────────────────
 async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-
+    
     if not has_perm(msg.from_user.id, "//ban"):
         await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    if not msg.reply_to_message:
-        await msg.reply_text("↩️ Reply to a user to unban them.")
+    user_id = None
+    user_name = None
+
+    # 1. Check for Reply
+    if msg.reply_to_message:
+        user_id = msg.reply_to_message.from_user.id
+        user_name = msg.reply_to_message.from_user.full_name
+    
+    # 2. Check for Mention or ID in text
+    else:
+        parts = msg.text.split()
+        if len(parts) > 1:
+            target = parts[1]
+            if msg.entities:
+                for entity in msg.entities:
+                    if entity.type == "mention":
+                        user_id = target
+                        user_name = target
+            if not user_id:
+                try:
+                    user_id = int(target)
+                    user_name = f"ID: {target}"
+                except ValueError:
+                    pass
+
+    if not user_id:
+        await msg.reply_text("↩️ Reply, mention, or provide an ID: //unban [reply/mention/id]")
         return
 
-    user = msg.reply_to_message.from_user
-    user_id = user.id
-    user_name = user.full_name
-
+    try:
+        await ctx.bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)
+        await msg.reply_text(f"🔓 {user_name} has been unbanned 🇵🇱")
+    except Exception as e:
+        if "USER_NOT_BANNED" in str(e):
+            await msg.reply_text(f"⚠️ {user_name} is not banned! 🇵🇱")
+        else:
+            await msg.reply_text(f"⚠️ Failed to unban:\n{e}")
     try:
         await ctx.bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)
         await msg.reply_text(f"🔓 {user_name} has been unbanned 🇵🇱")
