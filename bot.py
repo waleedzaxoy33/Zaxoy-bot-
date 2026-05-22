@@ -2680,6 +2680,12 @@ def main():
         pattern="^adminrm_"
     ))
 
+    app.add_handler(CallbackQueryHandler(
+    ban_callback,
+    pattern="^unban_"
+    ))
+
+
     # 5. General Message Routers
     app.add_handler(MessageHandler(
         filters.TEXT & filters.Regex(r"^//if"),
