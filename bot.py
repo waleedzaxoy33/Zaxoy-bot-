@@ -1212,7 +1212,7 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── //remove ────────────────────────────────────────────────────────
 async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-            if msg.entities:
+    if msg.entities:
         for entity in msg.entities:
             if entity.type == "mention":
                 await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
@@ -1561,11 +1561,11 @@ async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-            if msg.entities:
-        for entity in msg.entities:
-            if entity.type == "mention":
-                await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
-                return
+    if msg.entities:
+       for entity in msg.entities:
+    if entity.type == "mention":
+       await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
+        return
     chat_id = msg.chat_id
 
     async def _reply(text):
@@ -1631,7 +1631,7 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-            if msg.entities:
+    if msg.entities:
         for entity in msg.entities:
             if entity.type == "mention":
                 await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
@@ -2545,16 +2545,11 @@ BAN_MESSAGES = [
 
 async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-
-        if msg.entities:
-    for entity in msg.entities:
-
-        if entity.type == "mention":
-
-            await msg.reply_text(
-                "⚠️ Normal @mentions are unreliable.\nReply to the user instead."
-            )
-            return
+    if msg.entities:
+       for entity in msg.entities:
+    if entity.type == "mention":
+       await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
+             return
 
 
     async def _reply(text, reply_markup=None):
