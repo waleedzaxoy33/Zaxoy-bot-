@@ -277,58 +277,33 @@ async def cache_user_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         pass
 
 async def resolve_target_from_mention(msg, ctx):
-    """Extract user_id and user_name from reply, mention, cache, username or raw id"""
+    """Extract target from reply or @username only"""
 
     if msg.reply_to_message and msg.reply_to_message.from_user:
         u = msg.reply_to_message.from_user
         return u.id, u.full_name
 
-    if msg.entities:
-        for entity in msg.entities:
+    text_msg = msg.text or msg.caption or ""
 
-            if entity.type == 'text_mention' and entity.user:
-                return entity.user.id, entity.user.full_name
+    username_match = re.search(r'@(\w{3,})', text_msg)
+    if not username_match:
+        return None, None
 
-            if entity.type == 'mention':
-                username = msg.text[entity.offset:entity.offset + entity.length].lower()
+    username = f"@{username_match.group(1)}".lower()
 
-                cached_user_id = USER_CACHE.get(username)
+    cached_user_id = USER_CACHE.get(username)
 
-                if cached_user_id:
-                    cached_data = USER_CACHE.get(str(cached_user_id), {})
-                    return int(cached_user_id), cached_data.get("name", username)
+    if cached_user_id:
+        cached_data = USER_CACHE.get(str(cached_user_id), {})
+        return int(cached_user_id), cached_data.get("name", username)
 
-                try:
-                    chat = await ctx.bot.get_chat(username)
-                    return chat.id, chat.full_name or username
-                except Exception:
-                    pass
+    try:
+        chat = await ctx.bot.get_chat(username)
+        return chat.id, chat.full_name or username
+    except Exception:
+        return None, None
 
-    parts = msg.text.split()
-
-    for part in parts[1:]:
-        clean = part.strip().lower()
-
-        if clean.startswith("@"):
-            cached_user_id = USER_CACHE.get(clean)
-
-            if cached_user_id:
-                cached_data = USER_CACHE.get(str(cached_user_id), {})
-                return int(cached_user_id), cached_data.get("name", clean)
-
-            try:
-                chat = await ctx.bot.get_chat(clean)
-                return chat.id, chat.full_name or clean
-            except Exception:
-                pass
-
-        if clean.lstrip("-").isdigit():
-            cached_data = USER_CACHE.get(str(int(clean)), {})
-            return int(clean), cached_data.get("name", clean)
-
-    return None, None
-
-async def resolve_target_user(msg, ctx, allow_id=True):
+async def resolve_target_user(msg, ctx, allow_id=False):
     reply = msg.reply_to_message
     if reply and reply.from_user:
         return reply.from_user.id, reply.from_user.full_name, reply
