@@ -1596,7 +1596,7 @@ def format_duration(seconds: int) -> str:
         parts.append(f"{m} minute{'s' if m > 1 else ''}")
     if seconds > 0:
         parts.append(f"{seconds} second{'s' if seconds > 1 else ''}")
-    return " and ".join(parts) if parts else "0 seconds"
+    return " and ".join(parts) if parts else ""
 
 
 async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1829,11 +1829,62 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         asyncio.create_task(auto_unmute_task(
             msg.chat_id, target_id, sent.message_id, 
-            target.from_user.full_name, msg_idx, seconds, ctx
+            target_name, msg_idx, seconds, ctx
         ))
 
     except Exception as e:
         await msg.reply_text(f"⚠️ Failed to mute user: {str(e)}")
+
+
+
+async def unmute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+
+    if not has_perm(msg.from_user.id, "//unmute"):
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
+        return
+
+    target = msg.reply_to_message
+    target_id = None
+
+    if target and target.from_user:
+        target_id = target.from_user.id
+    else:
+        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
+        if mention_id:
+            target_id = mention_id
+        else:
+            await msg.reply_text("↩️ Reply to a user or mention them: //unmute @username")
+            return
+
+    try:
+        await ctx.bot.restrict_chat_member(
+            chat_id=msg.chat_id,
+            user_id=target_id,
+            permissions=ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=True,
+                can_send_documents=True,
+                can_send_photos=True,
+                can_send_videos=True,
+                can_send_video_notes=True,
+                can_send_voice_notes=True,
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=True,
+                can_invite_users=True,
+                can_pin_messages=True
+            )
+        )
+
+        mute_store.pop(target_id, None)
+
+        member = await ctx.bot.get_chat_member(msg.chat_id, target_id)
+        await msg.reply_text(f"🔓 {member.user.full_name} has been unmuted! 🇵🇱")
+
+    except Exception as e:
+        await msg.reply_text(f"⚠️ Failed to unmute user: {str(e)}")
 
 
 async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
