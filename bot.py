@@ -1546,14 +1546,21 @@ def format_duration(seconds: int) -> str:
     return " and ".join(parts) if parts else "0 seconds"
 
 
-async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    target = msg.reply_to_message
 
-    if not target:
+async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
+    msg = update.message
+
+    target_user, _ = await resolve_target_from_mention(msg, ctx)
+
+    if not target_user and msg.reply_to_message:
+        target_user = msg.reply_to_message.from_user
+
+    if not target_user:
+        await msg.reply_text("Please reply to a user or mention them!")
         return
 
-    uid = target.from_user.id
+    uid = target_user.id
 
     if uid not in mute_store:
         await msg.reply_text("✅ Not muted.")
@@ -1566,19 +1573,12 @@ async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("✅ Mute expired.")
         return
 
-    
-# ─────────────────────────────────────────────────────────────
-# MUTE SYSTEM WITH MATCHING RESPONSES (AUTO & MANUAL)
-# ─────────────────────────────────────────────────────────────
+    duration_formatted = format_duration(int(left.total_seconds()))
 
-UNMUTE_MESSAGES = [
-    "🔊 Zaxoy's order has expired! {name} is free to speak again! 🇵🇱",
-    "✅ Break is over {name}! You can type in the chat now! 🇵🇱",
-    "🔓 The hammer is lifted! {name} has been unmuted! 🇵🇱"
-]
+    await msg.reply_text(
+        f"⏳ User is still muted. Remaining time: {duration_formatted}"
+    )
 
-if 'mute_msg_index_map' not in globals():
-    mute_msg_index_map = {}
 
 async def auto_unmute_task(chat_id: int, user_id: int, message_id: int, user_name: str, message_index: int, delay_seconds: int, ctx: ContextTypes.DEFAULT_TYPE):
     await asyncio.sleep(delay_seconds)
@@ -1596,16 +1596,21 @@ async def auto_unmute_task(chat_id: int, user_id: int, message_id: int, user_nam
         except Exception:
             pass
 
-async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-       target_user, _ = await resolve_target_from_mention(update.message, context)
-    if not target_user:
-    if update.message.reply_to_message:
-            target_user = update.message.reply_to_message.from_user
-        else:
-            await update.message.reply_text("You must reply to a user or mention them!")
-            return 
 
-    uid = target.from_user.id
+async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
+    msg = update.message
+
+    target_user, _ = await resolve_target_from_mention(msg, ctx)
+
+    if not target_user and msg.reply_to_message:
+        target_user = msg.reply_to_message.from_user
+
+    if not target_user:
+        await msg.reply_text("Please reply to a user or mention them!")
+        return
+
+    uid = target_user.id
 
     if uid not in mute_store:
         await msg.reply_text("✅ Not muted.")
@@ -1619,7 +1624,11 @@ async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     duration_formatted = format_duration(int(left.total_seconds()))
-    await msg.reply_text(f"⏳ User is still muted. Remaining time: {duration_formatted}")
+
+    await msg.reply_text(
+        f"⏳ User is still muted. Remaining time: {duration_formatted}"
+    )
+
 
 
 async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1630,35 +1639,23 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         try:
             await msg.reply_text(text)
         except Exception:
-            try:
-                await ctx.bot.send_message(chat_id, text)
-            except Exception:
-                pass
+            pass
 
     if not has_perm(msg.from_user.id, "//warn"):
         await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-        target_user, _ = await resolve_target_from_mention(msg, ctx)
+    target_user, _ = await resolve_target_from_mention(msg, ctx)
+
     if not target_user and msg.reply_to_message:
         target_user = msg.reply_to_message.from_user
-    
+
     if not target_user:
         await _reply("Please reply to a user or mention them!")
         return
-        
+
     uid = target_user.id
-    target_name_str = target_user.first_name
-        uid = target.from_user.id
-        target_name_str = target.from_user.full_name
-    else:
-        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
-        if mention_id:
-            uid = mention_id
-            target_name_str = mention_name
-        else:
-            await _reply("↩️ Reply to a user or mention them: //warn @username")
-            return
+    target_name_str = target_user.full_name
 
     if msg.from_user.id == uid:
         await _reply("🧠 Wanna warn yourself? You can't do that, bro! Friendly Fire is OFF 🇵🇱")
@@ -1676,13 +1673,16 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         if count >= 3:
             until_date = datetime.now(timezone.utc) + timedelta(seconds=3600)
+
             await ctx.bot.restrict_chat_member(
                 chat_id=chat_id,
                 user_id=uid,
                 permissions=ChatPermissions(can_send_messages=False),
                 until_date=until_date
             )
+
             warn_store[uid] = 0
+
             await _reply(f"🔨 {target_name_str} received 3/3 warnings and has been muted for 1 hour! 🇵🇱")
             return
 
@@ -1699,7 +1699,6 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await _reply(f"⚠️ Failed to process warning: {str(e)}")
 
 
-
 async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = msg.from_user.id
@@ -1708,7 +1707,7 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-        target_user, _ = await resolve_target_from_mention(msg, ctx)
+    target_user, _ = await resolve_target_from_mention(msg, ctx)
     if not target_user and msg.reply_to_message:
         target_user = msg.reply_to_message.from_user
     
@@ -2613,7 +2612,7 @@ async def unmute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     
-           target_user, _ = await resolve_target_from_mention(msg, ctx)
+    target_user, _ = await resolve_target_from_mention(msg, ctx)
     if not target_user and msg.reply_to_message:
         target_user = msg.reply_to_message.from_user
     
@@ -2676,7 +2675,7 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     target_id = None
     target_name = None
 
-        target_user, _ = await resolve_target_from_mention(msg, ctx)
+    target_user, _ = await resolve_target_from_mention(msg, ctx)
     if not target_user and msg.reply_to_message:
         target_user = msg.reply_to_message.from_user
     
