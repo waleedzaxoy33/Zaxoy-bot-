@@ -245,19 +245,14 @@ START_MESSAGES = [
 
 
 async def resolve_target_from_mention(msg, ctx):
-    """Get target user from reply or @mention"""
-    # Priority 1: reply to message
-    if msg.reply_to_message:
-        u = msg.reply_to_message.from_user
-        return u.id, u.full_name
-
-    # Priority 2: text_mention (users without username)
+    """Get target user from @mention first, then reply"""
+    # Priority 1: text_mention (users without username)
     if msg.entities:
         for entity in msg.entities:
             if entity.type == 'text_mention' and entity.user:
                 return entity.user.id, entity.user.full_name
 
-    # Priority 3: @username mention
+    # Priority 2: @username mention
     if msg.entities:
         for entity in msg.entities:
             if entity.type == 'mention':
@@ -267,6 +262,11 @@ async def resolve_target_from_mention(msg, ctx):
                     return chat.id, chat.full_name or username
                 except Exception:
                     return None, None
+
+    # Priority 3: reply to message (fallback)
+    if msg.reply_to_message:
+        u = msg.reply_to_message.from_user
+        return u.id, u.full_name
 
     return None, None
 
