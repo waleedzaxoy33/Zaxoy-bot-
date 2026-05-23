@@ -238,6 +238,23 @@ START_MESSAGES = [
 ]
 
 
+
+async def resolve_target_from_mention(msg, ctx):
+    """Extract user_id and user_name from @mention in message"""
+    if not msg.entities:
+        return None, None
+    for entity in msg.entities:
+        if entity.type == 'mention':
+            username = msg.text[entity.offset+1:entity.offset+entity.length]
+            try:
+                chat = await ctx.bot.get_chat(f'@{username}')
+                return chat.id, chat.full_name or username
+            except Exception:
+                return None, None
+        elif entity.type == 'text_mention' and entity.user:
+            return entity.user.id, entity.user.full_name
+    return None, None
+
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msgs = random.choice(START_MESSAGES)
 
@@ -1177,12 +1194,24 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         u = target.from_user
         target_id = u.id
         target_name = u.full_name
+    elif msg.entities:
+        for entity in msg.entities:
+            if entity.type == "mention":
+                username = msg.text[entity.offset+1:entity.offset+entity.length]
+                try:
+                    chat = await ctx.bot.get_chat(f"@{username}")
+                    target_id = chat.id
+                    target_name = chat.full_name
+                    specific_cmd = None
+                except Exception:
+                    await msg.reply_text(f"⚠️ User @{username} not found.")
+                    return
     elif specific_cmd and specific_cmd.lstrip("-").isdigit():
         target_id = int(specific_cmd)
         target_name = str(target_id)
         specific_cmd = None
     else:
-        await msg.reply_text("↩️ Reply to a user's message with //add or //add [command]")
+        await msg.reply_text("↩️ Reply, mention, or use ID: //add @username [command]")
         return
 
     if not target_id:
@@ -1212,27 +1241,36 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── //remove ────────────────────────────────────────────────────────
 async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    if msg.entities:
-        for entity in msg.entities:
-            if entity.type == "mention":
-                await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
-                return
     if msg.from_user.id != OWNER_ID:
         return
     target = msg.reply_to_message
     parts = msg.text.strip().split(None, 1)
     specific_cmd = parts[1].strip() if len(parts) > 1 else None
 
+    target_id = None
+    target_name = None
+
     if target:
-        u = target.from_user
-        target_id = u.id
-        target_name = u.full_name
+        target_id = target.from_user.id
+        target_name = target.from_user.full_name
+    elif msg.entities:
+        for entity in msg.entities:
+            if entity.type == "mention":
+                username = msg.text[entity.offset+1:entity.offset+entity.length]
+                try:
+                    chat = await ctx.bot.get_chat(f"@{username}")
+                    target_id = chat.id
+                    target_name = chat.full_name
+                    specific_cmd = None
+                except Exception:
+                    await msg.reply_text(f"⚠️ User @{username} not found.")
+                    return
     elif specific_cmd and specific_cmd.lstrip("-").isdigit():
         target_id = int(specific_cmd)
         target_name = str(target_id)
         specific_cmd = None
     else:
-        await msg.reply_text("↩️ Reply to a user's message with //remove or //remove [command]")
+        await msg.reply_text("↩️ Reply, mention, or use ID: //remove @username [command]")
         return
 
     perms = admin_perms.get(target_id, set())
@@ -1561,11 +1599,6 @@ async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    if msg.entities:
-        for entity in msg.entities:
-            if entity.type == "mention":
-                await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
-                return
     chat_id = msg.chat_id
 
     async def _reply(text):
@@ -1581,15 +1614,23 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    if not msg.reply_to_message:
-        await _reply("↩️ Reply to a user's message with //warn to give a warning.")
-        return
-
-    user_id = msg.from_user.id
     target = msg.reply_to_message
-    uid = target.from_user.id
+    uid = None
+    target_name_str = None
 
-    if user_id == uid:
+    if target:
+        uid = target.from_user.id
+        target_name_str = target.from_user.full_name
+    else:
+        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
+        if mention_id:
+            uid = mention_id
+            target_name_str = mention_name
+        else:
+            await _reply("↩️ Reply to a user or mention them: //warn @username")
+            return
+
+    if msg.from_user.id == uid:
         await _reply("🧠 Wanna warn yourself? You can't do that, bro! Friendly Fire is OFF 🇵🇱")
         return
 
@@ -1612,12 +1653,12 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 until_date=until_date
             )
             warn_store[uid] = 0
-            await _reply(f"🔨 {target.from_user.full_name} received 3/3 warnings and has been muted for 1 hour! 🇵🇱")
+            await _reply(f"🔨 {target_name_str} received 3/3 warnings and has been muted for 1 hour! 🇵🇱")
             return
 
         await ctx.bot.send_message(
             chat_id=chat_id,
-            text=f"⚠️ Warning ({count}/3) for {target.from_user.full_name}! 🇵🇱",
+            text=f"⚠️ Warning ({count}/3) for {target_name_str}! 🇵🇱",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("❌ Remove 1 Warn", callback_data=f"remwarn_{uid}"),
                 InlineKeyboardButton("🧹 Reset All", callback_data=f"resetwarn_{uid}")
@@ -1631,27 +1672,30 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    if msg.entities:
-        for entity in msg.entities:
-            if entity.type == "mention":
-                await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
-                return
     user_id = msg.from_user.id
-    target = msg.reply_to_message
 
-    # 1. Non-permission user try (Block & Roast)
     if not has_perm(user_id, "//mute"):
         await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    # 2. No replied target user
-    if not target:
-        await msg.reply_text("↩️ Reply to a user's message with //mute [duration] to silence them.")
-        return
+    target = msg.reply_to_message
+    target_id = None
+    target_name = None
 
-    target_id = target.from_user.id
+    if target:
+        target_id = target.from_user.id
+        target_name = target.from_user.full_name
+    else:
+        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
+        if mention_id:
+            target_id = mention_id
+            target_name = mention_name
+        else:
+            await msg.reply_text("↩️ Reply to a user or mention them: //mute @username [duration]")
+            return
 
-    # 3. Self-mute check (Suicide prevention)
+
+    # 3. Self-mute check
     if user_id == target_id:
         await msg.reply_text("🧠 Wanna kill yourself? You can't mute yourself, bro! 🇵🇱")
         return
@@ -1665,9 +1709,12 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text("🛡️ Friendly fire... Watch out! He's an admin too! 🇵🇱")
             return
 
-        # Execute standard mute logic
+        # Execute standard mute logic - handle both reply and mention
         text_parts = msg.text.strip().split(None, 1)
-        duration_text = text_parts[1].strip() if len(text_parts) > 1 else "10m"
+        raw_second = text_parts[1].strip() if len(text_parts) > 1 else ""
+        # Remove @mention from duration if present
+        import re as _re
+        duration_text = _re.sub(r"@\S+", "", raw_second).strip() or "10m"
 
         seconds = parse_duration(duration_text)
         if seconds <= 0:
@@ -1686,7 +1733,7 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         duration_formatted = format_duration(seconds)
         msg_idx = random.randint(0, len(MUTE_MESSAGES) - 1)
         alert_msg = MUTE_MESSAGES[msg_idx].format(
-            name=target.from_user.full_name,
+            name=target_name if target_name else str(target_id),
             duration=duration_formatted
         )
         
@@ -2544,11 +2591,6 @@ BAN_MESSAGES = [
 
 async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    if msg.entities:
-        for entity in msg.entities:
-            if entity.type == "mention":
-                await msg.reply_text("⚠️ Normal @mentions are unreliable.\nReply to the user instead.")
-                return
 
 
     async def _reply(text, reply_markup=None):
