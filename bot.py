@@ -43,7 +43,7 @@ from telegram.ext import (
 # ─────────────────────────────────────────────────────────────
 # Helper Function
 # ─────────────────────────────────────────────────────────────
-async def resolve_target_from_mention(msg, ctx):
+async def resolve_target_from_mention(msg, context):
     if msg.reply_to_message:
         return msg.reply_to_message.from_user, None
     if msg.entities:
@@ -51,7 +51,7 @@ async def resolve_target_from_mention(msg, ctx):
             if entity.type == "mention":
                 username = msg.text[entity.offset:entity.offset + entity.length]
                 try:
-                    chat = await ctx.bot.get_chat(username)
+                    chat = await context.bot.get_chat(username)
                     return chat, None
                 except:
                     continue
@@ -1599,7 +1599,7 @@ async def auto_unmute_task(chat_id: int, user_id: int, message_id: int, user_nam
 async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
        target_user, _ = await resolve_target_from_mention(update.message, context)
     if not target_user:
-        if update.message.reply_to_message:
+    if update.message.reply_to_message:
             target_user = update.message.reply_to_message.from_user
         else:
             await update.message.reply_text("You must reply to a user or mention them!")
