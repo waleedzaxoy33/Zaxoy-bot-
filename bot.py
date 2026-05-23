@@ -255,6 +255,32 @@ async def resolve_target_from_mention(msg, ctx):
             return entity.user.id, entity.user.full_name
     return None, None
 
+async def resolve_target_user(msg, ctx, allow_id=True):
+    reply = msg.reply_to_message
+    if reply and reply.from_user:
+        return reply.from_user.id, reply.from_user.full_name, reply
+
+    if msg.entities:
+        for entity in msg.entities:
+            if entity.type == 'text_mention' and entity.user:
+                return entity.user.id, entity.user.full_name, None
+
+            if entity.type == 'mention':
+                username = msg.text[entity.offset + 1: entity.offset + entity.length]
+                try:
+                    chat = await ctx.bot.get_chat(f'@{username}')
+                    return chat.id, chat.full_name or username, None
+                except Exception:
+                    continue
+
+    parts = msg.text.strip().split()
+    if allow_id and len(parts) > 1:
+        for part in parts[1:]:
+            if part.lstrip("-").isdigit():
+                return int(part), part, None
+
+    return None, None, None
+
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msgs = random.choice(START_MESSAGES)
 
@@ -475,7 +501,7 @@ def is_zaxo_insult(text: str) -> bool:
 
     has_zaxo = any(
         z in t
-        for z in ["zaxo", "zakho", "زاخو"]
+        for z in ["zaxo", "zakho", ""]
     )
 
     has_neg = any(
@@ -2592,7 +2618,6 @@ BAN_MESSAGES = [
 async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
 
-
     async def _reply(text, reply_markup=None):
         await msg.reply_text(text, reply_to_message_id=msg.message_id, reply_markup=reply_markup)
 
@@ -2600,34 +2625,36 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    if not msg.reply_to_message:
-        await _reply("↩️ Reply to a user to ban them.")
+    target_id, target_name, _ = await resolve_target_user(msg, ctx)
+
+    if not target_id:
+        await _reply("↩️ Reply to a user or mention them: //ban @username")
         return
 
-    target = msg.reply_to_message.from_user
-
-    if msg.from_user.id == target.id:
+    if msg.from_user.id == target_id:
         await _reply("🧠 Ban yourself? That's not how it works bro! 🇵🇱")
         return
 
     try:
-        chat_member = await ctx.bot.get_chat_member(chat_id=msg.chat.id, user_id=target.id)
+        chat_member = await ctx.bot.get_chat_member(chat_id=msg.chat.id, user_id=target_id)
+
         if chat_member.status in ['administrator', 'creator']:
             await _reply("🛡️ Friendly fire! You can't ban an admin! 🇵🇱")
             return
 
-        await ctx.bot.ban_chat_member(chat_id=msg.chat.id, user_id=target.id)
+        await ctx.bot.ban_chat_member(chat_id=msg.chat.id, user_id=target_id)
 
-        ban_msg = random.choice(BAN_MESSAGES).format(name=target.full_name)
+        ban_msg = random.choice(BAN_MESSAGES).format(name=target_name)
 
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🔓 UNBAN", callback_data=f"unban_{target.id}")
+            InlineKeyboardButton("🔓 UNBAN", callback_data=f"unban_{target_id}")
         ]])
 
         await _reply(ban_msg, reply_markup=kb)
 
     except Exception as e:
-        await _reply(f"⚠️ Failed to ban user:\n{e}")
+        await _reply(f"⚠️ Failed to ban user:
+{e}")
 
 # ─── UNBAN Button ────────────────────────────────────────────────
 
@@ -2656,38 +2683,15 @@ async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── //unban ─────────────────────────────────────────────────────────
 async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    
+
     if not has_perm(msg.from_user.id, "//ban"):
         await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    user_id = None
-    user_name = None
-
-    # 1. Check for Reply
-    if msg.reply_to_message:
-        user_id = msg.reply_to_message.from_user.id
-        user_name = msg.reply_to_message.from_user.full_name
-    
-    # 2. Check for Mention or ID in text
-    else:
-        parts = msg.text.split()
-        if len(parts) > 1:
-            target = parts[1]
-            if msg.entities:
-                for entity in msg.entities:
-                    if entity.type == "mention":
-                        user_id = target
-                        user_name = target
-            if not user_id:
-                try:
-                    user_id = int(target)
-                    user_name = f"ID: {target}"
-                except ValueError:
-                    pass
+    user_id, user_name, _ = await resolve_target_user(msg, ctx)
 
     if not user_id:
-        await msg.reply_text("↩️ Reply, mention, or provide an ID: //unban [reply/mention/id]")
+        await msg.reply_text("↩️ Reply, mention, or provide an ID: //unban @username")
         return
 
     try:
@@ -2697,15 +2701,9 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if "USER_NOT_BANNED" in str(e):
             await msg.reply_text(f"⚠️ {user_name} is not banned! 🇵🇱")
         else:
-            await msg.reply_text(f"⚠️ Failed to unban:\n{e}")
-    try:
-        await ctx.bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)
-        await msg.reply_text(f"🔓 {user_name} has been unbanned 🇵🇱")
-    except Exception as e:
-        if "USER_NOT_BANNED" in str(e):
-            await msg.reply_text(f"⚠️ {user_name} is not banned! 🇵🇱")
-        else:
-            await msg.reply_text(f"⚠️ Failed to unban:\n{e}")
+            await msg.reply_text(f"⚠️ Failed to unban:
+{e}")
+
 
 def main():
 
