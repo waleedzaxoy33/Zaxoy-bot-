@@ -41,6 +41,23 @@ from telegram.ext import (
 )
 
 # ─────────────────────────────────────────────────────────────
+# Helper Function
+# ─────────────────────────────────────────────────────────────
+async def resolve_target_from_mention(msg, ctx):
+    if msg.reply_to_message:
+        return msg.reply_to_message.from_user, None
+    if msg.entities:
+        for entity in msg.entities:
+            if entity.type == "mention":
+                username = msg.text[entity.offset:entity.offset + entity.length]
+                try:
+                    chat = await ctx.bot.get_chat(username)
+                    return chat, None
+                except:
+                    continue
+    return None, None
+
+# ─────────────────────────────────────────────────────────────
 # Config
 # ─────────────────────────────────────────────────────────────
 
