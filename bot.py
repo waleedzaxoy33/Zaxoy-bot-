@@ -1707,7 +1707,7 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         asyncio.create_task(auto_unmute_task(
             msg.chat_id, target_id, sent.message_id, 
-            target.from_user.full_name, msg_idx, seconds, ctx
+            target_name, msg_idx, seconds, ctx
         ))
 
     except Exception as e:
@@ -2695,11 +2695,6 @@ def main():
     ))
 
     # 2. Specific Double Slash (//)
-    app.add_handler(MessageHandler(
-        filters.TEXT & filters.Regex(r"^//warn\b"),
-        warn_cmd
-    ))
-
     app.add_handler(MessageHandler(
         filters.TEXT & filters.Regex(r"^//shot\b"),
         shot_cmd
