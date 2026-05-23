@@ -277,19 +277,55 @@ async def cache_user_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         pass
 
 async def resolve_target_from_mention(msg, ctx):
-    """Extract user_id and user_name from @mention in message"""
-    if not msg.entities:
-        return None, None
-    for entity in msg.entities:
-        if entity.type == 'mention':
-            username = msg.text[entity.offset+1:entity.offset+entity.length]
+    """Extract user_id and user_name from reply, mention, cache, username or raw id"""
+
+    if msg.reply_to_message and msg.reply_to_message.from_user:
+        u = msg.reply_to_message.from_user
+        return u.id, u.full_name
+
+    if msg.entities:
+        for entity in msg.entities:
+
+            if entity.type == 'text_mention' and entity.user:
+                return entity.user.id, entity.user.full_name
+
+            if entity.type == 'mention':
+                username = msg.text[entity.offset:entity.offset + entity.length].lower()
+
+                cached_user_id = USER_CACHE.get(username)
+
+                if cached_user_id:
+                    cached_data = USER_CACHE.get(str(cached_user_id), {})
+                    return int(cached_user_id), cached_data.get("name", username)
+
+                try:
+                    chat = await ctx.bot.get_chat(username)
+                    return chat.id, chat.full_name or username
+                except Exception:
+                    pass
+
+    parts = msg.text.split()
+
+    for part in parts[1:]:
+        clean = part.strip().lower()
+
+        if clean.startswith("@"):
+            cached_user_id = USER_CACHE.get(clean)
+
+            if cached_user_id:
+                cached_data = USER_CACHE.get(str(cached_user_id), {})
+                return int(cached_user_id), cached_data.get("name", clean)
+
             try:
-                chat = await ctx.bot.get_chat(f'@{username}')
-                return chat.id, chat.full_name or username
+                chat = await ctx.bot.get_chat(clean)
+                return chat.id, chat.full_name or clean
             except Exception:
-                return None, None
-        elif entity.type == 'text_mention' and entity.user:
-            return entity.user.id, entity.user.full_name
+                pass
+
+        if clean.lstrip("-").isdigit():
+            cached_data = USER_CACHE.get(str(int(clean)), {})
+            return int(clean), cached_data.get("name", clean)
+
     return None, None
 
 async def resolve_target_user(msg, ctx, allow_id=True):
