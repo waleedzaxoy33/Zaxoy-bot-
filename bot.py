@@ -44,17 +44,40 @@ from telegram.ext import (
 # Helper Function
 # ─────────────────────────────────────────────────────────────
 async def resolve_target_from_mention(msg, context):
+    import re
+
+    # Reply support
     if msg.reply_to_message:
         return msg.reply_to_message.from_user, None
+
+    text = msg.text or ""
+
+    # Mention entity support
     if msg.entities:
         for entity in msg.entities:
             if entity.type == "mention":
-                username = msg.text[entity.offset:entity.offset + entity.length]
+                username = text[
+                    entity.offset:entity.offset + entity.length
+                ]
+
                 try:
                     chat = await context.bot.get_chat(username)
                     return chat, None
                 except:
-                    continue
+                    pass
+
+    # Regex fallback support
+    match = re.search(r"@([A-Za-z0-9_]+)", text)
+
+    if match:
+        username = "@" + match.group(1)
+
+        try:
+            chat = await context.bot.get_chat(username)
+            return chat, None
+        except:
+            pass
+
     return None, None
 
 # ─────────────────────────────────────────────────────────────
@@ -1233,7 +1256,7 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             target_name = f"ID: {target_id}"
             specific_cmd = None 
         else:
-            await msg.reply_text("Please reply to a user, mention them, or provide a valid ID.")
+            await msg.reply_text("User not found.")
             return
     else:
         target_id = target_user.id
@@ -1290,7 +1313,7 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             target_name = f"ID: {target_id}"
             specific_cmd = None # ID provided, no cmd to remove
         else:
-            await msg.reply_text("Please reply to a user, mention them, or provide a valid ID.")
+            await msg.reply_text("User not found.")
             return
     else:
         target_id = target_user.id
@@ -2758,10 +2781,10 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 user_id = int(parts[1])
                 user_name = f"ID: {parts[1]}"
             except ValueError:
-                await msg.reply_text("Please reply to a user, mention them, or provide a valid ID.")
+                await msg.reply_text("User not found.")
                 return
         else:
-            await msg.reply_text("Please reply to a user, mention them, or provide a valid ID.")
+            await msg.reply_text("User not found.")
             return
     else:
         user_id = target_user.id
