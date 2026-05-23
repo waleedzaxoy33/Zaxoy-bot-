@@ -584,7 +584,7 @@ def is_zaxo_insult(text: str) -> bool:
 
     has_zaxo = any(
         z in t
-        for z in ["zaxo", "zakho", ""]
+        for z in ["zaxo", "zakho"]
     )
 
     has_neg = any(
@@ -1315,10 +1315,6 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     await msg.reply_text(f"⚠️ User @{username} not found.")
                     return
-    elif specific_cmd and specific_cmd.lstrip("-").isdigit():
-        target_id = int(specific_cmd)
-        target_name = str(target_id)
-        specific_cmd = None
     else:
         await msg.reply_text("↩️ Reply, mention, or use ID: //add @username [command]")
         return
@@ -1374,10 +1370,6 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 except Exception:
                     await msg.reply_text(f"⚠️ User @{username} not found.")
                     return
-    elif specific_cmd and specific_cmd.lstrip("-").isdigit():
-        target_id = int(specific_cmd)
-        target_name = str(target_id)
-        specific_cmd = None
     else:
         await msg.reply_text("↩️ Reply, mention, or use ID: //remove @username [command]")
         return
@@ -1823,14 +1815,19 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         raw_second = text_parts[1].strip() if len(text_parts) > 1 else ""
         # Remove @mention from duration if present
         import re as _re
-        duration_text = _re.sub(r"@\S+", "", raw_second).strip() or "10m"
+        duration_text = _re.sub(r"@\S+", "", raw_second).strip()
 
-        seconds = parse_duration(duration_text)
-        if seconds <= 0:
-            seconds = 600
+        if duration_text:
+            seconds = parse_duration(duration_text)
+        else:
+            seconds = 0
 
-        until_date = datetime.now(timezone.utc) + timedelta(seconds=seconds)
-        mute_store[target_id] = until_date
+        if seconds > 0:
+            until_date = datetime.now(timezone.utc) + timedelta(seconds=seconds)
+            mute_store[target_id] = until_date
+        else:
+            until_date = None
+            mute_store[target_id] = "permanent"
         
         await ctx.bot.restrict_chat_member(
             chat_id=msg.chat_id,
