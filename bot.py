@@ -257,6 +257,13 @@ async def resolve_target_from_mention(msg, ctx):
         for entity in msg.entities:
             if entity.type == 'mention':
                 username = msg.text[entity.offset+1:entity.offset+entity.length]
+                # Try get_chat_member from group (works even if user never messaged bot)
+                try:
+                    member = await ctx.bot.get_chat_member(chat_id=msg.chat.id, user_id=f'@{username}')
+                    return member.user.id, member.user.full_name
+                except Exception:
+                    pass
+                # Fallback to get_chat
                 try:
                     chat = await ctx.bot.get_chat(f'@{username}')
                     return chat.id, chat.full_name or username
