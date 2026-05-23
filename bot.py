@@ -244,15 +244,26 @@ async def resolve_target_from_mention(msg, ctx):
     if not msg.entities:
         return None, None
     for entity in msg.entities:
+        if entity.type == 'text_mention' and entity.user:
+            return entity.user.id, entity.user.full_name
         if entity.type == 'mention':
             username = msg.text[entity.offset+1:entity.offset+entity.length]
+            # Try get_chat_member from the group first (more reliable)
+            try:
+                if msg.chat and msg.chat.type in ['group', 'supergroup']:
+                    members = await ctx.bot.get_chat_member(
+                        chat_id=msg.chat.id,
+                        user_id=f"@{username}"
+                    )
+                    return members.user.id, members.user.full_name
+            except Exception:
+                pass
+            # Fallback to get_chat
             try:
                 chat = await ctx.bot.get_chat(f'@{username}')
                 return chat.id, chat.full_name or username
             except Exception:
                 return None, None
-        elif entity.type == 'text_mention' and entity.user:
-            return entity.user.id, entity.user.full_name
     return None, None
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2578,6 +2589,62 @@ def start_keep_alive():
         print("Port 5000 already in use — keep-alive already running")
 
 
+
+# ─── //unmute ────────────────────────────────────────────────────────
+async def unmute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    chat_id = msg.chat_id
+
+    if not has_perm(msg.from_user.id, "//mute"):
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
+        return
+
+    target_id = None
+    target_name = None
+
+    if msg.reply_to_message:
+        target_id = msg.reply_to_message.from_user.id
+        target_name = msg.reply_to_message.from_user.full_name
+    else:
+        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
+        if mention_id:
+            target_id = mention_id
+            target_name = mention_name
+        else:
+            await msg.reply_text("↩️ Reply to a user or mention them: //unmute @username")
+            return
+
+    if not target_id:
+        await msg.reply_text("↩️ Reply to a user or mention them: //unmute @username")
+        return
+
+    try:
+        from telegram import ChatPermissions
+        await ctx.bot.restrict_chat_member(
+            chat_id=chat_id,
+            user_id=target_id,
+            permissions=ChatPermissions(
+                can_send_messages=True,
+                can_send_audios=True,
+                can_send_documents=True,
+                can_send_photos=True,
+                can_send_videos=True,
+                can_send_video_notes=True,
+                can_send_voice_notes=True,
+                can_send_polls=True,
+                can_send_other_messages=True,
+                can_add_web_page_previews=True,
+                can_change_info=True,
+                can_invite_users=True,
+                can_pin_messages=True
+            )
+        )
+        mute_store.pop(target_id, None)
+        await msg.reply_text(f"🔊 {target_name} has been unmuted! 🇵🇱")
+    except Exception as e:
+        await msg.reply_text(f"⚠️ Failed to unmute: {e}")
+
+
 # ─── //ban ─────────────────────────────────────────────────────────
 
 BAN_MESSAGES = [
@@ -2606,20 +2673,14 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if msg.reply_to_message:
         target_id = msg.reply_to_message.from_user.id
         target_name = msg.reply_to_message.from_user.full_name
-    elif msg.entities:
-        for entity in msg.entities:
-            if entity.type == "mention":
-                username = msg.text[entity.offset+1:entity.offset+entity.length]
-                try:
-                    chat = await ctx.bot.get_chat(f"@{username}")
-                    target_id = chat.id
-                    target_name = chat.full_name or username
-                except Exception:
-                    await _reply(f"⚠️ User @{username} not found.")
-                    return
     else:
-        await _reply("↩️ Reply to a user or mention them: //ban @username")
-        return
+        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
+        if mention_id:
+            target_id = mention_id
+            target_name = mention_name
+        else:
+            await _reply("↩️ Reply to a user or mention them: //ban @username")
+            return
 
     if not target_id:
         await _reply("↩️ Reply to a user or mention them: //ban @username")
