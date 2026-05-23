@@ -239,6 +239,43 @@ START_MESSAGES = [
 
 
 
+
+USER_CACHE_FILE = "user_cache.json"
+
+try:
+    with open(USER_CACHE_FILE, "r", encoding="utf-8") as f:
+        USER_CACHE = json.load(f)
+except Exception:
+    USER_CACHE = {}
+
+def save_user_cache():
+    try:
+        with open(USER_CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(USER_CACHE, f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+async def cache_user_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg or not msg.from_user:
+        return
+
+    user = msg.from_user
+
+    try:
+        USER_CACHE[str(user.id)] = {
+            "id": user.id,
+            "username": (user.username or "").lower(),
+            "name": user.full_name
+        }
+
+        if user.username:
+            USER_CACHE[f"@{user.username.lower()}"] = user.id
+
+        save_user_cache()
+    except Exception:
+        pass
+
 async def resolve_target_from_mention(msg, ctx):
     """Extract user_id and user_name from @mention in message"""
     if not msg.entities:
@@ -274,10 +311,20 @@ async def resolve_target_user(msg, ctx, allow_id=True):
                     continue
 
     parts = msg.text.strip().split()
-    if allow_id and len(parts) > 1:
+    if len(parts) > 1:
         for part in parts[1:]:
-            if part.lstrip("-").isdigit():
-                return int(part), part, None
+            clean_part = part.strip()
+
+            if clean_part.startswith("@"):
+                cached_user_id = USER_CACHE.get(clean_part.lower())
+
+                if cached_user_id:
+                    cached_data = USER_CACHE.get(str(cached_user_id), {})
+                    return int(cached_user_id), cached_data.get("name", clean_part), None
+
+            if allow_id and clean_part.lstrip("-").isdigit():
+                cached_data = USER_CACHE.get(str(int(clean_part)), {})
+                return int(clean_part), cached_data.get("name", clean_part), None
 
     return None, None, None
 
@@ -2708,6 +2755,8 @@ def main():
     start_keep_alive()
 
     app = Application.builder().token(BOT_TOKEN).build()
+
+    app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-1)
 
     # 1. Normal Commands
     app.add_handler(CommandHandler("start", start))
