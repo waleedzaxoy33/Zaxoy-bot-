@@ -2653,8 +2653,7 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await _reply(ban_msg, reply_markup=kb)
 
     except Exception as e:
-        await _reply(f"⚠️ Failed to ban user:
-{e}")
+        await _reply(f"⚠️ Failed to ban user:\\n{e}")
 
 # ─── UNBAN Button ────────────────────────────────────────────────
 
@@ -2701,8 +2700,7 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if "USER_NOT_BANNED" in str(e):
             await msg.reply_text(f"⚠️ {user_name} is not banned! 🇵🇱")
         else:
-            await msg.reply_text(f"⚠️ Failed to unban:
-{e}")
+            await msg.reply_text(f"⚠️ Failed to unban:\\n{e}")
 
 
 def main():
