@@ -552,7 +552,7 @@ def is_zaxo_insult(text: str) -> bool:
         "ugly",
         "stupid",
         "against",
-        "fk",
+        "L",
         "part of duhok",
         "small city"
     ]
