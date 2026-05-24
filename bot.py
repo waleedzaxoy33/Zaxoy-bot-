@@ -86,9 +86,18 @@ def sb_load_admin_perms() -> dict:
 
 def sb_upsert_admin(user_id: int, perms: set):
     try:
+        # Delete first then insert — same as SQL ON CONFLICT upsert
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/admin_perms?user_id=eq.{user_id}",
+            headers=sb_headers(), timeout=10
+        )
         requests.post(
             f"{SUPABASE_URL}/rest/v1/admin_perms",
-            headers=sb_headers(),
+            headers={
+                "apikey": SUPABASE_KEY,
+                "Authorization": f"Bearer {SUPABASE_KEY}",
+                "Content-Type": "application/json",
+            },
             json={"user_id": str(user_id), "perms": list(perms)},
             timeout=10
         )
