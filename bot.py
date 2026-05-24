@@ -73,11 +73,18 @@ def sb_load_admin_perms() -> dict:
             f"{SUPABASE_URL}/rest/v1/admin_perms?select=user_id,perms",
             headers=sb_headers(), timeout=10
         )
+        print(f"[ADMIN] status={r.status_code} body={r.text}")
+        rows = r.json()
+        if not isinstance(rows, list):
+            print(f"[ADMIN] unexpected response: {rows}")
+            return {}
         result = {}
-        for row in r.json():
+        for row in rows:
             result[int(row["user_id"])] = set(row["perms"])
+        print(f"[ADMIN] loaded {len(result)} admins")
         return result
-    except Exception:
+    except Exception as e:
+        print(f"[ADMIN] load error: {e}")
         return {}
 
 def sb_save_admin_perms(store: dict):
