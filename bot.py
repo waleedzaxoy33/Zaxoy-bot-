@@ -82,16 +82,28 @@ def sb_load_admin_perms() -> dict:
 
 def sb_save_admin_perms(store: dict):
     try:
-        requests.delete(
-            f"{SUPABASE_URL}/rest/v1/admin_perms?user_id=neq.0",
+        # Get existing user_ids in Supabase
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/admin_perms?select=user_id",
             headers=sb_headers(), timeout=10
         )
-        rows = [{"user_id": str(k), "perms": list(v)} for k, v in store.items()]
-        if rows:
+        existing_ids = {row["user_id"] for row in r.json()}
+        store_ids = {str(k) for k in store.keys()}
+
+        # Delete users no longer in store
+        for uid in existing_ids - store_ids:
+            requests.delete(
+                f"{SUPABASE_URL}/rest/v1/admin_perms?user_id=eq.{uid}",
+                headers=sb_headers(), timeout=10
+            )
+
+        # Upsert each user individually (Prefer: resolution=merge-duplicates)
+        for uid, perms in store.items():
             requests.post(
                 f"{SUPABASE_URL}/rest/v1/admin_perms",
                 headers=sb_headers(),
-                json=rows, timeout=10
+                json={"user_id": str(uid), "perms": list(perms)},
+                timeout=10
             )
     except Exception as e:
         logging.error(f"sb_save_admin_perms error: {e}")
