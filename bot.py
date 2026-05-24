@@ -1254,36 +1254,19 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await thinking.edit_text(f"🤖 {answer}")
 
 # ─── //add ────────────────────────────────────────────────────────────
-def load_admin_perms():
-    res = sb.table("admin_perms").select("*").execute()
-    data = res.data
-    if not data:
-        return {}
-
-    result = {}
-    for row in data:
-        result[row["user_id"]] = set(row["perms"])
-    return result
-
-
-def save_admin_perms(store: dict):
-    sb.table("admin_perms").delete().neq("user_id", "").execute()
-
-    for uid, perms in store.items():
-        sb.table("admin_perms").insert({
-            "user_id": str(uid),
-            "perms": list(perms)
-        }).execute()
-
 VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global admin_perms
     msg = update.message
     if msg.from_user.id != OWNER_ID:
         return
+
     target = msg.reply_to_message
     parts = msg.text.strip().split(None, 1)
     specific_cmd = parts[1].strip() if len(parts) > 1 else None
+    target_id = None
+    target_name = None
 
     if target:
         u = target.from_user
@@ -1308,6 +1291,8 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not target_id:
         return
 
+    admin_perms = load_admin_perms()
+
     if target_id not in admin_perms:
         admin_perms[target_id] = set()
 
@@ -1331,6 +1316,7 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ─── //remove ────────────────────────────────────────────────────────
 async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global admin_perms
     msg = update.message
     if msg.from_user.id != OWNER_ID:
         return
@@ -1360,6 +1346,7 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("↩️ Reply, mention, or use ID: //remove @username [command]")
         return
 
+    admin_perms = load_admin_perms()
     perms = admin_perms.get(target_id, set())
 
     if specific_cmd is None or specific_cmd == "":
