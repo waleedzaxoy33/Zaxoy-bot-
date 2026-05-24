@@ -69,15 +69,12 @@ def sb_headers():
 
 def sb_load_admin_perms() -> dict:
     try:
-        r = requests.get(
-            f"{SUPABASE_URL}/rest/v1/admin_perms?select=user_id,perms",
-            headers=sb_headers(), timeout=10
-        )
-        rows = r.json()
-        if not isinstance(rows, list):
+        res = sb.table("admin_perms").select("*").execute()
+        data = res.data
+        if not data:
             return {}
         result = {}
-        for row in rows:
+        for row in data:
             result[int(row["user_id"])] = set(row["perms"])
         return result
     except Exception as e:
@@ -86,30 +83,17 @@ def sb_load_admin_perms() -> dict:
 
 def sb_upsert_admin(user_id: int, perms: set):
     try:
-        # Delete first then insert — same as SQL ON CONFLICT upsert
-        requests.delete(
-            f"{SUPABASE_URL}/rest/v1/admin_perms?user_id=eq.{user_id}",
-            headers=sb_headers(), timeout=10
-        )
-        requests.post(
-            f"{SUPABASE_URL}/rest/v1/admin_perms",
-            headers={
-                "apikey": SUPABASE_KEY,
-                "Authorization": f"Bearer {SUPABASE_KEY}",
-                "Content-Type": "application/json",
-            },
-            json={"user_id": str(user_id), "perms": list(perms)},
-            timeout=10
-        )
+        sb.table("admin_perms").delete().eq("user_id", str(user_id)).execute()
+        sb.table("admin_perms").insert({
+            "user_id": str(user_id),
+            "perms": list(perms)
+        }).execute()
     except Exception as e:
         logging.error(f"sb_upsert_admin error: {e}")
 
 def sb_delete_admin(user_id: int):
     try:
-        requests.delete(
-            f"{SUPABASE_URL}/rest/v1/admin_perms?user_id=eq.{user_id}",
-            headers=sb_headers(), timeout=10
-        )
+        sb.table("admin_perms").delete().eq("user_id", str(user_id)).execute()
     except Exception as e:
         logging.error(f"sb_delete_admin error: {e}")
 
