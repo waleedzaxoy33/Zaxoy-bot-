@@ -1409,19 +1409,19 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─── //admin //list ──────────────────────────────────────────────────
 async def admin_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    
+
     if msg.from_user.id != OWNER_ID:
         return
 
-    admin_perms = sb_load_admin_perms()
+    all_admins = sb_load_admin_perms()
 
-    if not admin_perms:
+    if not all_admins:
         await msg.reply_text("📭 No admins yet.")
         return
 
-    await msg.reply_text(f"📋 *{len(admin_perms)} admin(s):*", parse_mode="Markdown")
+    await msg.reply_text(f"📋 *{len(all_admins)} admin(s):*", parse_mode="Markdown")
 
-    for uid, perms in admin_perms.items():
+    for uid, perms in all_admins.items():
         try:
             chat_member = await ctx.bot.get_chat_member(chat_id=msg.chat_id, user_id=uid)
             name = chat_member.user.full_name
@@ -1437,12 +1437,16 @@ async def admin_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         text = f"👤 *{name}* {username}\n🆔 `{uid}`\n🔑 {perms_text}"
 
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🗑 Remove All", callback_data=f"adminrm_{uid}"),
-        ]])
+        kb = InlineKeyboardMarkup([
+            [InlineKeyboardButton("➕ Add Perm", callback_data=f"adminadd_{uid}")],
+            [InlineKeyboardButton("➖ Remove Perm", callback_data=f"adminrmperm_{uid}")],
+            [InlineKeyboardButton("🗑 Remove All", callback_data=f"adminrm_{uid}")],
+        ])
 
         await msg.reply_text(text, parse_mode="Markdown", reply_markup=kb)
 
+
+ADMIN_SESSION = {}  # user_id -> {action, target_uid, target_name}
 
 async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -1457,6 +1461,81 @@ async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         uid = int(data[8:])
         sb_delete_admin(uid)
         await query.edit_message_text("✅ Admin removed 🇵🇱")
+
+    elif data.startswith("adminadd_"):
+        uid = int(data[9:])
+        try:
+            chat_member = await ctx.bot.get_chat_member(chat_id=query.message.chat_id, user_id=uid)
+            name = chat_member.user.full_name
+        except Exception:
+            name = str(uid)
+        ADMIN_SESSION[query.from_user.id] = {"action": "add", "target_uid": uid, "target_name": name}
+        current_perms = sb_load_admin_perms().get(uid, set())
+        available = VALID_CMDS - current_perms - {"all"}
+        if not available:
+            await query.answer("✅ Already has all permissions!", show_alert=True)
+            return
+        buttons = [[InlineKeyboardButton(cmd, callback_data=f"adminaddperm_{uid}_{cmd}")] for cmd in sorted(available)]
+        buttons.append([InlineKeyboardButton("👑 Full Admin", callback_data=f"adminaddperm_{uid}_all")])
+        buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="admincancel")])
+        await query.edit_message_reply_markup(InlineKeyboardMarkup(buttons))
+
+    elif data.startswith("adminaddperm_"):
+        parts = data.split("_", 2)
+        uid = int(parts[1])
+        cmd = parts[2]
+        current = sb_load_admin_perms()
+        perms = current.get(uid, set())
+        if cmd == "all":
+            perms = {"all"}
+        else:
+            perms.add(cmd)
+        sb_upsert_admin(uid, perms)
+        try:
+            chat_member = await ctx.bot.get_chat_member(chat_id=query.message.chat_id, user_id=uid)
+            name = chat_member.user.full_name
+        except Exception:
+            name = str(uid)
+        perms_text = "👑 Full Admin" if "all" in perms else ", ".join(sorted(perms))
+        await query.edit_message_text(f"✅ Added *{cmd}* to {name}\n🔑 Now has: {perms_text} 🇵🇱", parse_mode="Markdown")
+
+    elif data.startswith("adminrmperm_"):
+        uid = int(data[12:])
+        current = sb_load_admin_perms()
+        perms = current.get(uid, set())
+        if not perms:
+            await query.answer("No permissions to remove!", show_alert=True)
+            return
+        if "all" in perms:
+            show_perms = VALID_CMDS.copy()
+        else:
+            show_perms = perms.copy()
+        buttons = [[InlineKeyboardButton(cmd, callback_data=f"adminrmpermdo_{uid}_{cmd}")] for cmd in sorted(show_perms)]
+        buttons.append([InlineKeyboardButton("❌ Cancel", callback_data="admincancel")])
+        await query.edit_message_reply_markup(InlineKeyboardMarkup(buttons))
+
+    elif data.startswith("adminrmpermdo_"):
+        parts = data.split("_", 2)
+        uid = int(parts[1])
+        cmd = parts[2]
+        current = sb_load_admin_perms()
+        perms = current.get(uid, set())
+        if "all" in perms:
+            perms = VALID_CMDS.copy()
+        perms.discard(cmd)
+        if perms:
+            sb_upsert_admin(uid, perms)
+        else:
+            sb_delete_admin(uid)
+        try:
+            chat_member = await ctx.bot.get_chat_member(chat_id=query.message.chat_id, user_id=uid)
+            name = chat_member.user.full_name
+        except Exception:
+            name = str(uid)
+        await query.edit_message_text(f"🗑️ Removed *{cmd}* from {name} 🇵🇱", parse_mode="Markdown")
+
+    elif data == "admincancel":
+        await query.edit_message_reply_markup(None)
 
 
 async def react_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2915,7 +2994,7 @@ def main():
 
     app.add_handler(CallbackQueryHandler(
         admin_list_callback,
-        pattern="^adminrm_"
+        pattern="^(adminrm_|adminadd_|adminaddperm_|adminrmperm_|adminrmpermdo_|admincancel)"
     ))
 
     app.add_handler(CallbackQueryHandler(
