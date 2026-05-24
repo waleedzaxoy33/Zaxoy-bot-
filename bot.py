@@ -1107,7 +1107,10 @@ async def r_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     content = text_parts[1].strip() if len(text_parts) > 1 else None
 
     if not content:
-        await msg.reply_text("✏️ Add your message or sticker file_id after //r")
+        try:
+            await ctx.bot.delete_message(msg.chat_id, msg.message_id)
+        except:
+            pass
         return
 
     target = msg.reply_to_message
@@ -1116,20 +1119,28 @@ async def r_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         await ctx.bot.delete_message(chat_id, msg.message_id)
-    except Exception:
+    except:
         pass
 
     sent = False
+
     if " " not in content and len(content) > 20:
         try:
-            await ctx.bot.send_sticker(chat_id=chat_id, sticker=content, reply_to_message_id=reply_id)
+            await ctx.bot.send_sticker(
+                chat_id=chat_id,
+                sticker=content,
+                reply_to_message_id=reply_id
+            )
             sent = True
-        except Exception:
+        except:
             pass
 
     if not sent:
-        await ctx.bot.send_message(chat_id=chat_id, text=content, reply_to_message_id=reply_id)
-
+        await ctx.bot.send_message(
+            chat_id=chat_id,
+            text=content,
+            reply_to_message_id=reply_id
+        )
 
 # ─────────────────────────────────────────────────────────────
 # //say — Forward & Tag
