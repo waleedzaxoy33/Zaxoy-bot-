@@ -73,19 +73,36 @@ def sb_load_admin_perms() -> dict:
             f"{SUPABASE_URL}/rest/v1/admin_perms?select=user_id,perms",
             headers=sb_headers(), timeout=10
         )
-        print(f"[ADMIN] status={r.status_code} body={r.text}")
         rows = r.json()
         if not isinstance(rows, list):
-            print(f"[ADMIN] unexpected response: {rows}")
             return {}
         result = {}
         for row in rows:
             result[int(row["user_id"])] = set(row["perms"])
-        print(f"[ADMIN] loaded {len(result)} admins")
         return result
     except Exception as e:
-        print(f"[ADMIN] load error: {e}")
+        logging.error(f"sb_load_admin_perms error: {e}")
         return {}
+
+def sb_upsert_admin(user_id: int, perms: set):
+    try:
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/admin_perms",
+            headers=sb_headers(),
+            json={"user_id": str(user_id), "perms": list(perms)},
+            timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_upsert_admin error: {e}")
+
+def sb_delete_admin(user_id: int):
+    try:
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/admin_perms?user_id=eq.{user_id}",
+            headers=sb_headers(), timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_delete_admin error: {e}")
 
 def sb_save_admin_perms(store: dict):
     try:
@@ -195,9 +212,7 @@ admin_perms: dict[int, set] = load_admin_perms()
 def has_perm(user_id: int, cmd: str) -> bool:
     if user_id == OWNER_ID:
         return True
-
-    perms = admin_perms.get(user_id, set())
-
+    perms = sb_load_admin_perms().get(user_id, set())
     return "all" in perms or cmd in perms
 
 
@@ -1309,21 +1324,19 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not target_id:
         return
 
-    admin_perms = load_admin_perms()
-
-    if target_id not in admin_perms:
-        admin_perms[target_id] = set()
+    current = sb_load_admin_perms()
+    perms = current.get(target_id, set())
 
     if specific_cmd is None or specific_cmd == "":
-        admin_perms[target_id] = {"all"}
-        save_admin_perms(admin_perms)
+        perms = {"all"}
+        sb_upsert_admin(target_id, perms)
         await msg.reply_text(
             f"🎖️ {target_name} is admin of Zaxoy Bot now 🇵🇱",
             reply_to_message_id=target.message_id if target else None
         )
     elif specific_cmd in VALID_CMDS:
-        admin_perms[target_id].add(specific_cmd)
-        save_admin_perms(admin_perms)
+        perms.add(specific_cmd)
+        sb_upsert_admin(target_id, perms)
         await msg.reply_text(
             f"✅ {target_name} can use {specific_cmd} now 🇵🇱",
             reply_to_message_id=target.message_id if target else None
@@ -1364,12 +1377,11 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("↩️ Reply, mention, or use ID: //remove @username [command]")
         return
 
-    admin_perms = load_admin_perms()
-    perms = admin_perms.get(target_id, set())
+    current = sb_load_admin_perms()
+    perms = current.get(target_id, set())
 
     if specific_cmd is None or specific_cmd == "":
-        admin_perms.pop(target_id, None)
-        save_admin_perms(admin_perms)
+        sb_delete_admin(target_id)
         await msg.reply_text(
             f"😔 Sadly {target_name} can't use me now 🇵🇱",
             reply_to_message_id=target.message_id if target else None
@@ -1382,11 +1394,10 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             perms.discard(specific_cmd)
 
         if perms:
-            admin_perms[target_id] = perms
+            sb_upsert_admin(target_id, perms)
         else:
-            admin_perms.pop(target_id, None)
+            sb_delete_admin(target_id)
 
-        save_admin_perms(admin_perms)
         await msg.reply_text(
             f"🗑️ {target_name}: {specific_cmd} has been removed 🇵🇱",
             reply_to_message_id=target.message_id if target else None
@@ -1402,9 +1413,7 @@ async def admin_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if msg.from_user.id != OWNER_ID:
         return
 
-    # Refresh from Supabase
-    global admin_perms
-    admin_perms = load_admin_perms()
+    admin_perms = sb_load_admin_perms()
 
     if not admin_perms:
         await msg.reply_text("📭 No admins yet.")
@@ -1446,8 +1455,7 @@ async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("adminrm_"):
         uid = int(data[8:])
-        admin_perms.pop(uid, None)
-        save_admin_perms(admin_perms)
+        sb_delete_admin(uid)
         await query.edit_message_text("✅ Admin removed 🇵🇱")
 
 
