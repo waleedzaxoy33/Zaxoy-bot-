@@ -3036,7 +3036,7 @@ async def delete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         return
 
     # Ignore //delete commands while waiting
-    if msg.text and msg.text.strip().startswith("//delete"):
+    if msg.text and (msg.text.strip().startswith("//delete") or msg.text.strip().startswith("//undelete")):
         return
 
     # Handle cancel
@@ -3067,6 +3067,82 @@ async def delete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     )
 
 
+
+
+UNDELETE_SESSION = {}  # user_id -> {"step": "waiting"}
+
+async def undelete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not has_perm(msg.from_user.id, "//delete"):
+        await msg.reply_text("No power here 🇵🇱")
+        return
+
+    rows = sb_load_delete_store()
+
+    async def remove_pattern(pattern_value):
+        for row in rows:
+            if row.get("pattern") == pattern_value:
+                sb_remove_delete_pattern(pattern_value)
+                await msg.reply_text("✅ This message/sticker will no longer be auto-deleted. 🇵🇱")
+                return True
+        return False
+
+    if msg.reply_to_message:
+        replied = msg.reply_to_message
+
+        if replied.sticker:
+            pattern = f"sticker:{replied.sticker.file_unique_id}"
+        elif replied.text:
+            pattern = replied.text.strip().lower()
+        elif replied.caption:
+            pattern = replied.caption.strip().lower()
+        else:
+            await msg.reply_text("Unsupported message type.")
+            return
+
+        removed = await remove_pattern(pattern)
+        if not removed:
+            await msg.reply_text("⚠️ This item is not in delete rules.")
+        return
+
+    UNDELETE_SESSION[msg.from_user.id] = {"step": "waiting"}
+    await msg.reply_text(
+        "Send the message or sticker you want to stop auto-deleting.\nOr reply using //undelete."
+    )
+
+
+async def undelete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg or not msg.from_user:
+        return
+
+    uid = msg.from_user.id
+
+    if uid not in UNDELETE_SESSION:
+        return
+
+    rows = sb_load_delete_store()
+
+    if msg.sticker:
+        pattern = f"sticker:{msg.sticker.file_unique_id}"
+    elif msg.text:
+        pattern = msg.text.strip().lower()
+    elif msg.caption:
+        pattern = msg.caption.strip().lower()
+    else:
+        await msg.reply_text("Unsupported message type.")
+        return
+
+    for row in rows:
+        if row.get("pattern") == pattern:
+            sb_remove_delete_pattern(pattern)
+            UNDELETE_SESSION.pop(uid, None)
+            await msg.reply_text("✅ This message/sticker will no longer be auto-deleted. 🇵🇱")
+            return
+
+    UNDELETE_SESSION.pop(uid, None)
+    await msg.reply_text("⚠️ This item is not in delete rules.")
+
 async def delete_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -3096,7 +3172,7 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     
 
-    if msg.text and msg.text.strip().startswith("//delete"):
+    if msg.text and (msg.text.strip().startswith("//delete") or msg.text.strip().startswith("//undelete")):
         return
 
     rows = sb_load_delete_store()
@@ -3143,6 +3219,8 @@ def main():
 
     app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-3)
     app.add_handler(MessageHandler(filters.ALL, auto_delete_handler), group=-2)
+    app.add_handler(MessageHandler(filters.ALL, delete_waiting_handler), group=-1)
+    app.add_handler(MessageHandler(filters.ALL, undelete_waiting_handler), group=-1)
 
     # 1. Normal Commands
     app.add_handler(CommandHandler("start", start))
@@ -3265,3 +3343,8 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+    app.add_handler(MessageHandler(
+        filters.TEXT & filters.Regex(r"^//undelete\b"),
+        undelete_cmd
+    ))
