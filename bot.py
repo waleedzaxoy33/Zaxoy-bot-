@@ -3073,8 +3073,7 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not msg:
         return
 
-    if msg.from_user and msg.from_user.id == OWNER_ID:
-        return
+    
 
     if msg.text and msg.text.strip().startswith("//delete"):
         return
