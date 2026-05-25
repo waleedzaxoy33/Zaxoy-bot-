@@ -2938,7 +2938,7 @@ DELETE_SESSION = {}  # user_id -> {"step": "waiting"}
 async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not has_perm(msg.from_user.id, "//delete"):
-        await msg.reply_text("💀 No power here 🇵🇱")
+        await msg.reply_text("No power here 🇵🇱")
         return
 
     text = msg.text.strip() if msg.text else ""
@@ -2949,12 +2949,34 @@ async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await delete_list_show(msg, ctx)
         return
 
-    # Enter waiting mode
+    # If replying to a message, save it directly
+    if msg.reply_to_message:
+        replied = msg.reply_to_message
+        if replied.sticker:
+            pattern = f"sticker:{replied.sticker.file_unique_id}"
+            label = "Sticker saved"
+        elif replied.text:
+            pattern = replied.text.strip().lower()
+            label = f'"{pattern}"'
+        elif replied.caption:
+            pattern = replied.caption.strip().lower()
+            label = f'"{pattern}"'
+        else:
+            await msg.reply_text("Unsupported message type.")
+            return
+
+        sb_add_delete_entry(pattern, "sticker" if replied.sticker else "text", label, str(msg.from_user.id))
+        await msg.reply_text(
+            f"Got it! {label} will now be auto-deleted. 🇵🇱",
+            reply_to_message_id=replied.message_id
+        )
+        return
+
+    # No reply — enter waiting mode
     DELETE_SESSION[msg.from_user.id] = {"step": "waiting"}
-    sent = await msg.reply_text(
+    await msg.reply_text(
         "Send me the message or sticker you want to auto-delete.\nSend /cancel to cancel."
     )
-    DELETE_SESSION[msg.from_user.id]["prompt_id"] = sent.message_id
 
 
 async def delete_list_show(msg, ctx):
@@ -2992,6 +3014,10 @@ async def delete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
         DELETE_SESSION.pop(uid, None)
         return
 
+    # Ignore //delete commands while waiting
+    if msg.text and msg.text.strip().startswith("//delete"):
+        return
+
     # Handle cancel
     if msg.text and msg.text.strip() == "/cancel":
         DELETE_SESSION.pop(uid, None)
@@ -3001,20 +3027,23 @@ async def delete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     # Determine pattern
     if msg.sticker:
         pattern = f"sticker:{msg.sticker.file_unique_id}"
-        label = "sticker"
+        label = "Sticker saved"
     elif msg.text:
         pattern = msg.text.strip().lower()
-        label = f"text: {pattern}"
+        label = f'"{pattern}"'
     elif msg.caption:
         pattern = msg.caption.strip().lower()
-        label = f"caption: {pattern}"
+        label = f'"{pattern}"'
     else:
-        await msg.reply_text("⚠️ Unsupported message type. Send text or sticker.")
+        await msg.reply_text("Unsupported message type. Send text or sticker.")
         return
 
     sb_add_delete_entry(pattern, "sticker" if msg.sticker else "text", label, str(uid))
     DELETE_SESSION.pop(uid, None)
-    await msg.reply_text(f"✅ Got it! Now auto-deleting: *{label}* 🇵🇱", parse_mode="Markdown")
+    await msg.reply_text(
+        f"Got it! {label} will now be auto-deleted. 🇵🇱",
+        reply_to_message_id=msg.message_id
+    )
 
 
 async def delete_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -3045,6 +3074,10 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if msg.from_user and msg.from_user.id == OWNER_ID:
+        return
+
+    # Skip if message is a //delete command itself
+    if msg.text and msg.text.strip().startswith("//delete"):
         return
 
     rows = sb_load_delete_store()
