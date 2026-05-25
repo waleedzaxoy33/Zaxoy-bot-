@@ -2989,11 +2989,12 @@ async def delete_list_show(msg, ctx):
 
     for row in rows:
         pattern = row["pattern"]
+        added_by = row.get("added_by", "Unknown")
+
         if pattern.startswith("sticker:"):
-            label = "🎭 Sticker"
-            display = f"🎭 Sticker ID: `{pattern[8:][:30]}...`"
+            display = f"🎭 Sticker ID: `{pattern[8:][:30]}...`\n👤 Added by: `{added_by}`"
         else:
-            display = f"💬 Text: `{pattern}`"
+            display = f"💬 Text: `{pattern}`\n👤 Added by: `{added_by}`"
 
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton("🗑 Remove", callback_data=f"delrm_{pattern[:60]}")
