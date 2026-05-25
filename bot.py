@@ -3117,7 +3117,8 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-1)
+    app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-2)
+    app.add_handler(MessageHandler(filters.ALL, auto_delete_handler), group=-1)
 
     # 1. Normal Commands
     app.add_handler(CommandHandler("start", start))
@@ -3232,11 +3233,6 @@ def main():
         filters.ALL,
         delete_waiting_handler
     ), group=2)
-
-    app.add_handler(MessageHandler(
-        filters.ALL,
-        auto_delete_handler
-    ), group=3)
 
     print("Zaxoy Bot started 🇵🇱")
 
