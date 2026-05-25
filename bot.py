@@ -3089,66 +3089,6 @@ async def delete_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text("⚠️ Rule not found.")
 
 
-
-
-UNDELETE_SESSION = {}  # user_id -> waiting
-
-async def undelete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-
-    if not has_perm(msg.from_user.id, "//delete"):
-        await msg.reply_text("No power here 🇵🇱")
-        return
-
-    if msg.reply_to_message:
-        target = msg.reply_to_message
-
-        if target.sticker:
-            pattern = f"sticker:{target.sticker.file_unique_id}"
-        elif target.text:
-            pattern = target.text.strip().lower()
-        elif target.caption:
-            pattern = target.caption.strip().lower()
-        else:
-            await msg.reply_text("Reply to a text or sticker.")
-            return
-
-        sb_remove_delete_pattern(pattern)
-        await msg.reply_text("Removed. This content will no longer be auto-deleted 🇵🇱")
-        return
-
-    UNDELETE_SESSION[msg.from_user.id] = {"step": "waiting"}
-    await msg.reply_text("Reply with a text or sticker you want to stop auto-deleting.")
-
-
-async def undelete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not msg or not msg.from_user:
-        return
-
-    uid = msg.from_user.id
-
-    if uid not in UNDELETE_SESSION:
-        return
-
-    if msg.text and msg.text.strip().startswith("//undelete"):
-        return
-
-    if msg.sticker:
-        pattern = f"sticker:{msg.sticker.file_unique_id}"
-    elif msg.text:
-        pattern = msg.text.strip().lower()
-    elif msg.caption:
-        pattern = msg.caption.strip().lower()
-    else:
-        await msg.reply_text("Unsupported message type.")
-        return
-
-    sb_remove_delete_pattern(pattern)
-    UNDELETE_SESSION.pop(uid, None)
-
-    await msg.reply_text("Removed. This content will no longer be auto-deleted 🇵🇱")
-
 async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message or update.channel_post
     if not msg:
@@ -3203,8 +3143,6 @@ def main():
 
     app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-3)
     app.add_handler(MessageHandler(filters.ALL, auto_delete_handler), group=-2)
-    app.add_handler(CommandHandler("undelete", undelete_cmd))
-    app.add_handler(MessageHandler(filters.ALL, undelete_waiting_handler), group=-1)
 
     # 1. Normal Commands
     app.add_handler(CommandHandler("start", start))
