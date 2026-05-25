@@ -3121,8 +3121,8 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-2)
-    app.add_handler(MessageHandler(filters.ALL, auto_delete_handler), group=-1)
+    app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-3)
+    app.add_handler(MessageHandler(filters.ALL, auto_delete_handler), group=-2)
 
     # 1. Normal Commands
     app.add_handler(CommandHandler("start", start))
@@ -3173,7 +3173,7 @@ def main():
     app.add_handler(MessageHandler(
         filters.Sticker.ALL,
         if_auto_responder
-    ))
+    ), group=1)
 
     # 4. Callback Queries
     app.add_handler(CallbackQueryHandler(
