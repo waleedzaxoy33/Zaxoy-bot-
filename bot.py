@@ -106,7 +106,7 @@ def sb_load_delete_store() -> list:
         logging.error(f"sb_load_delete_store error: {e}")
         return []
 
-def sb_add_delete_pattern(pattern: str, added_by: str):
+def sb_add_delete_entry(pattern: str, entry_type: str, label: str, added_by: str):
     try:
         sb.table("delete_store").delete().eq("pattern", pattern).execute()
         sb.table("delete_store").insert({
@@ -114,7 +114,7 @@ def sb_add_delete_pattern(pattern: str, added_by: str):
             "added_by": added_by
         }).execute()
     except Exception as e:
-        logging.error(f"sb_add_delete_pattern error: {e}")
+        logging.error(f"sb_add_delete_entry error: {e}")
 
 def sb_remove_delete_pattern(pattern: str):
     try:
@@ -2933,7 +2933,7 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 # ─── //delete system ─────────────────────────────────────────────────
 
-DELETE_SESSION = {}  # user_id -> {"step": "waiting_pattern"}
+DELETE_SESSION = {}  # user_id -> {"step": "waiting"}
 
 async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -2941,42 +2941,81 @@ async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("💀 No power here 🇵🇱")
         return
 
-    parts = msg.text.strip().split(None, 1)
-    if len(parts) < 2:
-        await msg.reply_text("⚠️ Usage: //delete [word/phrase]\nOr: //delete //list")
-        return
-
-    arg = parts[1].strip()
+    text = msg.text.strip() if msg.text else ""
+    parts = text.split(None, 1)
+    arg = parts[1].strip() if len(parts) > 1 else ""
 
     if arg == "//list":
-        await delete_list_cmd(update, ctx)
+        await delete_list_show(msg, ctx)
         return
 
-    pattern = arg.lower()
-    sb_add_delete_pattern(pattern, str(msg.from_user.id))
-    await msg.reply_text(f"🗑️ Now auto-deleting any message containing: *{pattern}* 🇵🇱", parse_mode="Markdown")
+    # Enter waiting mode
+    DELETE_SESSION[msg.from_user.id] = {"step": "waiting"}
+    sent = await msg.reply_text(
+        "📩 Send me the message or sticker you want to auto-delete.
+Send /cancel to cancel."
+    )
+    DELETE_SESSION[msg.from_user.id]["prompt_id"] = sent.message_id
 
 
-async def delete_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if not has_perm(msg.from_user.id, "//delete"):
-        await msg.reply_text("💀 No power here 🇵🇱")
-        return
-
+async def delete_list_show(msg, ctx):
     rows = sb_load_delete_store()
     if not rows:
-        await msg.reply_text("📭 No delete patterns yet.")
+        await msg.reply_text("📭 No delete rules yet.")
         return
 
-    await msg.reply_text(f"🗑️ *{len(rows)} delete pattern(s):*", parse_mode="Markdown")
+    await msg.reply_text(f"🗑️ *{len(rows)} delete rule(s):*", parse_mode="Markdown")
 
     for row in rows:
         pattern = row["pattern"]
-        text = f"🔴 `{pattern}`"
+        if pattern.startswith("sticker:"):
+            label = "🎭 Sticker"
+            display = f"🎭 Sticker ID: `{pattern[8:][:30]}...`"
+        else:
+            display = f"💬 Text: `{pattern}`"
+
         kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("🗑 Remove", callback_data=f"delrm_{pattern}")
+            InlineKeyboardButton("🗑 Remove", callback_data=f"delrm_{pattern[:60]}")
         ]])
-        await msg.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+        await msg.reply_text(display, parse_mode="Markdown", reply_markup=kb)
+
+
+async def delete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg or not msg.from_user:
+        return
+
+    uid = msg.from_user.id
+    if uid not in DELETE_SESSION or DELETE_SESSION[uid].get("step") != "waiting":
+        return
+
+    if not has_perm(uid, "//delete"):
+        DELETE_SESSION.pop(uid, None)
+        return
+
+    # Handle cancel
+    if msg.text and msg.text.strip() == "/cancel":
+        DELETE_SESSION.pop(uid, None)
+        await msg.reply_text("❌ Cancelled.")
+        return
+
+    # Determine pattern
+    if msg.sticker:
+        pattern = f"sticker:{msg.sticker.file_unique_id}"
+        label = "sticker"
+    elif msg.text:
+        pattern = msg.text.strip().lower()
+        label = f"text: {pattern}"
+    elif msg.caption:
+        pattern = msg.caption.strip().lower()
+        label = f"caption: {pattern}"
+    else:
+        await msg.reply_text("⚠️ Unsupported message type. Send text or sticker.")
+        return
+
+    sb_add_delete_entry(pattern, "sticker" if msg.sticker else "text", label, str(uid))
+    DELETE_SESSION.pop(uid, None)
+    await msg.reply_text(f"✅ Got it! Now auto-deleting: *{label}* 🇵🇱", parse_mode="Markdown")
 
 
 async def delete_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2991,8 +3030,14 @@ async def delete_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     if data.startswith("delrm_"):
         pattern = data[6:]
-        sb_remove_delete_pattern(pattern)
-        await query.edit_message_text(f"✅ Removed pattern: `{pattern}` 🇵🇱", parse_mode="Markdown")
+        # Find full pattern (may be truncated in callback_data)
+        rows = sb_load_delete_store()
+        for row in rows:
+            if row["pattern"].startswith(pattern) or row["pattern"][:60] == pattern:
+                sb_remove_delete_pattern(row["pattern"])
+                await query.edit_message_text("✅ Delete rule removed 🇵🇱")
+                return
+        await query.edit_message_text("⚠️ Rule not found.")
 
 
 async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -3000,7 +3045,6 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not msg:
         return
 
-    # Don't delete owner's messages
     if msg.from_user and msg.from_user.id == OWNER_ID:
         return
 
@@ -3008,23 +3052,32 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not rows:
         return
 
-    # Get message text (handle stickers, media, text)
-    text = ""
-    if msg.text:
-        text = msg.text.lower()
-    elif msg.caption:
-        text = msg.caption.lower()
-    elif msg.sticker and msg.sticker.emoji:
-        text = msg.sticker.emoji.lower()
-
     for row in rows:
-        pattern = row["pattern"].lower()
-        if pattern in text:
-            try:
-                await msg.delete()
-            except Exception:
-                pass
-            return
+        pattern = row["pattern"]
+
+        # Sticker match
+        if pattern.startswith("sticker:"):
+            file_unique_id = pattern[8:]
+            if msg.sticker and msg.sticker.file_unique_id == file_unique_id:
+                try:
+                    await msg.delete()
+                except Exception:
+                    pass
+                return
+        else:
+            # Text match
+            text = ""
+            if msg.text:
+                text = msg.text.lower()
+            elif msg.caption:
+                text = msg.caption.lower()
+
+            if text and pattern in text:
+                try:
+                    await msg.delete()
+                except Exception:
+                    pass
+                return
 
 def main():
 
@@ -3144,9 +3197,14 @@ def main():
     ))
 
     app.add_handler(MessageHandler(
-        filters.ALL & ~filters.COMMAND,
+        filters.ALL,
+        delete_waiting_handler
+    ), group=2)
+
+    app.add_handler(MessageHandler(
+        filters.ALL,
         auto_delete_handler
-    ), group=1)
+    ), group=3)
 
     print("Zaxoy Bot started 🇵🇱")
 
