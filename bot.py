@@ -2988,18 +2988,40 @@ async def delete_list_show(msg, ctx):
     await msg.reply_text(f"🗑️ *{len(rows)} delete rule(s):*", parse_mode="Markdown")
 
     for row in rows:
-        pattern = row["pattern"]
+        pattern = row.get("pattern", "")
         added_by = row.get("added_by", "Unknown")
 
+        try:
+            user = await ctx.bot.get_chat(added_by)
+            if user.username:
+                added_text = f"@{user.username}"
+            else:
+                added_text = user.full_name
+        except Exception:
+            added_text = str(added_by)
+
         if pattern.startswith("sticker:"):
-            display = f"🎭 Sticker ID: `{pattern[8:][:30]}...`\n👤 Added by: `{added_by}`"
+            display = (
+                f"🎭 Sticker ID: `{pattern[8:][:30]}...`
+"
+                f"👤 Added by: {added_text}"
+            )
         else:
-            display = f"💬 Text: `{pattern}`\n👤 Added by: `{added_by}`"
+            display = (
+                f"💬 Text: `{pattern}`
+"
+                f"👤 Added by: {added_text}"
+            )
 
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton("🗑 Remove", callback_data=f"delrm_{pattern[:60]}")
         ]])
-        await msg.reply_text(display, parse_mode="Markdown", reply_markup=kb)
+
+        await msg.reply_text(
+            display,
+            parse_mode="Markdown",
+            reply_markup=kb
+        )
 
 
 async def delete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
