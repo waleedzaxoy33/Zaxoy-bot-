@@ -2952,8 +2952,7 @@ async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Enter waiting mode
     DELETE_SESSION[msg.from_user.id] = {"step": "waiting"}
     sent = await msg.reply_text(
-        "📩 Send me the message or sticker you want to auto-delete.
-Send /cancel to cancel."
+        "Send me the message or sticker you want to auto-delete.\nSend /cancel to cancel."
     )
     DELETE_SESSION[msg.from_user.id]["prompt_id"] = sent.message_id
 
