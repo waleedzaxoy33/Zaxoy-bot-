@@ -3002,14 +3002,12 @@ async def delete_list_show(msg, ctx):
 
         if pattern.startswith("sticker:"):
             display = (
-                f"🎭 Sticker ID: `{pattern[8:][:30]}...`
-"
+                f"🎭 Sticker ID: `{pattern[8:][:30]}...`"
                 f"👤 Added by: {added_text}"
             )
         else:
             display = (
-                f"💬 Text: `{pattern}`
-"
+                f"💬 Text: `{pattern}`"
                 f"👤 Added by: {added_text}"
             )
 
