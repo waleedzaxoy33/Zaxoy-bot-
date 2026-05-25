@@ -97,6 +97,31 @@ def sb_delete_admin(user_id: int):
     except Exception as e:
         logging.error(f"sb_delete_admin error: {e}")
 
+# ─── delete_store Supabase functions ─────────────────────────────────
+def sb_load_delete_store() -> list:
+    try:
+        res = sb.table("delete_store").select("*").execute()
+        return res.data or []
+    except Exception as e:
+        logging.error(f"sb_load_delete_store error: {e}")
+        return []
+
+def sb_add_delete_pattern(pattern: str, added_by: str):
+    try:
+        sb.table("delete_store").delete().eq("pattern", pattern).execute()
+        sb.table("delete_store").insert({
+            "pattern": pattern,
+            "added_by": added_by
+        }).execute()
+    except Exception as e:
+        logging.error(f"sb_add_delete_pattern error: {e}")
+
+def sb_remove_delete_pattern(pattern: str):
+    try:
+        sb.table("delete_store").delete().eq("pattern", pattern).execute()
+    except Exception as e:
+        logging.error(f"sb_remove_delete_pattern error: {e}")
+
 def sb_save_admin_perms(store: dict):
     try:
         # Get existing user_ids in Supabase
@@ -1280,7 +1305,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await thinking.edit_text(f"🤖 {answer}")
 
 # ─── //add ────────────────────────────────────────────────────────────
-VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban"}
+VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     global admin_perms
@@ -2905,6 +2930,102 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await msg.reply_text(f"⚠️ Failed to unban:\\n{e}")
 
 
+
+# ─── //delete system ─────────────────────────────────────────────────
+
+DELETE_SESSION = {}  # user_id -> {"step": "waiting_pattern"}
+
+async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not has_perm(msg.from_user.id, "//delete"):
+        await msg.reply_text("💀 No power here 🇵🇱")
+        return
+
+    parts = msg.text.strip().split(None, 1)
+    if len(parts) < 2:
+        await msg.reply_text("⚠️ Usage: //delete [word/phrase]\nOr: //delete //list")
+        return
+
+    arg = parts[1].strip()
+
+    if arg == "//list":
+        await delete_list_cmd(update, ctx)
+        return
+
+    pattern = arg.lower()
+    sb_add_delete_pattern(pattern, str(msg.from_user.id))
+    await msg.reply_text(f"🗑️ Now auto-deleting any message containing: *{pattern}* 🇵🇱", parse_mode="Markdown")
+
+
+async def delete_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not has_perm(msg.from_user.id, "//delete"):
+        await msg.reply_text("💀 No power here 🇵🇱")
+        return
+
+    rows = sb_load_delete_store()
+    if not rows:
+        await msg.reply_text("📭 No delete patterns yet.")
+        return
+
+    await msg.reply_text(f"🗑️ *{len(rows)} delete pattern(s):*", parse_mode="Markdown")
+
+    for row in rows:
+        pattern = row["pattern"]
+        text = f"🔴 `{pattern}`"
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🗑 Remove", callback_data=f"delrm_{pattern}")
+        ]])
+        await msg.reply_text(text, parse_mode="Markdown", reply_markup=kb)
+
+
+async def delete_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if not has_perm(query.from_user.id, "//delete"):
+        await query.answer("💀 No power here", show_alert=True)
+        return
+
+    data = query.data
+
+    if data.startswith("delrm_"):
+        pattern = data[6:]
+        sb_remove_delete_pattern(pattern)
+        await query.edit_message_text(f"✅ Removed pattern: `{pattern}` 🇵🇱", parse_mode="Markdown")
+
+
+async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message or update.channel_post
+    if not msg:
+        return
+
+    # Don't delete owner's messages
+    if msg.from_user and msg.from_user.id == OWNER_ID:
+        return
+
+    rows = sb_load_delete_store()
+    if not rows:
+        return
+
+    # Get message text (handle stickers, media, text)
+    text = ""
+    if msg.text:
+        text = msg.text.lower()
+    elif msg.caption:
+        text = msg.caption.lower()
+    elif msg.sticker and msg.sticker.emoji:
+        text = msg.sticker.emoji.lower()
+
+    for row in rows:
+        pattern = row["pattern"].lower()
+        if pattern in text:
+            try:
+                await msg.delete()
+            except Exception:
+                pass
+            return
+
 def main():
 
     start_keep_alive()
@@ -3003,6 +3124,11 @@ def main():
     ))
 
     app.add_handler(MessageHandler(
+        filters.Regex(r"^//delete"),
+        delete_cmd
+    ))
+
+    app.add_handler(MessageHandler(
         filters.Regex(r"^//"),
         message_router
     ))
@@ -3011,6 +3137,16 @@ def main():
         filters.TEXT & ~filters.COMMAND,
         message_router
     ))
+
+    app.add_handler(CallbackQueryHandler(
+        delete_callback,
+        pattern="^delrm_"
+    ))
+
+    app.add_handler(MessageHandler(
+        filters.ALL & ~filters.COMMAND,
+        auto_delete_handler
+    ), group=1)
 
     print("Zaxoy Bot started 🇵🇱")
 
