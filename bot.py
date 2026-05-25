@@ -3080,39 +3080,47 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     rows = sb_load_delete_store()
-    print(f"[AUTODEL] triggered. rows={len(rows)} chat={msg.chat.id} sticker={bool(msg.sticker)} text={msg.text}")
+    print(f"[AUTODEL] triggered. rows={len(rows)} chat={msg.chat.id}")
+
     if not rows:
         return
 
     for row in rows:
-        pattern = row["pattern"]
-        print(f"[AUTODEL] checking pattern={pattern}")
+        pattern = str(row.get("pattern", "")).strip()
 
+        # Sticker match
         if pattern.startswith("sticker:"):
-            file_unique_id = pattern[8:]
-            if msg.sticker:
-                print(f"[AUTODEL] sticker file_unique_id={msg.sticker.file_unique_id} vs {file_unique_id}")
-            if msg.sticker and msg.sticker.file_unique_id == file_unique_id:
+            file_unique_id = pattern.replace("sticker:", "", 1).strip()
+
+            if msg.sticker and str(msg.sticker.file_unique_id).strip() == file_unique_id:
                 try:
-                    await msg.delete()
+                    await ctx.bot.delete_message(
+                        chat_id=msg.chat.id,
+                        message_id=msg.message_id
+                    )
                     print(f"[AUTODEL] deleted sticker message")
                 except Exception as e:
-                    print(f"[AUTODEL] failed to delete: {e}")
+                    print(f"[AUTODEL] failed to delete sticker: {e}")
                 return
-        else:
-            text = ""
-            if msg.text:
-                text = msg.text.lower()
-            elif msg.caption:
-                text = msg.caption.lower()
 
-            print(f"[AUTODEL] text={text} pattern={pattern} match={pattern in text}")
-            if text and pattern in text:
+        # Text / caption match
+        else:
+            incoming_text = ""
+
+            if msg.text:
+                incoming_text = msg.text.strip().lower()
+            elif msg.caption:
+                incoming_text = msg.caption.strip().lower()
+
+            if incoming_text and pattern.lower() in incoming_text:
                 try:
-                    await msg.delete()
+                    await ctx.bot.delete_message(
+                        chat_id=msg.chat.id,
+                        message_id=msg.message_id
+                    )
                     print(f"[AUTODEL] deleted text message")
                 except Exception as e:
-                    print(f"[AUTODEL] failed to delete: {e}")
+                    print(f"[AUTODEL] failed to delete text: {e}")
                 return
 
 def main():
