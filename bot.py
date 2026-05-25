@@ -3076,39 +3076,43 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if msg.from_user and msg.from_user.id == OWNER_ID:
         return
 
-    # Skip if message is a //delete command itself
     if msg.text and msg.text.strip().startswith("//delete"):
         return
 
     rows = sb_load_delete_store()
+    print(f"[AUTODEL] triggered. rows={len(rows)} chat={msg.chat.id} sticker={bool(msg.sticker)} text={msg.text}")
     if not rows:
         return
 
     for row in rows:
         pattern = row["pattern"]
+        print(f"[AUTODEL] checking pattern={pattern}")
 
-        # Sticker match
         if pattern.startswith("sticker:"):
             file_unique_id = pattern[8:]
+            if msg.sticker:
+                print(f"[AUTODEL] sticker file_unique_id={msg.sticker.file_unique_id} vs {file_unique_id}")
             if msg.sticker and msg.sticker.file_unique_id == file_unique_id:
                 try:
                     await msg.delete()
-                except Exception:
-                    pass
+                    print(f"[AUTODEL] deleted sticker message")
+                except Exception as e:
+                    print(f"[AUTODEL] failed to delete: {e}")
                 return
         else:
-            # Text match
             text = ""
             if msg.text:
                 text = msg.text.lower()
             elif msg.caption:
                 text = msg.caption.lower()
 
+            print(f"[AUTODEL] text={text} pattern={pattern} match={pattern in text}")
             if text and pattern in text:
                 try:
                     await msg.delete()
-                except Exception:
-                    pass
+                    print(f"[AUTODEL] deleted text message")
+                except Exception as e:
+                    print(f"[AUTODEL] failed to delete: {e}")
                 return
 
 def main():
