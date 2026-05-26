@@ -434,12 +434,20 @@ OFF_MSGS = [
     "❌ Zaxoy Bot signing out 🇵🇱",
 ]
 
+# Simple flag — True means bot announces itself as ON, False as OFF
+# Nothing stops or starts — all handlers stay running always
+bot_online: bool = True
+
 
 async def on_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global bot_online
+    bot_online = True
     await update.message.reply_text(random.choice(ON_MSGS))
 
 
 async def off_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global bot_online
+    bot_online = False
     await update.message.reply_text(random.choice(OFF_MSGS))
 
 
@@ -1152,6 +1160,7 @@ async def r_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = msg.from_user.id
 
     if not has_perm(user_id, "//r"):
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
     text_parts = msg.text.split(None, 1)
@@ -2938,7 +2947,7 @@ DELETE_SESSION = {}  # user_id -> {"step": "waiting"}
 async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not has_perm(msg.from_user.id, "//delete"):
-        await msg.reply_text("No power here 🇵🇱")
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
     text = msg.text.strip() if msg.text else ""
