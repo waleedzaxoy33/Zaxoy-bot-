@@ -349,67 +349,65 @@ async def cache_user_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         pass
 
 async def resolve_target_from_mention(msg, ctx):
-    """Extract target from reply or @username only"""
+    """Unified target resolver: reply > text_mention entity > @mention entity > @username in text > numeric ID in text"""
 
+    # 1. Reply
     if msg.reply_to_message and msg.reply_to_message.from_user:
         u = msg.reply_to_message.from_user
         return u.id, u.full_name
 
-    text_msg = msg.text or msg.caption or ""
+    text = msg.text or msg.caption or ""
 
-    username_match = re.search(r'@(\w{3,})', text_msg)
-    if not username_match:
-        return None, None
-
-    username = f"@{username_match.group(1)}".lower()
-
-    cached_user_id = USER_CACHE.get(username)
-
-    if cached_user_id:
-        cached_data = USER_CACHE.get(str(cached_user_id), {})
-        return int(cached_user_id), cached_data.get("name", username)
-
-    try:
-        chat = await ctx.bot.get_chat(username)
-        return chat.id, chat.full_name or username
-    except Exception:
-        return None, None
-
-async def resolve_target_user(msg, ctx, allow_id=False):
-    reply = msg.reply_to_message
-    if reply and reply.from_user:
-        return reply.from_user.id, reply.from_user.full_name, reply
-
+    # 2. Entities (text_mention = user with no username, mention = @username)
     if msg.entities:
         for entity in msg.entities:
-            if entity.type == 'text_mention' and entity.user:
-                return entity.user.id, entity.user.full_name, None
-
-            if entity.type == 'mention':
-                username = msg.text[entity.offset + 1: entity.offset + entity.length]
+            if entity.type == "text_mention" and entity.user:
+                return entity.user.id, entity.user.full_name
+            if entity.type == "mention":
+                raw_username = text[entity.offset + 1: entity.offset + entity.length]
+                username = f"@{raw_username}".lower()
+                cached_id = USER_CACHE.get(username)
+                if cached_id:
+                    cached_data = USER_CACHE.get(str(cached_id), {})
+                    return int(cached_id), cached_data.get("name", username)
                 try:
-                    chat = await ctx.bot.get_chat(f'@{username}')
-                    return chat.id, chat.full_name or username, None
+                    chat = await ctx.bot.get_chat(f"@{raw_username}")
+                    return chat.id, chat.full_name or username
                 except Exception:
-                    continue
+                    pass
 
-    parts = msg.text.strip().split()
-    if len(parts) > 1:
-        for part in parts[1:]:
-            clean_part = part.strip()
+    # 3. @username anywhere in text (fallback)
+    username_match = re.search(r"@(\w{3,})", text)
+    if username_match:
+        raw_username = username_match.group(1)
+        username = f"@{raw_username}".lower()
+        cached_id = USER_CACHE.get(username)
+        if cached_id:
+            cached_data = USER_CACHE.get(str(cached_id), {})
+            return int(cached_id), cached_data.get("name", username)
+        try:
+            chat = await ctx.bot.get_chat(f"@{raw_username}")
+            return chat.id, chat.full_name or username
+        except Exception:
+            pass
 
-            if clean_part.startswith("@"):
-                cached_user_id = USER_CACHE.get(clean_part.lower())
+    # 4. Numeric ID in text
+    parts = text.strip().split()
+    for part in parts[1:]:
+        clean = part.strip()
+        if clean.lstrip("-").isdigit():
+            uid = int(clean)
+            cached_data = USER_CACHE.get(str(uid), {})
+            return uid, cached_data.get("name", clean)
 
-                if cached_user_id:
-                    cached_data = USER_CACHE.get(str(cached_user_id), {})
-                    return int(cached_user_id), cached_data.get("name", clean_part), None
+    return None, None
 
-            if allow_id and clean_part.lstrip("-").isdigit():
-                cached_data = USER_CACHE.get(str(int(clean_part)), {})
-                return int(clean_part), cached_data.get("name", clean_part), None
 
-    return None, None, None
+async def resolve_target_user(msg, ctx, allow_id=False):
+    """Same as resolve_target_from_mention but returns (id, name, reply_msg)"""
+    uid, name = await resolve_target_from_mention(msg, ctx)
+    reply = msg.reply_to_message if (msg.reply_to_message and msg.reply_to_message.from_user) else None
+    return uid, name, reply
 
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msgs = random.choice(START_MESSAGES)
@@ -1376,33 +1374,18 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if msg.from_user.id != OWNER_ID:
         return
 
-    target = msg.reply_to_message
-    parts = msg.text.strip().split(None, 1)
-    specific_cmd = parts[1].strip() if len(parts) > 1 else None
-    target_id = None
-    target_name = None
+    # Parse optional command arg (everything after @mention or user)
+    text = msg.text.strip()
+    parts = text.split()
+    specific_cmd = None
+    for p in parts[1:]:
+        if not p.startswith("@") and not p.lstrip("-").isdigit():
+            specific_cmd = p
+            break
 
-    if target:
-        u = target.from_user
-        target_id = u.id
-        target_name = u.full_name
-    elif msg.entities:
-        for entity in msg.entities:
-            if entity.type == "mention":
-                username = msg.text[entity.offset+1:entity.offset+entity.length]
-                try:
-                    chat = await ctx.bot.get_chat(f"@{username}")
-                    target_id = chat.id
-                    target_name = chat.full_name
-                    specific_cmd = None
-                except Exception:
-                    await msg.reply_text(f"⚠️ User @{username} not found.")
-                    return
-    else:
-        await msg.reply_text("↩️ Reply, mention, or use ID: //add @username [command]")
-        return
-
+    target_id, target_name = await resolve_target_from_mention(msg, ctx)
     if not target_id:
+        await msg.reply_text("↩️ Reply, mention, or use ID: //add @username [command]")
         return
 
     current = sb_load_admin_perms()
@@ -1438,29 +1421,16 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID:
         return
-    target = msg.reply_to_message
-    parts = msg.text.strip().split(None, 1)
-    specific_cmd = parts[1].strip() if len(parts) > 1 else None
+    text = msg.text.strip()
+    parts = text.split()
+    specific_cmd = None
+    for p in parts[1:]:
+        if not p.startswith("@") and not p.lstrip("-").isdigit():
+            specific_cmd = p
+            break
 
-    target_id = None
-    target_name = None
-
-    if target:
-        target_id = target.from_user.id
-        target_name = target.from_user.full_name
-    elif msg.entities:
-        for entity in msg.entities:
-            if entity.type == "mention":
-                username = msg.text[entity.offset+1:entity.offset+entity.length]
-                try:
-                    chat = await ctx.bot.get_chat(f"@{username}")
-                    target_id = chat.id
-                    target_name = chat.full_name
-                    specific_cmd = None
-                except Exception:
-                    await msg.reply_text(f"⚠️ User @{username} not found.")
-                    return
-    else:
+    target_id, target_name = await resolve_target_from_mention(msg, ctx)
+    if not target_id:
         await msg.reply_text("↩️ Reply, mention, or use ID: //remove @username [command]")
         return
 
@@ -1888,21 +1858,10 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    target = msg.reply_to_message
-    uid = None
-    target_name_str = None
-
-    if target:
-        uid = target.from_user.id
-        target_name_str = target.from_user.full_name
-    else:
-        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
-        if mention_id:
-            uid = mention_id
-            target_name_str = mention_name
-        else:
-            await _reply("↩️ Reply to a user or mention them: //warn @username")
-            return
+    uid, target_name_str = await resolve_target_from_mention(msg, ctx)
+    if not uid:
+        await _reply("↩️ Reply to a user or mention them: //warn @username")
+        return
 
     if msg.from_user.id == uid:
         await _reply("🧠 Wanna warn yourself? You can't do that, bro! Friendly Fire is OFF 🇵🇱")
@@ -1952,22 +1911,10 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    target = msg.reply_to_message
-    target_id = None
-    target_name = None
-
-    if target:
-        target_id = target.from_user.id
-        target_name = target.from_user.full_name
-    else:
-        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
-        if mention_id:
-            target_id = mention_id
-            target_name = mention_name
-        else:
-            await msg.reply_text("↩️ Reply to a user or mention them: //mute @username [duration]")
-            return
-
+    target_id, target_name = await resolve_target_from_mention(msg, ctx)
+    if not target_id:
+        await msg.reply_text("↩️ Reply to a user or mention them: //mute @username [duration]")
+        return
 
     # 3. Self-mute check
     if user_id == target_id:
@@ -2042,18 +1989,10 @@ async def unmute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    target = msg.reply_to_message
-    target_id = None
-
-    if target and target.from_user:
-        target_id = target.from_user.id
-    else:
-        mention_id, mention_name = await resolve_target_from_mention(msg, ctx)
-        if mention_id:
-            target_id = mention_id
-        else:
-            await msg.reply_text("↩️ Reply to a user or mention them: //unmute @username")
-            return
+    target_id, _ = await resolve_target_from_mention(msg, ctx)
+    if not target_id:
+        await msg.reply_text("↩️ Reply to a user or mention them: //unmute @username")
+        return
 
     try:
         await ctx.bot.restrict_chat_member(
