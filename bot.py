@@ -3277,7 +3277,7 @@ def main():
 
     start_keep_alive()
 
-    app = Application.builder().token(BOT_TOKEN).build()
+app = Application.builder().token(BOT_TOKEN).build()
 
 app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-3)
 app.add_handler(MessageHandler(filters.ALL, auto_delete_handler), group=-2)
