@@ -349,7 +349,8 @@ async def cache_user_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         pass
 
 async def resolve_target_from_mention(msg, ctx):
-    """Unified target resolver: reply > text_mention entity > @mention entity > @username in text > numeric ID in text"""
+    """Unified target resolver — same logic as /gaytest:
+    reply > text_mention entity > @username (cache then get_chat) > numeric ID"""
 
     # 1. Reply
     if msg.reply_to_message and msg.reply_to_message.from_user:
@@ -358,47 +359,34 @@ async def resolve_target_from_mention(msg, ctx):
 
     text = msg.text or msg.caption or ""
 
-    # 2. Entities (text_mention = user with no username, mention = @username)
+    # 2. text_mention entity (user tapped, no username)
     if msg.entities:
         for entity in msg.entities:
             if entity.type == "text_mention" and entity.user:
                 return entity.user.id, entity.user.full_name
-            if entity.type == "mention":
-                raw_username = text[entity.offset + 1: entity.offset + entity.length]
-                username = f"@{raw_username}".lower()
-                cached_id = USER_CACHE.get(username)
-                if cached_id:
-                    cached_data = USER_CACHE.get(str(cached_id), {})
-                    return int(cached_id), cached_data.get("name", username)
-                try:
-                    chat = await ctx.bot.get_chat(f"@{raw_username}")
-                    return chat.id, chat.full_name or username
-                except Exception:
-                    pass
 
-    # 3. @username anywhere in text (fallback)
-    username_match = re.search(r"@(\w{3,})", text)
-    if username_match:
-        raw_username = username_match.group(1)
-        username = f"@{raw_username}".lower()
-        cached_id = USER_CACHE.get(username)
-        if cached_id:
-            cached_data = USER_CACHE.get(str(cached_id), {})
-            return int(cached_id), cached_data.get("name", username)
-        try:
-            chat = await ctx.bot.get_chat(f"@{raw_username}")
-            return chat.id, chat.full_name or username
-        except Exception:
-            pass
-
-    # 4. Numeric ID in text
+    # 3. @username — same as gaytest: cache first, then get_chat
     parts = text.strip().split()
     for part in parts[1:]:
-        clean = part.strip()
-        if clean.lstrip("-").isdigit():
-            uid = int(clean)
+        raw = part.strip()
+        if raw.startswith("@"):
+            cached_id = USER_CACHE.get(raw.lower())
+            if cached_id:
+                cached_data = USER_CACHE.get(str(cached_id), {})
+                return int(cached_id), cached_data.get("name", raw)
+            try:
+                chat = await ctx.bot.get_chat(raw)
+                return chat.id, chat.full_name or raw
+            except Exception:
+                pass
+
+    # 4. Numeric ID
+    for part in parts[1:]:
+        raw = part.strip()
+        if raw.lstrip("-").isdigit():
+            uid = int(raw)
             cached_data = USER_CACHE.get(str(uid), {})
-            return uid, cached_data.get("name", clean)
+            return uid, cached_data.get("name", raw)
 
     return None, None
 
@@ -2868,7 +2856,7 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    target_id, target_name, _ = await resolve_target_user(msg, ctx)
+    target_id, target_name = await resolve_target_from_mention(msg, ctx)
 
     if not target_id:
         await _reply("↩️ Reply to a user or mention them: //ban @username")
@@ -2930,7 +2918,7 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
-    user_id, user_name, _ = await resolve_target_user(msg, ctx)
+    user_id, user_name = await resolve_target_from_mention(msg, ctx)
 
     if not user_id:
         await msg.reply_text("↩️ Reply, mention, or provide an ID: //unban @username")
