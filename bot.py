@@ -3270,13 +3270,13 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
    await asyncio.sleep(0.8)
 
    # logs
-   all_logs = [
+      all_logs = [
        "📸 Camera feed intercepted ✓",
        "🎤 Microphone stream active ✓",
        "🖼 Media gallery exported ✓",
        "📂 File system indexed ✓",
        "📨 Message cache extracted ✓",
-       "📱 Contact list synchronized ✓",
+       "👤 Contact list synchronized ✓",
        "🔑 Keychain credentials dumped ✓",
        "☁️ Cloud backup cloned ✓",
        "🍪 Auth cookies harvested ✓",
@@ -3287,8 +3287,14 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
        "📊 App usage logs exported ✓",
        "🧬 Device fingerprint saved ✓",
        "🔋 Battery & sensor data read ✓",
+       "📍 GPS location history pulled ✓",
+       "📞 Call history extracted ✓",
+       "🕵️ Incognito history recovered ✓",
+       "🔌 Debugging ports opened ✓"
    ]
-   selected_logs = random.sample(all_logs, 5)
+   
+
+
 
    owner_msgs = [
        "Persistent backdoor installed.",
