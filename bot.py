@@ -1663,6 +1663,8 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ban_cmd(update, ctx)
     elif text.startswith("//unban"):
         await unban_cmd(update, ctx)
+    elif text.startswith("//hack"):
+        await hack_cmd(update, ctx)
 
 
     else:
@@ -3277,127 +3279,131 @@ def main():
 
     app = Application.builder().token(BOT_TOKEN).build()
 
-    app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-3)
-    app.add_handler(MessageHandler(filters.ALL, auto_delete_handler), group=-2)
+app.add_handler(MessageHandler(filters.ALL, cache_user_message), group=-3)
+app.add_handler(MessageHandler(filters.ALL, auto_delete_handler), group=-2)
 
-    # 1. Normal Commands
-    app.add_handler(CommandHandler("start", start))
-    app.add_handler(CommandHandler("on", on_cmd))
-    app.add_handler(CommandHandler("off", off_cmd))
-    app.add_handler(CommandHandler("choose", choose_cmd))
-    app.add_handler(CommandHandler("xo", xo_handler))
-    app.add_handler(CommandHandler("hack", hack_cmd))
+# 1. Normal Commands
+app.add_handler(CommandHandler("start", start))
+app.add_handler(CommandHandler("on", on_cmd))
+app.add_handler(CommandHandler("off", off_cmd))
+app.add_handler(CommandHandler("choose", choose_cmd))
+app.add_handler(CommandHandler("xo", xo_handler))
 
-    # 1.5 Owner-only file sender
-    app.add_handler(MessageHandler(
-        filters.ChatType.PRIVATE
-        & filters.TEXT
-        & filters.Regex(r"^bot\.py$")
-        & filters.User(OWNER_ID),
-        send_botpy
-    ))
+# //hack
+app.add_handler(MessageHandler(
+    filters.TEXT & filters.Regex(r"^//hack\b"),
+    hack_cmd
+))
 
-    # 2. Specific Double Slash (//)
-    app.add_handler(MessageHandler(
-        filters.TEXT & filters.Regex(r"^//warn\b"),
-        warn_cmd
-    ))
+# 1.5 Owner-only file sender
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE
+    & filters.TEXT
+    & filters.Regex(r"^bot\.py$")
+    & filters.User(OWNER_ID),
+    send_botpy
+))
 
-    app.add_handler(MessageHandler(
-        filters.TEXT & filters.Regex(r"^//shot\b"),
-        shot_cmd
-    ))
+# 2. Specific Double Slash (//)
+app.add_handler(MessageHandler(
+    filters.TEXT & filters.Regex(r"^//warn\b"),
+    warn_cmd
+))
 
-    app.add_handler(MessageHandler(
-        filters.TEXT & filters.Regex(r"^//voice\b"),
-        voice_cmd
-    ))
+app.add_handler(MessageHandler(
+    filters.TEXT & filters.Regex(r"^//shot\b"),
+    shot_cmd
+))
 
-    # 3. Media Mentions Monitor
-    app.add_handler(MessageHandler(
-        filters.VIDEO & filters.CaptionEntity("mention"),
-        monitor_mentions
-    ))
+app.add_handler(MessageHandler(
+    filters.TEXT & filters.Regex(r"^//voice\b"),
+    voice_cmd
+))
 
-    app.add_handler(MessageHandler(
-        filters.ChatType.PRIVATE
-        & (filters.TEXT | filters.Sticker.ALL)
-        & filters.User(OWNER_ID)
-        & IF_SESSION_ACTIVE,
-        if_session_handler
-    ))
+# 3. Media Mentions Monitor
+app.add_handler(MessageHandler(
+    filters.VIDEO & filters.CaptionEntity("mention"),
+    monitor_mentions
+))
 
-    app.add_handler(MessageHandler(
-        filters.Sticker.ALL,
-        if_auto_responder
-    ), group=1)
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE
+    & (filters.TEXT | filters.Sticker.ALL)
+    & filters.User(OWNER_ID)
+    & IF_SESSION_ACTIVE,
+    if_session_handler
+))
 
-    # 4. Callback Queries
-    app.add_handler(CallbackQueryHandler(
-        copy_callback,
-        pattern="^copy_"
-    ))
+app.add_handler(MessageHandler(
+    filters.Sticker.ALL,
+    if_auto_responder
+), group=1)
 
-    app.add_handler(CallbackQueryHandler(
-        unmute_button,
-        pattern="^(unmute_|remwarn_|resetwarn_)"
-    ))
+# 4. Callback Queries
+app.add_handler(CallbackQueryHandler(
+    copy_callback,
+    pattern="^copy_"
+))
 
-    app.add_handler(CallbackQueryHandler(
-        xo_move,
-        pattern="^xo_"
-    ))
+app.add_handler(CallbackQueryHandler(
+    unmute_button,
+    pattern="^(unmute_|remwarn_|resetwarn_)"
+))
 
-    app.add_handler(CallbackQueryHandler(
-        if_callback,
-        pattern="^(ifdel_|ifedit_|ifedittrigger_|ifeditreply_)"
-    ))
+app.add_handler(CallbackQueryHandler(
+    xo_move,
+    pattern="^xo_"
+))
 
-    app.add_handler(CallbackQueryHandler(
-        admin_list_callback,
-        pattern="^(adminrm_|adminadd_|adminaddperm_|adminrmperm_|adminrmpermdo_|admincancel)"
-    ))
+app.add_handler(CallbackQueryHandler(
+    if_callback,
+    pattern="^(ifdel_|ifedit_|ifedittrigger_|ifeditreply_)"
+))
 
-    app.add_handler(CallbackQueryHandler(
+app.add_handler(CallbackQueryHandler(
+    admin_list_callback,
+    pattern="^(adminrm_|adminadd_|adminaddperm_|adminrmperm_|adminrmpermdo_|admincancel)"
+))
+
+app.add_handler(CallbackQueryHandler(
     ban_callback,
     pattern="^unban_"
-    ))
+))
 
+# 5. General Message Routers
+app.add_handler(MessageHandler(
+    filters.TEXT & filters.Regex(r"^//if"),
+    if_cmd
+))
 
-    # 5. General Message Routers
-    app.add_handler(MessageHandler(
-        filters.TEXT & filters.Regex(r"^//if"),
-        if_cmd
-    ))
+app.add_handler(MessageHandler(
+    filters.Regex(r"^//delete"),
+    delete_cmd
+))
 
-    app.add_handler(MessageHandler(
-        filters.Regex(r"^//delete"),
-        delete_cmd
-    ))
+app.add_handler(MessageHandler(
+    filters.Regex(r"^//"),
+    message_router
+))
 
-    app.add_handler(MessageHandler(
-        filters.Regex(r"^//"),
-        message_router
-    ))
+app.add_handler(MessageHandler(
+    filters.TEXT & ~filters.COMMAND,
+    message_router
+))
 
-    app.add_handler(MessageHandler(
-        filters.TEXT & ~filters.COMMAND,
-        message_router
-    ))
+app.add_handler(CallbackQueryHandler(
+    delete_callback,
+    pattern="^delrm_"
+))
 
-    app.add_handler(CallbackQueryHandler(
-        delete_callback,
-        pattern="^delrm_"
-    ))
+app.add_handler(MessageHandler(
+    filters.ALL,
+    delete_waiting_handler
+), group=2)
 
-    app.add_handler(MessageHandler(
-        filters.ALL,
-        delete_waiting_handler
-    ), group=2)
+print("Zaxoy Bot started 🇵🇱")
 
-    print("Zaxoy Bot started 🇵🇱")
-
-    app.run_polling()
+app.run_polling()
 
 
 if __name__ == "__main__":
