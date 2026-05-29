@@ -3173,6 +3173,25 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not has_perm(msg.from_user.id, "//hack"):
         return
 
+    # self hack roast
+    if msg.reply_to_message and msg.reply_to_message.from_user.id == msg.from_user.id:
+
+        self_roasts = [
+            "Wanna hack yourself? You kidding right? 💀",
+            "Bro trying to leak his own IP 😭",
+            "Self hack detected. IQ damaged.",
+            "You can't hack yourself lil bro 😂",
+            "System refused to hack the owner.",
+            "Nice try hacker man 💀",
+            "Bro watched too many hacker movies.",
+            "Target = yourself??? 😭",
+            "Even FBI can't help you now 💀",
+            "Hack yourself? That's crazy 😭"
+        ]
+
+        await msg.reply_text(random.choice(self_roasts))
+        return
+
     # target mention
     target = "Unknown"
 
@@ -3207,18 +3226,18 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     owner_msg = random.choice(owner_messages)
 
-    # random extra leaks
+    # random leaks
     leak_messages = [
-        "PRIVATE CHATS: LEAKED",
-        "CONTACTS: DOWNLOADED",
-        "GALLERY ACCESS: GRANTED",
-        "MICROPHONE: ENABLED",
-        "CAMERA: ENABLED",
-        "2FA: BYPASSED",
-        "LIVE LOCATION: TRACKED",
-        "CALL LOGS: SYNCED",
-        "TELEGRAM CLOUD: EXPORTED",
-        "SMS DATABASE: DOWNLOADED"
+        "📸 CAMERA: ENABLED",
+        "🎤 MICROPHONE: ENABLED",
+        "📂 PRIVATE CHATS: LEAKED",
+        "📱 CONTACTS: DOWNLOADED",
+        "🖼 GALLERY ACCESS: GRANTED",
+        "🔓 2FA: BYPASSED",
+        "📍 LIVE LOCATION: TRACKED",
+        "📞 CALL LOGS: SYNCED",
+        "☁️ TELEGRAM CLOUD: EXPORTED",
+        "💬 SMS DATABASE: DOWNLOADED"
     ]
 
     extra1 = random.choice(leak_messages)
@@ -3244,7 +3263,7 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await asyncio.sleep(0.9)
         await progress.edit_text(frame)
 
-    # final fake result
+    # final result
     final_text = f"""
 💀 SYSTEM BREACHED 💀
 
@@ -3255,26 +3274,26 @@ MESSAGE FROM OWNER:
 
 ━━━━━━━━━━━━━━━━━━
 
-IP: {random_ip()}
-MAC: {random_mac()}
+🌐 IP: {random_ip()}
+🖧 MAC: {random_mac()}
 
-DNS: 8.8.8.8
-ALT DNS: 1.1.1.1
+📡 DNS: 8.8.8.8
+📡 ALT DNS: 1.1.1.1
 
-TCP PORTS: {random_ports()}
-UDP PORTS: {random_ports()}
+🔓 TCP PORTS: {random_ports()}
+🔓 UDP PORTS: {random_ports()}
 
-ROUTER: ERICCSON
-DEVICE: WIN32-X
-WAN TYPE: PRIVATE NAT
-GATEWAY: 192.168.0.1
+📶 ROUTER: ERICCSON
+💻 DEVICE: WIN32-X
+🌍 WAN TYPE: PRIVATE NAT
+🛜 GATEWAY: 192.168.0.1
 
-IPv6: fe80::{random.randint(1000,9999)}
+🧬 IPv6: fe80::{random.randint(1000,9999)}
 
 ━━━━━━━━━━━━━━━━━━
 
-STATUS: DEVICE COMPROMISED
-FILES STOLEN: {random.randint(1,9)}.{random.randint(1,9)} TB
+⚠️ STATUS: DEVICE COMPROMISED
+📂 FILES STOLEN: {random.randint(2,900)} GB
 
 {extra1}
 {extra2}
@@ -3282,8 +3301,8 @@ FILES STOLEN: {random.randint(1,9)}.{random.randint(1,9)} TB
 
 ━━━━━━━━━━━━━━━━━━
 
-ACCESS LEVEL: ROOT
-SECURITY: DISABLED
+👑 ACCESS LEVEL: ROOT
+🚫 SECURITY: DISABLED
 """
 
     await asyncio.sleep(1)
