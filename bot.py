@@ -650,6 +650,38 @@ def is_zaxo_insult(text: str) -> bool:
     return has_zaxo and has_neg
 
 
+async def ai_is_zaxo_insult(text: str) -> bool:
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=6) as client:
+            resp = await client.post(
+                "https://api.anthropic.com/v1/messages",
+                headers={
+                    "x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""),
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": "claude-haiku-4-5-20251001",
+                    "max_tokens": 10,
+                    "system": (
+                        "You detect if a message contains genuine hate, insult, mockery, or negativity directed at the city of Zaxo (also spelled Zakho), Kurdistan. "
+                        "Reply with exactly one word: YES or NO. "
+                        "YES = direct insult, hate, mockery, or clear disrespect toward Zaxo/Zakho as a city. "
+                        "NO = neutral, positive, question, joke not targeting Zaxo, or unrelated. "
+                        "If the message asks someone why they hate Zaxo, that is NOT an insult to Zaxo — answer NO. "
+                        "Only reply YES if the message itself is negative about Zaxo."
+                    ),
+                    "messages": [{"role": "user", "content": text}],
+                },
+            )
+            data = resp.json()
+            answer = data["content"][0]["text"].strip().upper()
+            return answer == "YES"
+    except Exception:
+        return is_zaxo_insult(text)
+
+
 async def zaxo_defense_handler(
     update: Update,
     ctx: ContextTypes.DEFAULT_TYPE
@@ -660,7 +692,7 @@ async def zaxo_defense_handler(
     if not msg or not msg.text:
         return
 
-    if is_zaxo_insult(msg.text):
+    if await ai_is_zaxo_insult(msg.text):
         await msg.reply_text(
             random.choice(ZAXO_DEFENSE)
         )
