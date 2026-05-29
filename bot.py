@@ -3268,7 +3268,7 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
        await progress.edit_text(frame, parse_mode="HTML")
        await asyncio.sleep(0.8)
 
-    # logs
+        # logs
     all_logs = [
         "📸 Camera feed intercepted ✓",
         "🎤 Microphone stream active ✓",
@@ -3294,6 +3294,11 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     selected_logs = all_logs
 
 
+
+       
+    
+ 
+ 
 
    owner_msgs = [
        "Persistent backdoor installed.",
