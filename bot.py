@@ -3659,11 +3659,7 @@ async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 🔎 <b>Evidence collected:</b>
 {chr(10).join(facts)}
 
-<code>──────────────────────────
-⚠️  For entertainment only.
-    Results scientifically
-    meaningless. Have fun.
-</code>"""
+<code>──────────────────────────</code>"""
 
     await progress.edit_text(final_text, parse_mode="HTML")
 
