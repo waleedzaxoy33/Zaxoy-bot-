@@ -3613,7 +3613,9 @@ async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     saved = gaytest_store.get(target_id) if target_id else None
 
     if saved:
-        pct = saved["percentage"]
+        base_pct = saved["percentage"]
+        # small random variance ±5 around saved value
+        pct = max(0, base_pct + random.randint(-5, 5))
         custom_msg = saved["message"]
         is_straight = pct <= 45
         verdict_line = f"<i>{custom_msg}</i>"
@@ -3737,11 +3739,11 @@ async def gaytest_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
     if step == "waiting_percentage":
         raw = (msg.text or "").strip()
         if not raw.lstrip("-").isdigit():
-            await msg.reply_text("⚠️ Send a number (0–150):")
+            await msg.reply_text("⚠️ Send a number (any number, go wild 😂):")
             return
         pct = int(raw)
-        if pct < 0 or pct > 150:
-            await msg.reply_text("⚠️ Number must be between 0 and 150:")
+        if pct < 0:
+            await msg.reply_text("⚠️ Number must be 0 or above:")
             return
         session["percentage"] = pct
         session["step"] = "waiting_message"
