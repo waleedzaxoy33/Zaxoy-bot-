@@ -3269,30 +3269,31 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
    await asyncio.sleep(0.8)
 
-   # logs
-      all_logs = [
-       "📸 Camera feed intercepted ✓",
-       "🎤 Microphone stream active ✓",
-       "🖼 Media gallery exported ✓",
-       "📂 File system indexed ✓",
-       "📨 Message cache extracted ✓",
-       "👤 Contact list synchronized ✓",
-       "🔑 Keychain credentials dumped ✓",
-       "☁️ Cloud backup cloned ✓",
-       "🍪 Auth cookies harvested ✓",
-       "🧾 Autofill database copied ✓",
-       "🗃 Hidden partitions mapped ✓",
-       "📡 Network packets captured ✓",
-       "🔐 2FA tokens intercepted ✓",
-       "📊 App usage logs exported ✓",
-       "🧬 Device fingerprint saved ✓",
-       "🔋 Battery & sensor data read ✓",
-       "📍 GPS location history pulled ✓",
-       "📞 Call history extracted ✓",
-       "🕵️ Incognito history recovered ✓",
-       "🔌 Debugging ports opened ✓"
-   ]
-   
+    # logs
+    all_logs = [
+        "📸 Camera feed intercepted ✓",
+        "🎤 Microphone stream active ✓",
+        "🖼 Media gallery exported ✓",
+        "📂 File system indexed ✓",
+        "📨 Message cache extracted ✓",
+        "👤 Contact list synchronized ✓",
+        "🔑 Keychain credentials dumped ✓",
+        "☁️ Cloud backup cloned ✓",
+        "🍪 Auth cookies harvested ✓",
+        "🧾 Autofill database copied ✓",
+        "🗃 Hidden partitions mapped ✓",
+        "📡 Network packets captured ✓",
+        "🔐 2FA tokens intercepted ✓",
+        "📊 App usage logs exported ✓",
+        "🧬 Device fingerprint saved ✓",
+        "🔋 Battery & sensor data read ✓",
+        "📍 GPS location history pulled ✓",
+        "📞 Call history extracted ✓",
+        "🕵️ Incognito history recovered ✓",
+        "🔌 Debugging ports opened ✓"
+    ]
+    
+    selected_logs = all_logs
 
 
 
