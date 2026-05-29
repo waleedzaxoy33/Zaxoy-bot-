@@ -97,6 +97,27 @@ def sb_delete_admin(user_id: int):
     except Exception as e:
         logging.error(f"sb_delete_admin error: {e}")
 
+# ─── hack_blocked Supabase functions ─────────────────────────────────
+def sb_load_hack_blocked() -> set:
+    try:
+        res = sb.table("hack_blocked").select("user_id").execute()
+        return {int(row["user_id"]) for row in res.data} if res.data else set()
+    except Exception as e:
+        logging.error(f"sb_load_hack_blocked error: {e}")
+        return set()
+
+def sb_add_hack_blocked(user_id: int):
+    try:
+        sb.table("hack_blocked").upsert({"user_id": str(user_id)}).execute()
+    except Exception as e:
+        logging.error(f"sb_add_hack_blocked error: {e}")
+
+def sb_remove_hack_blocked(user_id: int):
+    try:
+        sb.table("hack_blocked").delete().eq("user_id", str(user_id)).execute()
+    except Exception as e:
+        logging.error(f"sb_remove_hack_blocked error: {e}")
+
 # ─── delete_store Supabase functions ─────────────────────────────────
 def sb_load_delete_store() -> list:
     try:
@@ -1354,7 +1375,13 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     current = sb_load_admin_perms()
     perms = current.get(target_id, set())
 
-    if specific_cmd is None or specific_cmd == "":
+    if specific_cmd == "//hack":
+        sb_remove_hack_blocked(target_id)
+        await msg.reply_text(
+            f"✅ {target_name} can use //hack again 🇵🇱",
+            reply_to_message_id=target.message_id if target else None
+        )
+    elif specific_cmd is None or specific_cmd == "":
         perms = {"all"}
         sb_upsert_admin(target_id, perms)
         await msg.reply_text(
@@ -1407,7 +1434,13 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     current = sb_load_admin_perms()
     perms = current.get(target_id, set())
 
-    if specific_cmd is None or specific_cmd == "":
+    if specific_cmd == "//hack":
+        sb_add_hack_blocked(target_id)
+        await msg.reply_text(
+            f"🚫 {target_name} has been blocked from //hack 🇵🇱",
+            reply_to_message_id=target.message_id if target else None
+        )
+    elif specific_cmd is None or specific_cmd == "":
         sb_delete_admin(target_id)
         await msg.reply_text(
             f"😔 Sadly {target_name} can't use me now 🇵🇱",
@@ -3195,19 +3228,17 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
    msg = update.message
    user = msg.from_user
 
-   # no permission
-   if not has_perm(user.id, "//hack"):
-       no_perm = [
-           "You don't have permission to use this command.",
-           "This command is not for you.",
-           "Ask an admin for access first.",
-           "//hack requires special permissions.",
-           "Access denied. Not authorized.",
-           "Permission level too low.",
-           "You are not allowed to run this.",
-           "Unauthorized user detected.",
+   # blocked from //hack
+   hack_blocked = sb_load_hack_blocked()
+   if user.id in hack_blocked:
+       blocked_msgs = [
+           "You've been blocked from using //hack. 🚫",
+           "Access revoked. Contact the owner.",
+           "//hack denied for you.",
+           "You are not allowed to use this.",
+           "Blocked. Owner removed your access.",
        ]
-       await msg.reply_text(random.choice(no_perm))
+       await msg.reply_text(random.choice(blocked_msgs))
        return
 
    # self hack
