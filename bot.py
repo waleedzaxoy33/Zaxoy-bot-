@@ -3342,7 +3342,6 @@ Connection logged.
    await progress.edit_text(final_text, parse_mode="HTML")
 
 
-هل داله خط ردود مختلفه ان طبيعيه
 
 
 def main():
