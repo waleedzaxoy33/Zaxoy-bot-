@@ -3419,6 +3419,463 @@ Connection logged.
    await progress.edit_text(final_text, parse_mode="HTML")
 
 
+# ============================================================
+# ////////////////// GAYTEST SYSTEM /////////////////////////
+# ============================================================
+
+# ── Supabase helpers ─────────────────────────────────────────
+def sb_load_gaytest_store() -> dict:
+    try:
+        res = sb.table("gaytest_store").select("*").execute()
+        if not res.data:
+            return {}
+        return {int(row["user_id"]): {"percentage": row["percentage"], "message": row["message"], "name": row["name"]} for row in res.data}
+    except Exception as e:
+        logging.error(f"sb_load_gaytest_store error: {e}")
+        return {}
+
+def sb_save_gaytest_entry(user_id: int, percentage: int, message: str, name: str):
+    try:
+        sb.table("gaytest_store").delete().eq("user_id", str(user_id)).execute()
+        sb.table("gaytest_store").insert({
+            "user_id": str(user_id),
+            "percentage": percentage,
+            "message": message,
+            "name": name
+        }).execute()
+    except Exception as e:
+        logging.error(f"sb_save_gaytest_entry error: {e}")
+
+def sb_delete_gaytest_entry(user_id: int):
+    try:
+        sb.table("gaytest_store").delete().eq("user_id", str(user_id)).execute()
+    except Exception as e:
+        logging.error(f"sb_delete_gaytest_entry error: {e}")
+
+# ── Session state for //gaytest private setup ─────────────────
+gaytest_sessions: dict[int, dict] = {}
+
+# ── Verdict pools by range ────────────────────────────────────
+GAYTEST_VERDICTS = {
+    "0": [
+        "Straighter than a ruler. Certified normal. 📐",
+        "Absolutely nothing detected. The machine broke trying. 🧱",
+        "0%? The scanner exploded from boredom. 💥",
+        "Not even a little. Ice cold. 🥶",
+        "Bro is made of concrete. Nothing gets through. 🪨",
+        "The test said: 'Why are we even here?' 😐",
+        "ERROR: No signal found. Try again never. ❌",
+        "This result is so straight it aligned the screen. 📺",
+    ],
+    "low": [
+        "Mostly straight, but listens to Taylor Swift unironically. 🎵",
+        "96% straight, 4% has opinions on candles. 🕯️",
+        "Barely anything, but that Pinterest board says otherwise. 📌",
+        "Technically straight. Technically. 🤏",
+        "Low levels detected. Probably nothing. Probably. 👀",
+        "The scanner yawned. Almost nothing here. 😴",
+        "You're safe. Mostly. 😌",
+        "Just a blip. Ignore it. Or don't. 🤷",
+    ],
+    "mid": [
+        "Right in the middle. Balanced. Like nature intended? 🌓",
+        "50/50. A coin flip. Could go either way. 🪙",
+        "Somewhere in between. Interesting place to be. 🌈",
+        "The machine said: 'I need more data.' 🔬",
+        "Not confirmed, not denied. Schrodinger's result. 🐱",
+        "Perfectly balanced, as all things should be. ⚖️",
+        "The scanner is confused. That's your fault. 😅",
+        "This result is legally ambiguous. 📜",
+    ],
+    "high": [
+        "Pretty significant numbers here. 📊",
+        "The rainbow is strong with this one. 🌈",
+        "High energy detected. Very high. ⚡",
+        "Results are concerning for someone in denial. 😂",
+        "The machine started playing ABBA on its own. 🎶",
+        "Strong readings. The antenna is pointed your way. 📡",
+        "Top tier results honestly. No shame. 🏆",
+        "The scanner just gave you a standing ovation. 👏",
+    ],
+    "very_high": [
+        "King of the rainbow. No contest. 👑",
+        "MAXIMUM POWER. The scanner needs a break after this. 💅",
+        "The machine printed the results in glitter. ✨",
+        "Off the charts. Literally. We needed a bigger chart. 📈",
+        "100%+ detected. How is that even possible. 🤯",
+        "The test is filing paperwork. This result is unprecedented. 📋",
+        "Scientists are on the way to study you. 🧬",
+        "You broke the gayometer. Congratulations. 🏅",
+        "ERROR: Result too powerful to display. Trust the vibe. 🌀",
+        "The scanner caught feelings. That's never happened before. 💘",
+    ],
+}
+
+def get_gaytest_verdict(pct: int) -> str:
+    if pct == 0:
+        return random.choice(GAYTEST_VERDICTS["0"])
+    elif pct <= 25:
+        return random.choice(GAYTEST_VERDICTS["low"])
+    elif pct <= 60:
+        return random.choice(GAYTEST_VERDICTS["mid"])
+    elif pct <= 85:
+        return random.choice(GAYTEST_VERDICTS["high"])
+    else:
+        return random.choice(GAYTEST_VERDICTS["very_high"])
+
+def get_gaytest_bar(pct: int) -> str:
+    filled = min(10, pct // 10)
+    return "█" * filled + "░" * (10 - filled)
+
+FUN_FACTS_POOL = [
+    "🎵 Favorite song: definitely something dramatic",
+    "💇 Hair: suspiciously well-groomed at all times",
+    f"🛍 Owns at least {random.randint(3,12)} skincare products",
+    "📱 Wallpaper: aesthetic. No explanation given.",
+    "☕ Coffee order: complicated. Very complicated.",
+    "🎬 Cried at a Disney movie this year",
+    "👟 Sneakers: always clean somehow",
+    "📖 Has opinions on fonts",
+    "🪴 Named the houseplants",
+    "🌙 Uses night mode on everything including real life",
+    "🧴 Knows the difference between moisturizer and serum",
+    "🎨 Has a 'signature color'",
+    "📦 Saves packaging because it 'looks nice'",
+    "🕯️ Has way too many candles",
+    "🧃 Orders the aesthetic drink just for the photo",
+]
+
+OWNER_DEFENSE_RESPONSES = [
+    "HAHAHAH MY BOSS?? Nah he doesn't need a test. The machine respects him. 👑",
+    "HAHAHAH MY BOSS?? Sir this scanner works for HIM. Not on him. 🫡",
+    "HAHAHAH MY BOSS?? Access denied. The owner is above this test. 🚫",
+    "HAHAHAH MY BOSS?? The gayometer just bowed. It doesn't scan royalty. 🙇",
+    "HAHAHAH MY BOSS?? System refused. Boss immunity activated. ⚡",
+    "HAHAHAH MY BOSS?? Nice try. The machine laughed and went back to sleep. 😂",
+    "HAHAHAH MY BOSS?? The owner built this thing. He doesn't get scanned. 🔧",
+    "HAHAHAH MY BOSS?? Error: Cannot test the administrator. Logic rejected. 💻",
+]
+
+# ── /gaytest command (group) ──────────────────────────────────
+async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    user = msg.from_user
+
+    # Resolve target
+    if msg.reply_to_message and msg.reply_to_message.from_user:
+        target_user = msg.reply_to_message.from_user
+        target_id = target_user.id
+        target_name = target_user.full_name
+    elif ctx.args:
+        raw = " ".join(ctx.args).strip()
+        # Try to resolve from cache
+        if raw.startswith("@"):
+            cached_id = USER_CACHE.get(raw.lower())
+            if cached_id:
+                cached_data = USER_CACHE.get(str(cached_id), {})
+                target_id = int(cached_id)
+                target_name = cached_data.get("name", raw)
+            else:
+                try:
+                    chat = await ctx.bot.get_chat(raw)
+                    target_id = chat.id
+                    target_name = chat.full_name or raw
+                except Exception:
+                    target_id = None
+                    target_name = raw
+        elif raw.lstrip("-").isdigit():
+            target_id = int(raw)
+            cached_data = USER_CACHE.get(str(target_id), {})
+            target_name = cached_data.get("name", raw)
+        else:
+            target_id = None
+            target_name = raw
+    else:
+        target_id = user.id
+        target_name = user.full_name
+
+    # Owner protection — anyone tries to test the owner
+    if target_id == OWNER_ID and user.id != OWNER_ID:
+        await msg.reply_text(random.choice(OWNER_DEFENSE_RESPONSES))
+        return
+
+    # Build display name with link if possible
+    if target_id:
+        display = f'<a href="tg://user?id={target_id}">{target_name}</a>'
+    else:
+        display = target_name
+
+    # Animation frames
+    frames = [
+        "🔬 <code>Initializing scanner...      [          ] 0%</code>",
+        "🧬 <code>Reading biological data...   [==        ] 20%</code>",
+        "💅 <code>Analyzing vibe signature...  [====      ] 40%</code>",
+        "🌈 <code>Scanning playlist history... [======    ] 60%</code>",
+        "👁 <code>Checking aesthetic index...  [========  ] 80%</code>",
+        "🧪 <code>Calculating final result...  [========= ] 95%</code>",
+        "✅ <code>SCAN COMPLETE                [==========] 100%</code>",
+    ]
+
+    progress = await msg.reply_text(frames[0], parse_mode="HTML")
+    for frame in frames[1:]:
+        await asyncio.sleep(1.2)
+        await progress.edit_text(frame, parse_mode="HTML")
+
+    await asyncio.sleep(0.4)
+
+    # Check if there's a saved result
+    gaytest_store = sb_load_gaytest_store()
+    saved = gaytest_store.get(target_id) if target_id else None
+
+    if saved:
+        pct = saved["percentage"]
+        custom_msg = saved["message"]
+        verdict_line = f"<i>{custom_msg}</i>"
+        source_note = ""
+    else:
+        pct = random.randint(0, 100)
+        # Occasionally go over 100 for comedy
+        if random.random() < 0.05:
+            pct = random.randint(101, 150)
+        verdict_line = f"<i>{get_gaytest_verdict(pct)}</i>"
+        source_note = ""
+
+    bar = get_gaytest_bar(min(pct, 100))
+    facts = random.sample(FUN_FACTS_POOL, 3)
+
+    final_text = f"""<code>╔══════════════════════════╗
+║   🌈  GAY-O-METER™ v3.0  ║
+╚══════════════════════════╝</code>
+
+🎯 <b>TARGET:</b> {display}
+📊 <b>RESULT:</b> <code>{pct}%</code>
+
+<code>[{bar}] {pct}%</code>
+
+📋 <b>VERDICT:</b>
+{verdict_line}
+
+<code>──────────────────────────</code>
+🔎 <b>Evidence collected:</b>
+{chr(10).join(facts)}
+
+<code>──────────────────────────
+⚠️  For entertainment only.
+    Results scientifically
+    meaningless. Have fun.
+</code>"""
+
+    await progress.edit_text(final_text, parse_mode="HTML")
+
+
+# ── //gaytest (private, owner only) — add/manage entries ─────
+async def gaytest_private_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+
+    text = msg.text.strip() if msg.text else ""
+
+    # //gaytest //list
+    if "//list" in text:
+        gaytest_sessions.pop(OWNER_ID, None)
+        await show_gaytest_list(msg, ctx)
+        return
+
+    # //gaytest @user / id / name → start session
+    raw_target = text.replace("//gaytest", "").strip()
+
+    if not raw_target:
+        await msg.reply_text("📩 Usage:\n//gaytest @username\n//gaytest 123456789\n//gaytest //list")
+        return
+
+    # Resolve target
+    target_id = None
+    target_name = raw_target
+
+    if raw_target.startswith("@"):
+        cached_id = USER_CACHE.get(raw_target.lower())
+        if cached_id:
+            cached_data = USER_CACHE.get(str(cached_id), {})
+            target_id = int(cached_id)
+            target_name = cached_data.get("name", raw_target)
+        else:
+            try:
+                chat = await ctx.bot.get_chat(raw_target)
+                target_id = chat.id
+                target_name = chat.full_name or raw_target
+            except Exception:
+                target_id = None
+    elif raw_target.lstrip("-").isdigit():
+        target_id = int(raw_target)
+        cached_data = USER_CACHE.get(str(target_id), {})
+        target_name = cached_data.get("name", raw_target)
+    else:
+        # Name search in cache
+        for uid_str, data in USER_CACHE.items():
+            if isinstance(data, dict) and data.get("name", "").lower() == raw_target.lower():
+                target_id = int(uid_str)
+                target_name = data.get("name", raw_target)
+                break
+
+    gaytest_sessions[OWNER_ID] = {
+        "step": "waiting_percentage",
+        "target_id": target_id,
+        "target_name": target_name,
+    }
+
+    await msg.reply_text(
+        f"👤 Target: <b>{target_name}</b>\n\n"
+        f"📊 Send the percentage (0–150):",
+        parse_mode="HTML"
+    )
+
+
+async def gaytest_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+
+    session = gaytest_sessions.get(OWNER_ID)
+    if not session:
+        return
+
+    # Cancel if // command
+    if msg.text and msg.text.startswith("//"):
+        gaytest_sessions.pop(OWNER_ID, None)
+        return
+
+    step = session["step"]
+
+    if step == "waiting_percentage":
+        raw = (msg.text or "").strip()
+        if not raw.lstrip("-").isdigit():
+            await msg.reply_text("⚠️ Send a number (0–150):")
+            return
+        pct = int(raw)
+        if pct < 0 or pct > 150:
+            await msg.reply_text("⚠️ Number must be between 0 and 150:")
+            return
+        session["percentage"] = pct
+        session["step"] = "waiting_message"
+        await msg.reply_text(
+            f"✅ Percentage set to <b>{pct}%</b>\n\n"
+            f"💬 Now send the custom verdict message:",
+            parse_mode="HTML"
+        )
+
+    elif step == "waiting_message":
+        custom_msg = (msg.text or "").strip()
+        if not custom_msg:
+            await msg.reply_text("⚠️ Send a text message:")
+            return
+
+        target_id = session["target_id"]
+        target_name = session["target_name"]
+        pct = session["percentage"]
+
+        sb_save_gaytest_entry(target_id, pct, custom_msg, target_name)
+        gaytest_sessions.pop(OWNER_ID, None)
+
+        await msg.reply_text(
+            f"✅ Saved!\n\n"
+            f"👤 <b>{target_name}</b>\n"
+            f"📊 <b>{pct}%</b>\n"
+            f"💬 <i>{custom_msg}</i>",
+            parse_mode="HTML"
+        )
+
+
+async def show_gaytest_list(msg, ctx):
+    gaytest_store = sb_load_gaytest_store()
+
+    if not gaytest_store:
+        await msg.reply_text("📭 No gaytest entries saved yet.")
+        return
+
+    await msg.reply_text(f"📋 <b>{len(gaytest_store)} entry/entries:</b>", parse_mode="HTML")
+
+    for uid, data in gaytest_store.items():
+        name = data.get("name", str(uid))
+        pct = data.get("percentage", "?")
+        verdict = data.get("message", "")
+
+        short_verdict = verdict[:35] + "..." if len(verdict) > 35 else verdict
+
+        text = (
+            f"👤 <b>{name}</b>\n"
+            f"📊 <code>{pct}%</code>\n"
+            f"💬 <i>{short_verdict}</i>"
+        )
+
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🗑 Delete", callback_data=f"gaydel_{uid}"),
+            InlineKeyboardButton("✏️ Edit", callback_data=f"gayedit_{uid}"),
+        ]])
+
+        await msg.reply_text(text, parse_mode="HTML", reply_markup=kb)
+
+
+async def gaytest_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+
+    if query.from_user.id != OWNER_ID:
+        return
+
+    data = query.data
+
+    # ── Delete ──
+    if data.startswith("gaydel_"):
+        uid = int(data[7:])
+        gaytest_store = sb_load_gaytest_store()
+        name = gaytest_store.get(uid, {}).get("name", str(uid))
+        sb_delete_gaytest_entry(uid)
+        await query.edit_message_text(f"🗑 Deleted: <b>{name}</b>", parse_mode="HTML")
+
+    # ── Edit — show options ──
+    elif data.startswith("gayedit_"):
+        uid = int(data[8:])
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("📊 Edit %", callback_data=f"gayeditpct_{uid}"),
+            InlineKeyboardButton("💬 Edit Message", callback_data=f"gayeditmsg_{uid}"),
+        ]])
+        await query.edit_message_reply_markup(reply_markup=kb)
+
+    # ── Edit percentage ──
+    elif data.startswith("gayeditpct_"):
+        uid = int(data[11:])
+        gaytest_store = sb_load_gaytest_store()
+        entry = gaytest_store.get(uid, {})
+        gaytest_sessions[OWNER_ID] = {
+            "step": "waiting_percentage",
+            "target_id": uid,
+            "target_name": entry.get("name", str(uid)),
+            "editing_msg": entry.get("message", ""),
+            "editing": True,
+        }
+        await ctx.bot.send_message(OWNER_ID, f"📊 Send the new percentage for <b>{entry.get('name', uid)}</b>:", parse_mode="HTML")
+
+    # ── Edit message ──
+    elif data.startswith("gayeditmsg_"):
+        uid = int(data[11:])
+        gaytest_store = sb_load_gaytest_store()
+        entry = gaytest_store.get(uid, {})
+        gaytest_sessions[OWNER_ID] = {
+            "step": "waiting_message",
+            "target_id": uid,
+            "target_name": entry.get("name", str(uid)),
+            "percentage": entry.get("percentage", 0),
+            "editing": True,
+        }
+        await ctx.bot.send_message(OWNER_ID, f"💬 Send the new verdict message for <b>{entry.get('name', uid)}</b>:", parse_mode="HTML")
+
+
+class _GaytestSessionFilter(filters.MessageFilter):
+    def filter(self, message):
+        return OWNER_ID in gaytest_sessions
+
+GAYTEST_SESSION_ACTIVE = _GaytestSessionFilter()
 
 
 def main():
@@ -3441,6 +3898,33 @@ app.add_handler(CommandHandler("xo", xo_handler))
 app.add_handler(MessageHandler(
     filters.TEXT & filters.Regex(r"^//hack\b"),
     hack_cmd
+))
+
+# /gaytest — group command
+app.add_handler(CommandHandler("gaytest", gaytest_cmd))
+
+# //gaytest — private owner setup session (must be before general // router)
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE
+    & filters.TEXT
+    & filters.Regex(r"^//gaytest")
+    & filters.User(OWNER_ID),
+    gaytest_private_cmd
+))
+
+# //gaytest session input handler (waiting for % or message)
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE
+    & filters.TEXT
+    & filters.User(OWNER_ID)
+    & GAYTEST_SESSION_ACTIVE,
+    gaytest_session_handler
+))
+
+# gaytest callbacks (edit/delete from //gaytest //list)
+app.add_handler(CallbackQueryHandler(
+    gaytest_callback,
+    pattern="^(gaydel_|gayedit_|gayeditpct_|gayeditmsg_)"
 ))
 
 # 1.5 Owner-only file sender
