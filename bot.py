@@ -3292,7 +3292,6 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "🕵️ Incognito history recovered ✓",
         "🔌 Debugging ports opened ✓"
     ]
-    
     selected_logs = all_logs
 
 
