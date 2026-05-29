@@ -3455,95 +3455,65 @@ def sb_delete_gaytest_entry(user_id: int):
 # ── Session state for //gaytest private setup ─────────────────
 gaytest_sessions: dict[int, dict] = {}
 
-# ── Verdict pools by range ────────────────────────────────────
-GAYTEST_VERDICTS = {
-    "0": [
-        "Straighter than a ruler. Certified normal. 📐",
-        "Absolutely nothing detected. The machine broke trying. 🧱",
-        "0%? The scanner exploded from boredom. 💥",
-        "Not even a little. Ice cold. 🥶",
-        "Bro is made of concrete. Nothing gets through. 🪨",
-        "The test said: 'Why are we even here?' 😐",
-        "ERROR: No signal found. Try again never. ❌",
-        "This result is so straight it aligned the screen. 📺",
-    ],
-    "low": [
-        "Mostly straight, but listens to Taylor Swift unironically. 🎵",
-        "96% straight, 4% has opinions on candles. 🕯️",
-        "Barely anything, but that Pinterest board says otherwise. 📌",
-        "Technically straight. Technically. 🤏",
-        "Low levels detected. Probably nothing. Probably. 👀",
-        "The scanner yawned. Almost nothing here. 😴",
-        "You're safe. Mostly. 😌",
-        "Just a blip. Ignore it. Or don't. 🤷",
-    ],
-    "mid": [
-        "Right in the middle. Balanced. Like nature intended? 🌓",
-        "50/50. A coin flip. Could go either way. 🪙",
-        "Somewhere in between. Interesting place to be. 🌈",
-        "The machine said: 'I need more data.' 🔬",
-        "Not confirmed, not denied. Schrodinger's result. 🐱",
-        "Perfectly balanced, as all things should be. ⚖️",
-        "The scanner is confused. That's your fault. 😅",
-        "This result is legally ambiguous. 📜",
-    ],
-    "high": [
-        "Pretty significant numbers here. 📊",
-        "The rainbow is strong with this one. 🌈",
-        "High energy detected. Very high. ⚡",
-        "Results are concerning for someone in denial. 😂",
-        "The machine started playing ABBA on its own. 🎶",
-        "Strong readings. The antenna is pointed your way. 📡",
-        "Top tier results honestly. No shame. 🏆",
-        "The scanner just gave you a standing ovation. 👏",
-    ],
-    "very_high": [
-        "King of the rainbow. No contest. 👑",
-        "MAXIMUM POWER. The scanner needs a break after this. 💅",
-        "The machine printed the results in glitter. ✨",
-        "Off the charts. Literally. We needed a bigger chart. 📈",
-        "100%+ detected. How is that even possible. 🤯",
-        "The test is filing paperwork. This result is unprecedented. 📋",
-        "Scientists are on the way to study you. 🧬",
-        "You broke the gayometer. Congratulations. 🏅",
-        "ERROR: Result too powerful to display. Trust the vibe. 🌀",
-        "The scanner caught feelings. That's never happened before. 💘",
-    ],
-}
+# ── Verdict pools ────────────────────────────────────────────
 
-def get_gaytest_verdict(pct: int) -> str:
-    if pct == 0:
-        return random.choice(GAYTEST_VERDICTS["0"])
-    elif pct <= 25:
-        return random.choice(GAYTEST_VERDICTS["low"])
-    elif pct <= 60:
-        return random.choice(GAYTEST_VERDICTS["mid"])
-    elif pct <= 85:
-        return random.choice(GAYTEST_VERDICTS["high"])
+# STRAIGHT verdicts (pct <= 45) — pure praise, masculinity hype
+STRAIGHT_VERDICTS = [
+    "Bro is built different. Pure alpha energy. 💪",
+    "Certified masculine. The scanner saluted. 🫡",
+    "Straighter than the highway to Zaxo. 🛣️",
+    "This man eats steak and doesn't apologize. 🥩",
+    "The machine detected zero drama. Respect. 🤝",
+    "Cold water, no complaints, real one. 🧊",
+    "Built like a wall. Nothing gets through. 🧱",
+    "Bro wakes up, no skincare, still looks fine. 💯",
+    "The scanner stood up and clapped. Rare. 👏",
+    "No cap, this guy is the definition of straight. 📐",
+    "Real man energy. The gayometer retired after this result. 🏆",
+    "Sigma detected. The machine bowed down. 🫡",
+    "Legend behavior. Scanner never seen this before. 🔱",
+    "Bro fixes things without a tutorial. Enough said. 🔧",
+    "Carries the group chat. Always. No complaints. 🐐",
+    "The machine printed a certificate. First time ever. 📜",
+    "Ice in his veins. No drama. Just results. ❄️",
+    "Scanner said: finally, a real one. 😤",
+]
+
+# GAY verdicts (pct >= 55) — roasting, jokes, chaotic energy
+GAY_VERDICTS = [
+    "Bro orders oat milk and calls it 'my usual'. ☕",
+    "His playlist has more Dua Lipa than words. 🎵",
+    "Vegan since Tuesday. Very passionate about it. 🥗",
+    "The gayometer exploded trying to measure this. 💥",
+    "Bro has 4 types of moisturizer and uses all of them. 🧴",
+    "Cried at a furniture commercial. Moving on. 😭",
+    "His wallpaper is 'aesthetic'. He chose the font himself. 🎨",
+    "Recycles aggressively and judges everyone who doesn't. ♻️",
+    "Bro said 'that's giving main character energy' unironically. 💅",
+    "His coffee order takes 45 seconds to say out loud. ☕",
+    "Owns crystals. Has names for them. 💎",
+    "Cried during a nature documentary. The plants were fine. 🌿",
+    "His outfit matches his phone case. On purpose. 📱",
+    "Bro rates restaurants by 'vibe' not food. 🍽️",
+    "Has a skincare routine longer than a Netflix episode. 🧖",
+    "Went plant-based 'just to try it'. Still going. 🥦",
+    "Called the sunset 'immaculate'. Didn't blink. 🌅",
+    "His bag has 3 lip balms and a mini fan. 👜",
+    "Sends 'thinking of you' messages with no context. 💌",
+    "Bro cried at a dog food ad. The dog was fine. 🐶",
+    "Knows every ABBA song by heart. Proud of it. 🎶",
+    "His search history is just interior design TikToks. 🛋️",
+]
+
+def get_gaytest_verdict(pct: int, is_straight: bool) -> str:
+    if is_straight:
+        return random.choice(STRAIGHT_VERDICTS)
     else:
-        return random.choice(GAYTEST_VERDICTS["very_high"])
+        return random.choice(GAY_VERDICTS)
 
 def get_gaytest_bar(pct: int) -> str:
     filled = min(10, pct // 10)
     return "█" * filled + "░" * (10 - filled)
-
-FUN_FACTS_POOL = [
-    "🎵 Favorite song: definitely something dramatic",
-    "💇 Hair: suspiciously well-groomed at all times",
-    f"🛍 Owns at least {random.randint(3,12)} skincare products",
-    "📱 Wallpaper: aesthetic. No explanation given.",
-    "☕ Coffee order: complicated. Very complicated.",
-    "🎬 Cried at a Disney movie this year",
-    "👟 Sneakers: always clean somehow",
-    "📖 Has opinions on fonts",
-    "🪴 Named the houseplants",
-    "🌙 Uses night mode on everything including real life",
-    "🧴 Knows the difference between moisturizer and serum",
-    "🎨 Has a 'signature color'",
-    "📦 Saves packaging because it 'looks nice'",
-    "🕯️ Has way too many candles",
-    "🧃 Orders the aesthetic drink just for the photo",
-]
 
 OWNER_DEFENSE_RESPONSES = [
     "HAHAHAH MY BOSS?? Nah he doesn't need a test. The machine respects him. 👑",
@@ -3630,34 +3600,38 @@ async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if saved:
         pct = saved["percentage"]
         custom_msg = saved["message"]
+        is_straight = pct <= 45
         verdict_line = f"<i>{custom_msg}</i>"
-        source_note = ""
     else:
         pct = random.randint(0, 100)
-        # Occasionally go over 100 for comedy
         if random.random() < 0.05:
             pct = random.randint(101, 150)
-        verdict_line = f"<i>{get_gaytest_verdict(pct)}</i>"
-        source_note = ""
+        is_straight = pct <= 45
+        verdict_line = f"<i>{get_gaytest_verdict(pct, is_straight)}</i>"
 
     bar = get_gaytest_bar(min(pct, 100))
-    facts = random.sample(FUN_FACTS_POOL, 3)
+
+    if is_straight:
+        gay_pct = pct
+        straight_pct = 100 - pct
+        label = f"0% Gay — {straight_pct}% Straight 📐"
+        header = "🧱  STRAIGHT-O-METER™ v3.0"
+    else:
+        gay_pct = pct
+        label = f"{gay_pct}% Gay 🌈"
+        header = "🌈  GAY-O-METER™ v3.0"
 
     final_text = f"""<code>╔══════════════════════════╗
-║   🌈  GAY-O-METER™ v3.0  ║
+║ {header} ║
 ╚══════════════════════════╝</code>
 
 🎯 <b>TARGET:</b> {display}
-📊 <b>RESULT:</b> <code>{pct}%</code>
+📊 <b>RESULT:</b> <code>{label}</code>
 
 <code>[{bar}] {pct}%</code>
 
 📋 <b>VERDICT:</b>
 {verdict_line}
-
-<code>──────────────────────────</code>
-🔎 <b>Evidence collected:</b>
-{chr(10).join(facts)}
 
 <code>──────────────────────────</code>"""
 
