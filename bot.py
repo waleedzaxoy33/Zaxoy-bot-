@@ -1314,7 +1314,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await thinking.edit_text(f"🤖 {answer}")
 
 # ─── //add ────────────────────────────────────────────────────────────
-VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete"}
+VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     global admin_perms
@@ -3144,6 +3144,133 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     print(f"[AUTODEL] failed to delete: {e}")
                 return
 
+
+# ─── //hack ─────────────────────────────────────────────
+
+import random
+import asyncio
+
+def random_ip():
+    return ".".join(str(random.randint(1,255)) for _ in range(4))
+
+def random_mac():
+    return ":".join(
+        ''.join(random.choice('0123456789ABCDEF') for _ in range(2))
+        for _ in range(6)
+    )
+
+def random_ports():
+    return ",".join(str(random.randint(20,9000)) for _ in range(3))
+
+
+async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+
+    msg = update.message
+
+    # permission
+    if not has_perm(msg.from_user.id, "//hack"):
+        return
+
+    # target
+    target = "Unknown"
+
+    if msg.reply_to_message:
+        target = msg.reply_to_message.from_user.full_name
+
+    elif ctx.args:
+        target = " ".join(ctx.args)
+
+    # random troll messages
+    owner_messages = [
+        "You can't hide anymore 💀",
+        "Nice firewall bro 😂",
+        "Too late to disconnect now.",
+        "Discord token detected.",
+        "Your device belongs to us now.",
+        "VPN won't save you lil bro.",
+        "Admin access granted.",
+        "Telegram session hijacked.",
+        "Your WiFi password was weak 💀",
+        "System vulnerability found.",
+        "Deleting system32...",
+        "Root access unlocked.",
+        "Tracking real location...",
+        "Bro thinks VPN saves him 💀",
+        "Data extraction completed.",
+        "Injecting spyware package...",
+        "Camera access granted 📷",
+        "Microphone enabled 🎤",
+        "Full device control enabled.",
+        "Stealing memes folder..."
+    ]
+
+    owner_msg = random.choice(owner_messages)
+
+    # animation
+    frames = [
+        "▰▱▱▱▱▱▱▱▱▱ Finding IP Address...",
+        "▰▰▱▱▱▱▱▱▱▱ Scanning Device...",
+        "▰▰▰▱▱▱▱▱▱▱ Bypassing Firewall...",
+        "▰▰▰▰▱▱▱▱▱▱ Accessing Network...",
+        "▰▰▰▰▰▱▱▱▱▱ Injecting Payload...",
+        "▰▰▰▰▰▰▱▱▱▱ Cracking Tokens...",
+        "▰▰▰▰▰▰▰▱▱▱ Uploading Malware...",
+        "▰▰▰▰▰▰▰▰▱▱ Downloading Logs...",
+        "▰▰▰▰▰▰▰▰▰▱ Access Granted..."
+    ]
+
+    progress = await msg.reply_text(frames[0])
+
+    for frame in frames[1:]:
+        await asyncio.sleep(0.9)
+        await progress.edit_text(frame)
+
+    # final fake result
+    final_text = f"""
+💀 SYSTEM BREACHED 💀
+
+TARGET: {target}
+
+MESSAGE FROM OWNER:
+{owner_msg}
+
+━━━━━━━━━━━━━━━━━━
+
+IP: {random_ip()}
+MAC: {random_mac()}
+
+DNS: 8.8.8.8
+ALT DNS: 1.1.1.1
+
+TCP PORTS: {random_ports()}
+UDP PORTS: {random_ports()}
+
+ROUTER: ERICCSON
+DEVICE: WIN32-X
+WAN TYPE: PRIVATE NAT
+GATEWAY: 192.168.0.1
+
+IPv6: fe80::{random.randint(1000,9999)}
+
+━━━━━━━━━━━━━━━━━━
+
+STATUS: DEVICE COMPROMISED
+FILES STOLEN: {random.randint(1,9)}.{random.randint(1,9)} TB
+DISCORD TOKEN: FOUND
+LOCATION TRACKED SUCCESSFULLY
+BANK DATA: EXPORTED
+TELEGRAM SESSION: HIJACKED
+
+━━━━━━━━━━━━━━━━━━
+
+ACCESS LEVEL: ROOT
+SECURITY: DISABLED
+"""
+
+    await asyncio.sleep(1)
+
+    await progress.edit_text(final_text)
+
 def main():
 
     start_keep_alive()
@@ -3159,6 +3286,7 @@ def main():
     app.add_handler(CommandHandler("off", off_cmd))
     app.add_handler(CommandHandler("choose", choose_cmd))
     app.add_handler(CommandHandler("xo", xo_handler))
+    app.add_handler(CommandHandler("hack", hack_cmd))
 
     # 1.5 Owner-only file sender
     app.add_handler(MessageHandler(
