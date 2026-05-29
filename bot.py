@@ -3612,21 +3612,46 @@ async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     gaytest_store = sb_load_gaytest_store()
     saved = gaytest_store.get(target_id) if target_id else None
 
+
     if saved:
         base_pct = saved["percentage"]
-        # small random variance ±5 around saved value
-        pct = max(0, base_pct + random.randint(-5, 5))
+        is_infinity = (base_pct == -1)
+
+        if is_infinity:
+            # Infinity — no variance, just use -1
+            pct = -1
+        else:
+            # small random variance ±5 around saved value
+            pct = max(0, base_pct + random.randint(-5, 5))
+
         custom_msg = saved["message"]
-        is_straight = pct <= 45
+        is_straight = saved.get("is_straight", pct <= 45) if not is_infinity else False
         verdict_line = f"<i>{custom_msg}</i>"
     else:
         pct = random.randint(0, 100)
         if random.random() < 0.05:
-            pct = random.randint(101, 150)
+            pct = random.randint(101, 999)
+        is_infinity = False
         is_straight = pct <= 45
         verdict_line = f"<i>{get_gaytest_verdict(pct, is_straight)}</i>"
+        is_infinity = False
 
-    if pct > 100:
+    if pct == -1:
+        # INFINITY mode
+        bar = "█" * 10
+        INFINITY_BOMBS = [
+            "💀 FATAL OVERFLOW: The gayometer exploded. We are filing insurance claims. 🌈☠️🇵🇱",
+            "🔥 CRITICAL MELTDOWN: Scanner hit ♾️ and retired permanently. RIP. ☠️🇵🇱",
+            "💥 ERROR ∞: The machine started crying uncontrollably and couldn't stop. 🇵🇱😭",
+            "☢️ NUCLEAR READING: Gay levels broke the known universe. Scientists are concerned. 🌈💥🇵🇱",
+            "🚨 ALL SYSTEMS DESTROYED: Even the backup scanners gave up. LEGENDARY. 👑♾️🇵🇱",
+            "🌋 IMPOSSIBLE READING: The number is so high it looped back and broke math itself. 🇵🇱💀",
+            "⚡ TOTAL SYSTEM FAILURE: ♾️% detected. The engineers quit. The building is on fire. 🔥🇵🇱",
+        ]
+        label = "♾️% — UNMEASURABLE. UNPRECEDENTED. UNSTOPPABLE. 🌈💀"
+        header = "☠️ ∞ INFINITY BREACH ∞ ☠️"
+        verdict_line = f"<i>{random.choice(INFINITY_BOMBS) if not saved else custom_msg}</i>"
+    elif pct > 100:
         bar = "█" * 10
         label = f"💀 {pct}% — TOO MUCH TO MEASURE 🌈"
         header = "☠️  OVERFLOW ERROR v3.0  ☠️"
@@ -3655,6 +3680,7 @@ async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 <code>──────────────────────────</code>"""
 
     await progress.edit_text(final_text, parse_mode="HTML")
+
 
 
 # ── //gaytest (private, owner only) — add/manage entries ─────
@@ -3708,15 +3734,21 @@ async def gaytest_private_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 break
 
     gaytest_sessions[OWNER_ID] = {
-        "step": "waiting_percentage",
+        "step": "waiting_type",
         "target_id": target_id,
         "target_name": target_name,
     }
 
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🌈 G (Gay)", callback_data=f"gaytypeg_{target_id}"),
+        InlineKeyboardButton("📐 S (Straight)", callback_data=f"gaytypes_{target_id}"),
+    ]])
+
     await msg.reply_text(
         f"👤 Target: <b>{target_name}</b>\n\n"
-        f"📊 Send the percentage (0–150):",
-        parse_mode="HTML"
+        f"❓ G or S?\n<i>G = Gay | S = Straight</i>",
+        parse_mode="HTML",
+        reply_markup=kb
     )
 
 
@@ -3738,14 +3770,28 @@ async def gaytest_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
 
     if step == "waiting_percentage":
         raw = (msg.text or "").strip()
+
+        # ∞ infinity check
+        if raw in ["♾️", "∞", "infinity", "inf", "لا محدود"]:
+            session["percentage"] = -1
+            session["is_infinity"] = True
+            session["step"] = "waiting_message"
+            await msg.reply_text(
+                "♾️ <b>INFINITY MODE ACTIVATED 💀🔥</b>\n\n"
+                "💬 Now send the custom verdict message:",
+                parse_mode="HTML"
+            )
+            return
+
         if not raw.lstrip("-").isdigit():
-            await msg.reply_text("⚠️ Send a number (any number, go wild 😂):")
+            await msg.reply_text("⚠️ Send a number (any number, no limit! 😂) or ♾️ for infinity:")
             return
         pct = int(raw)
         if pct < 0:
-            await msg.reply_text("⚠️ Number must be 0 or above:")
+            await msg.reply_text("⚠️ Number must be 0 or above (or ♾️ for infinity):")
             return
         session["percentage"] = pct
+        session["is_infinity"] = False
         session["step"] = "waiting_message"
         await msg.reply_text(
             f"✅ Percentage set to <b>{pct}%</b>\n\n"
@@ -3762,14 +3808,16 @@ async def gaytest_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
         target_id = session["target_id"]
         target_name = session["target_name"]
         pct = session["percentage"]
+        is_infinity = session.get("is_infinity", False)
 
         sb_save_gaytest_entry(target_id, pct, custom_msg, target_name)
         gaytest_sessions.pop(OWNER_ID, None)
 
+        display_pct = "♾️" if is_infinity else f"{pct}%"
         await msg.reply_text(
             f"✅ Saved!\n\n"
             f"👤 <b>{target_name}</b>\n"
-            f"📊 <b>{pct}%</b>\n"
+            f"📊 <b>{display_pct}</b>\n"
             f"💬 <i>{custom_msg}</i>",
             parse_mode="HTML"
         )
@@ -3814,8 +3862,33 @@ async def gaytest_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     data = query.data
 
+    # ── G/S type selection (new session from //gaytest @user) ──
+    if data.startswith("gaytypeg_") or data.startswith("gaytypes_"):
+        is_gay = data.startswith("gaytypeg_")
+        raw_uid = data.split("_", 1)[1]
+        uid = int(raw_uid) if raw_uid.lstrip("-").isdigit() else None
+
+        session = gaytest_sessions.get(OWNER_ID, {})
+        target_name = session.get("target_name", raw_uid)
+
+        # Update session with type
+        gaytest_sessions[OWNER_ID] = {
+            "step": "waiting_percentage",
+            "target_id": uid,
+            "target_name": target_name,
+            "is_gay": is_gay,
+        }
+
+        type_label = "🌈 Gay" if is_gay else "📐 Straight"
+        await query.edit_message_text(
+            f"👤 Target: <b>{target_name}</b>\n"
+            f"Type: <b>{type_label}</b>\n\n"
+            f"📊 Send the percentage (any number, no limit! Or ♾️ for infinity):",
+            parse_mode="HTML"
+        )
+
     # ── Delete ──
-    if data.startswith("gaydel_"):
+    elif data.startswith("gaydel_"):
         uid = int(data[7:])
         gaytest_store = sb_load_gaytest_store()
         name = gaytest_store.get(uid, {}).get("name", str(uid))
@@ -3823,13 +3896,89 @@ async def gaytest_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(f"🗑 Deleted: <b>{name}</b>", parse_mode="HTML")
 
     # ── Edit — show options ──
-    elif data.startswith("gayedit_"):
+    elif data.startswith("gayedit_") and not data.startswith("gayeditpct_") and not data.startswith("gayeditmsg_") and not data.startswith("gayedittype_") and not data.startswith("gayedittypeg_") and not data.startswith("gayedittypes_"):
         uid = int(data[8:])
+        gaytest_store = sb_load_gaytest_store()
+        entry = gaytest_store.get(uid, {})
+        cur_pct = entry.get("percentage", 0)
+        cur_type = "🌈 Gay" if cur_pct != -1 and cur_pct > 45 else ("♾️ Infinity" if cur_pct == -1 else "📐 Straight")
         kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton(f"🔄 Change Type ({cur_type})", callback_data=f"gayedittype_{uid}"),
+        ],[
             InlineKeyboardButton("📊 Edit %", callback_data=f"gayeditpct_{uid}"),
             InlineKeyboardButton("💬 Edit Message", callback_data=f"gayeditmsg_{uid}"),
         ]])
         await query.edit_message_reply_markup(reply_markup=kb)
+
+    # ── Edit type ──
+    elif data.startswith("gayedittype_") and not data.startswith("gayedittypeg_") and not data.startswith("gayedittypes_"):
+        uid = int(data[12:])
+        gaytest_store = sb_load_gaytest_store()
+        entry = gaytest_store.get(uid, {})
+        cur_pct = entry.get("percentage", 0)
+        # Show toggle: if currently gay → show "change to straight" and vice versa
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("🌈 Gay", callback_data=f"gayedittypeg_{uid}"),
+            InlineKeyboardButton("📐 Straight", callback_data=f"gayedittypes_{uid}"),
+        ]])
+        await query.edit_message_text(
+            f"👤 <b>{entry.get('name', uid)}</b>\n\n"
+            f"❓ Change type to:",
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+
+    # ── Edit type confirmed: Gay ──
+    elif data.startswith("gayedittypeg_"):
+        uid = int(data[13:])
+        gaytest_store = sb_load_gaytest_store()
+        entry = gaytest_store.get(uid, {})
+        # Keep percentage but make sure it reflects gay (>45)
+        cur_pct = entry.get("percentage", 50)
+        if cur_pct != -1 and cur_pct <= 45:
+            cur_pct = 50  # reset to default gay
+        # Ask for new percentage
+        gaytest_sessions[OWNER_ID] = {
+            "step": "waiting_percentage",
+            "target_id": uid,
+            "target_name": entry.get("name", str(uid)),
+            "editing_msg": entry.get("message", ""),
+            "is_gay": True,
+            "editing": True,
+        }
+        await query.edit_message_text(
+            f"🌈 Type changed to <b>Gay</b>\n\n"
+            f"📊 Send the new percentage (any number, or ♾️):",
+            parse_mode="HTML"
+        )
+        await ctx.bot.send_message(OWNER_ID,
+            f"📊 Send the new percentage for <b>{entry.get('name', uid)}</b>\n(or ♾️ for infinity):",
+            parse_mode="HTML")
+
+    # ── Edit type confirmed: Straight ──
+    elif data.startswith("gayedittypes_"):
+        uid = int(data[13:])
+        gaytest_store = sb_load_gaytest_store()
+        entry = gaytest_store.get(uid, {})
+        cur_pct = entry.get("percentage", 20)
+        if cur_pct == -1 or cur_pct > 45:
+            cur_pct = 20  # reset to default straight
+        gaytest_sessions[OWNER_ID] = {
+            "step": "waiting_percentage",
+            "target_id": uid,
+            "target_name": entry.get("name", str(uid)),
+            "editing_msg": entry.get("message", ""),
+            "is_gay": False,
+            "editing": True,
+        }
+        await query.edit_message_text(
+            f"📐 Type changed to <b>Straight</b>\n\n"
+            f"📊 Send the new percentage:",
+            parse_mode="HTML"
+        )
+        await ctx.bot.send_message(OWNER_ID,
+            f"📊 Send the new percentage for <b>{entry.get('name', uid)}</b>:",
+            parse_mode="HTML")
 
     # ── Edit percentage ──
     elif data.startswith("gayeditpct_"):
@@ -3843,7 +3992,9 @@ async def gaytest_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "editing_msg": entry.get("message", ""),
             "editing": True,
         }
-        await ctx.bot.send_message(OWNER_ID, f"📊 Send the new percentage for <b>{entry.get('name', uid)}</b>:", parse_mode="HTML")
+        await ctx.bot.send_message(OWNER_ID,
+            f"📊 Send the new percentage for <b>{entry.get('name', uid)}</b>\n(any number, or ♾️ for infinity):",
+            parse_mode="HTML")
 
     # ── Edit message ──
     elif data.startswith("gayeditmsg_"):
@@ -3857,8 +4008,9 @@ async def gaytest_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "percentage": entry.get("percentage", 0),
             "editing": True,
         }
-        await ctx.bot.send_message(OWNER_ID, f"💬 Send the new verdict message for <b>{entry.get('name', uid)}</b>:", parse_mode="HTML")
-
+        await ctx.bot.send_message(OWNER_ID,
+            f"💬 Send the new verdict message for <b>{entry.get('name', uid)}</b>:",
+            parse_mode="HTML")
 
 class _GaytestSessionFilter(filters.MessageFilter):
     def filter(self, message):
@@ -3913,7 +4065,7 @@ app.add_handler(MessageHandler(
 # gaytest callbacks (edit/delete from //gaytest //list)
 app.add_handler(CallbackQueryHandler(
     gaytest_callback,
-    pattern="^(gaydel_|gayedit_|gayeditpct_|gayeditmsg_)"
+    pattern="^(gaydel_|gayedit_|gayeditpct_|gayeditmsg_|gaytypeg_|gaytypes_|gayedittype_|gayedittypeg_|gayedittypes_)"
 ))
 
 # 1.5 Owner-only file sender
