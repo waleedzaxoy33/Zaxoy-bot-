@@ -3266,8 +3266,7 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
    for frame in frames[1:]:
        await asyncio.sleep(1.3)
        await progress.edit_text(frame, parse_mode="HTML")
-
-   await asyncio.sleep(0.8)
+       await asyncio.sleep(0.8)
 
     # logs
     all_logs = [
