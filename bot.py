@@ -3457,11 +3457,10 @@ gaytest_sessions: dict[int, dict] = {}
 
 # ── Verdict pools ────────────────────────────────────────────
 
-# STRAIGHT verdicts (pct <= 45) — pure praise, masculinity hype
 STRAIGHT_VERDICTS = [
     "Bro is built different. Pure alpha energy. 💪",
     "Certified masculine. The scanner saluted. 🫡",
-    "Straighter than the highway to Zaxo. 🛣️",
+    "Straighter than the highway to Zaxo. 🛣️🇵🇱",
     "This man eats steak and doesn't apologize. 🥩",
     "The machine detected zero drama. Respect. 🤝",
     "Cold water, no complaints, real one. 🧊",
@@ -3477,14 +3476,14 @@ STRAIGHT_VERDICTS = [
     "The machine printed a certificate. First time ever. 📜",
     "Ice in his veins. No drama. Just results. ❄️",
     "Scanner said: finally, a real one. 😤",
+    "Zero percent gay. The machine needed a moment to process. 🇵🇱",
+    "Bro breathes differently. Straight to the core. 🇵🇱💪",
 ]
 
-# GAY verdicts (pct >= 55) — roasting, jokes, chaotic energy
 GAY_VERDICTS = [
     "Bro orders oat milk and calls it 'my usual'. ☕",
     "His playlist has more Dua Lipa than words. 🎵",
     "Vegan since Tuesday. Very passionate about it. 🥗",
-    "The gayometer exploded trying to measure this. 💥",
     "Bro has 4 types of moisturizer and uses all of them. 🧴",
     "Cried at a furniture commercial. Moving on. 😭",
     "His wallpaper is 'aesthetic'. He chose the font himself. 🎨",
@@ -3503,28 +3502,44 @@ GAY_VERDICTS = [
     "Bro cried at a dog food ad. The dog was fine. 🐶",
     "Knows every ABBA song by heart. Proud of it. 🎶",
     "His search history is just interior design TikToks. 🛋️",
+    "Bro irons his pyjamas. Nobody asked. 🫠",
+    "Has a whole opinion on pillow arrangements. 🛏️",
+    "Went to a farmer's market and posted every single thing. 🧺",
+]
+
+OVERFLOW_VERDICTS = [
+    "⚠️ ERROR: The gayometer cannot handle this reading. System crashed. 💥🇵🇱",
+    "📉 OVERFLOW DETECTED: Number too high. Scanner filed for early retirement. 🇵🇱",
+    "🚨 CRITICAL ERROR: Gay levels exceeded maximum capacity. We are so sorry. 🇵🇱",
+    "💀 The machine saw the result and immediately called its lawyer. 🇵🇱",
+    "📟 ALERT: Reading off the charts. The scanner is now in therapy. 🛋️🇵🇱",
+    "🔴 SYSTEM FAILURE: This unit was not built for numbers this high. 🇵🇱💥",
+    "☠️ Fatal error. The gayometer has left the building. Permanently. 🇵🇱",
+]
+
+OWNER_DEFENSE_RESPONSES = [
+    "HAHAHAH MY BOSS?? Nah he doesn't need a test. The machine respects him. 👑🇵🇱",
+    "HAHAHAH MY BOSS?? Sir this scanner works for HIM. Not on him. 🫡🇵🇱",
+    "HAHAHAH MY BOSS?? Access denied. The owner is above this test. 🚫🇵🇱",
+    "HAHAHAH MY BOSS?? The gayometer just bowed. It doesn't scan royalty. 🙇🇵🇱",
+    "HAHAHAH MY BOSS?? System refused. Boss immunity activated. ⚡🇵🇱",
+    "HAHAHAH MY BOSS?? Nice try. The machine laughed and went back to sleep. 😂🇵🇱",
+    "HAHAHAH MY BOSS?? The owner built this thing. He doesn't get scanned. 🔧🇵🇱",
+    "HAHAHAH MY BOSS?? Error: Cannot test the administrator. Logic rejected. 💻🇵🇱",
+    "HAHAHAH MY BOSS?? Bro really tried it. The audacity. 😭🇵🇱",
+    "HAHAHAH MY BOSS?? Scanner said no and shut itself off. 🇵🇱❌",
 ]
 
 def get_gaytest_verdict(pct: int, is_straight: bool) -> str:
+    if pct > 100:
+        return random.choice(OVERFLOW_VERDICTS)
     if is_straight:
         return random.choice(STRAIGHT_VERDICTS)
-    else:
-        return random.choice(GAY_VERDICTS)
+    return random.choice(GAY_VERDICTS)
 
 def get_gaytest_bar(pct: int) -> str:
     filled = min(10, pct // 10)
     return "█" * filled + "░" * (10 - filled)
-
-OWNER_DEFENSE_RESPONSES = [
-    "HAHAHAH MY BOSS?? Nah he doesn't need a test. The machine respects him. 👑",
-    "HAHAHAH MY BOSS?? Sir this scanner works for HIM. Not on him. 🫡",
-    "HAHAHAH MY BOSS?? Access denied. The owner is above this test. 🚫",
-    "HAHAHAH MY BOSS?? The gayometer just bowed. It doesn't scan royalty. 🙇",
-    "HAHAHAH MY BOSS?? System refused. Boss immunity activated. ⚡",
-    "HAHAHAH MY BOSS?? Nice try. The machine laughed and went back to sleep. 😂",
-    "HAHAHAH MY BOSS?? The owner built this thing. He doesn't get scanned. 🔧",
-    "HAHAHAH MY BOSS?? Error: Cannot test the administrator. Logic rejected. 💻",
-]
 
 # ── /gaytest command (group) ──────────────────────────────────
 async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -3609,17 +3624,19 @@ async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         is_straight = pct <= 45
         verdict_line = f"<i>{get_gaytest_verdict(pct, is_straight)}</i>"
 
-    bar = get_gaytest_bar(min(pct, 100))
-
-    if is_straight:
-        gay_pct = pct
+    if pct > 100:
+        bar = "█" * 10
+        label = f"💀 {pct}% — TOO MUCH TO MEASURE 🌈"
+        header = "☠️  OVERFLOW ERROR v3.0  ☠️"
+    elif is_straight:
         straight_pct = 100 - pct
+        bar = get_gaytest_bar(straight_pct)
         label = f"0% Gay — {straight_pct}% Straight 📐"
-        header = "🧱  STRAIGHT-O-METER™ v3.0"
+        header = "🧱 STRAIGHT-O-METER™ v3.0 🧱"
     else:
-        gay_pct = pct
-        label = f"{gay_pct}% Gay 🌈"
-        header = "🌈  GAY-O-METER™ v3.0"
+        bar = get_gaytest_bar(pct)
+        label = f"{pct}% Gay 🌈"
+        header = "🌈  GAY-O-METER™ v3.0  🌈"
 
     final_text = f"""<code>╔══════════════════════════╗
 ║ {header} ║
@@ -3628,7 +3645,7 @@ async def gaytest_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 🎯 <b>TARGET:</b> {display}
 📊 <b>RESULT:</b> <code>{label}</code>
 
-<code>[{bar}] {pct}%</code>
+<code>[{bar}]</code>
 
 📋 <b>VERDICT:</b>
 {verdict_line}
