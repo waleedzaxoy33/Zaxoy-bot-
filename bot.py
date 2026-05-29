@@ -3147,171 +3147,187 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 return
 
 
-# ─── //hack ─────────────────────────────────────────────
-
 import random
 import asyncio
+from telegram import Update
+from telegram.ext import ContextTypes
 
 def random_ip():
-    return ".".join(str(random.randint(1,255)) for _ in range(4))
+    while True:
+        parts = [random.randint(1, 255) for _ in range(4)]
+        if parts[0] not in [10, 127, 172, 192, 255]:
+            return ".".join(str(p) for p in parts)
+
+def random_ipv6():
+    return ":".join(''.join(random.choice('0123456789abcdef') for _ in range(4)) for _ in range(8))
 
 def random_mac():
-    return ":".join(
-        ''.join(random.choice('0123456789ABCDEF') for _ in range(2))
-        for _ in range(6)
-    )
+    return ":".join(''.join(random.choice('0123456789ABCDEF') for _ in range(2)) for _ in range(6))
 
 def random_ports():
-    return ",".join(str(random.randint(20,9000)) for _ in range(3))
+    return ", ".join(str(random.randint(20, 9000)) for _ in range(4))
 
 def fake_card():
-    start = random.randint(4,5)
-    end = random.randint(1000,9999)
-    return f"{start}*** **** **** {end}"
+    prefix = random.choice(["4", "5"])
+    end = random.randint(1000, 9999)
+    return f"{prefix}*** **** **** {end}"
 
+def fake_hash():
+    return ''.join(random.choice('0123456789abcdef') for _ in range(32))
+
+def fake_session_id():
+    return ''.join(random.choice('0123456789ABCDEFabcdef') for _ in range(24))
+
+def fake_signal():
+    return random.randint(-90, -40)
+
+def fake_ping():
+    return random.randint(8, 240)
+
+def fake_files():
+    return round(random.uniform(4.2, 420.8), 1)
 
 async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-
     msg = update.message
+    user = msg.from_user
 
-    # permission
-    if not has_perm(msg.from_user.id, "//hack"):
+    if not has_perm(user.id, "//hack"):
         return
 
-    # self hack roast
-    if msg.reply_to_message and msg.reply_to_message.from_user.id == msg.from_user.id:
-
+    # لو حاول يهاكر نفسه
+    is_self = msg.reply_to_message and msg.reply_to_message.from_user.id == user.id
+    if is_self:
         self_roasts = [
-            "Wanna hack yourself? You kidding right? 💀",
-            "Bro trying to leak his own IP 😭",
-            "Self hack detected. IQ damaged.",
-            "You can't hack yourself lil bro 😂",
-            "System refused to hack the owner.",
-            "Nice try hacker man 💀",
-            "Bro watched too many hacker movies.",
-            "Target = yourself??? 😭",
-            "Even FBI can't help you now 💀",
-            "Hack yourself? That's crazy 😭"
+            "ERROR 0x00: Cannot hack the one holding the keyboard.",
+            "SYSTEM ALERT: Recursive hack loop detected. Aborted.",
+            "Access Denied — Target matches Operator ID.",
+            "ERROR 403: The attacker IS the victim. Session terminated.",
+            "Security protocol triggered: User = Target. Aborting.",
+            "Self-destruct sequence cancelled. You are welcome.",
+            "You cannot pwn yourself. Logic error.",
+            "IQ check failed. Try a different target.",
+            "Fatal error: Mirror attack not supported.",
+            "Hack attempt rejected: Operator ID conflict.",
         ]
-
-        await msg.reply_text(random.choice(self_roasts))
+        await msg.reply_text(f"<code>{random.choice(self_roasts)}</code>", parse_mode="HTML")
         return
 
-    # target mention
+    # لو حاول يهاكر البوت
+    bot_id = ctx.bot.id
+    if msg.reply_to_message and msg.reply_to_message.from_user.id == bot_id:
+        bot_roasts = [
+            "Nice try, admin. I run the system.",
+            "ERROR: Operator cannot override root access.",
+            "Bot Shield activated. Your attempt has been logged.",
+            "You built me. You cannot hack what you created.",
+            "Root privileges detected. Attack neutralized.",
+            "I know your token. Careful.",
+            "Admin vs Bot. Bot wins. Always.",
+            "Immunity protocol active. Try again never.",
+            "Access denied. I live rent-free in your server.",
+            "System protected. Admin attack blocked.",
+        ]
+        await msg.reply_text(f"<code>{random.choice(bot_roasts)}</code>", parse_mode="HTML")
+        return
+
+    # تحديد التارقت
     target = "Unknown"
-
     if msg.reply_to_message:
-        user = msg.reply_to_message.from_user
-        target = f'<a href="tg://user?id={user.id}">{user.full_name}</a>'
-
+        u = msg.reply_to_message.from_user
+        target = f'<a href="tg://user?id={u.id}">{u.full_name}</a>'
     elif ctx.args:
         target = " ".join(ctx.args)
 
-    # random owner messages
-    owner_messages = [
-        "Session token decrypted.",
-        "Cloud backup indexed.",
-        "Saved credentials detected.",
-        "Encryption keys exported.",
-        "Private storage scanned.",
-        "Remote access granted.",
-        "Hidden directories unlocked.",
-        "Telegram session synced.",
-        "Security layer bypassed.",
-        "Device synchronization completed."
-    ]
-
-    owner_msg = random.choice(owner_messages)
-
-    # realistic logs
-    logs = [
-        "📸 Camera access granted",
-        "🎤 Microphone enabled",
-        "🖼 Gallery backup exported",
-        "📂 Recent files indexed",
-        "📨 Cached messages extracted",
-        "📱 Contacts synchronized",
-        "📍 Live location tracked",
-        "🔑 Saved credentials synced",
-        "☁️ Telegram cloud exported",
-        "🍪 Session cookies copied",
-        "🧾 Autofill database extracted",
-        "🎞 Studio media scanned",
-        "🗃 Hidden folders indexed",
-        "📷 Camera roll synchronized"
-    ]
-
-    extra1 = random.choice(logs)
-    extra2 = random.choice(logs)
-    extra3 = random.choice(logs)
-    extra4 = random.choice(logs)
-
-    # animation
+    # انيميشن التحميل
     frames = [
-        "▰▱▱▱▱▱▱▱▱▱ Finding IP Address...",
-        "▰▰▱▱▱▱▱▱▱▱ Scanning Device...",
-        "▰▰▰▱▱▱▱▱▱▱ Bypassing Firewall...",
-        "▰▰▰▰▱▱▱▱▱▱ Accessing Network...",
-        "▰▰▰▰▰▱▱▱▱▱ Injecting Payload...",
-        "▰▰▰▰▰▰▱▱▱▱ Cracking Encryption...",
-        "▰▰▰▰▰▰▰▱▱▱ Uploading Spyware...",
-        "▰▰▰▰▰▰▰▰▱▱ Downloading Logs...",
-        "▰▰▰▰▰▰▰▰▰▱ Access Granted..."
+        "<code>Scanning target...         [          ] 0%</code>",
+        "<code>Connecting to server...    [==        ] 20%</code>",
+        "<code>Bypassing firewall...      [====      ] 40%</code>",
+        "<code>Injecting payload...       [======    ] 60%</code>",
+        "<code>Extracting data...         [========  ] 80%</code>",
+        "<code>Decrypting files...        [========= ] 95%</code>",
+        "<code>ACCESS GRANTED             [==========] 100%</code>",
     ]
 
-    progress = await msg.reply_text(frames[0])
-
+    progress = await msg.reply_text(frames[0], parse_mode="HTML")
     for frame in frames[1:]:
-        await asyncio.sleep(0.9)
-        await progress.edit_text(frame)
+        await asyncio.sleep(1.3)
+        await progress.edit_text(frame, parse_mode="HTML")
 
-    # final result
+    await asyncio.sleep(0.8)
+
+    # لوقات عشوائية
+    all_logs = [
+        "📸 Camera feed intercepted ✓",
+        "🎤 Microphone stream active ✓",
+        "🖼 Media gallery exported ✓",
+        "📂 File system indexed ✓",
+        "📨 Message cache extracted ✓",
+        "📱 Contact list synchronized ✓",
+        "🔑 Keychain credentials dumped ✓",
+        "☁️ Cloud backup cloned ✓",
+        "🍪 Auth cookies harvested ✓",
+        "🧾 Autofill database copied ✓",
+        "🗃 Hidden partitions mapped ✓",
+        "📡 Network packets captured ✓",
+        "🔐 2FA tokens intercepted ✓",
+        "📊 App usage logs exported ✓",
+        "🧬 Device fingerprint saved ✓",
+        "🔋 Battery & sensor data read ✓",
+    ]
+    selected_logs = random.sample(all_logs, 5)
+
+    owner_msgs = [
+        "Persistent backdoor installed.",
+        "Remote shell established.",
+        "Zero-day exploit deployed.",
+        "Rootkit injection successful.",
+        "Silent monitoring enabled.",
+        "Memory dump completed.",
+        "Kernel access obtained.",
+        "Privilege escalation done.",
+    ]
+
     final_text = f"""
-💀 SYSTEM BREACHED 💀
+<code>╔══════════════════════════╗
+║   ☠ SYSTEM COMPROMISED ☠  ║
+╚══════════════════════════╝</code>
 
-TARGET: {target}
+🎯 <b>TARGET:</b> {target}
+⚡ <b>STATUS:</b> <code>FULLY BREACHED</code>
 
-MESSAGE FROM OWNER:
-{owner_msg}
+<code>──────────────────────────</code>
+🌐 <b>IPv4:</b>    <code>{random_ip()}</code>
+🌐 <b>IPv6:</b>    <code>{random_ipv6()}</code>
+🖧  <b>MAC:</b>    <code>{random_mac()}</code>
+📶 <b>Signal:</b>  <code>{fake_signal()} dBm</code>
+⏱ <b>Ping:</b>    <code>{fake_ping()} ms</code>
 
-━━━━━━━━━━━━━━━━━━
+<code>──────────────────────────</code>
+🔓 <b>TCP:</b> <code>{random_ports()}</code>
+🔓 <b>UDP:</b> <code>{random_ports()}</code>
 
-🌐 IP: {random_ip()}
-🖧 MAC: {random_mac()}
+<code>──────────────────────────</code>
+🔑 <b>Session:</b> <code>{fake_session_id()}</code>
+🧬 <b>Hash:</b>    <code>{fake_hash()}</code>
+💳 <b>Card:</b>    <code>{fake_card()}</code>
+🔒 <b>Pass:</b>    <code>{'*' * random.randint(8, 16)}</code>
 
-📡 DNS: 8.8.8.8
-📡 ALT DNS: 1.1.1.1
+<code>──────────────────────────</code>
+📂 <b>Files Indexed:</b> <code>{fake_files()} GB</code>
+🖥 <b>Note:</b> <i>{random.choice(owner_msgs)}</i>
 
-🔓 TCP PORTS: {random_ports()}
-🔓 UDP PORTS: {random_ports()}
+<code>──────────────────────────</code>
+{chr(10).join(selected_logs)}
 
-🧬 IPv6: fe80::{random.randint(1000,9999)}
+<code>──────────────────────────
+Monitoring active...
+Connection logged.
+</code>"""
 
-━━━━━━━━━━━━━━━━━━
+    await asyncio.sleep(0.5)
+    await progress.edit_text(final_text, parse_mode="HTML")
 
-⚠️ STATUS: DEVICE COMPROMISED
-📂 FILES INDEXED: {random.randint(12,850)} GB
-
-💳 Saved Card: {fake_card()}
-🔑 Saved Password: ********
-
-{extra1}
-{extra2}
-{extra3}
-{extra4}
-
-━━━━━━━━━━━━━━━━━━
-
-📡 Connection logged
-🔍 Monitoring active
-"""
-
-    await asyncio.sleep(1)
-
-    await progress.edit_text(
-        final_text,
-        parse_mode="HTML"
-    )    
 def main():
 
     start_keep_alive()
