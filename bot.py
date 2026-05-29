@@ -3188,8 +3188,6 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "You can't hide anymore 💀",
         "Nice firewall bro 😂",
         "Too late to disconnect now.",
-        "Discord token detected.",
-        "Your device belongs to us now.",
         "VPN won't save you lil bro.",
         "Admin access granted.",
         "Telegram session hijacked.",
@@ -3209,6 +3207,24 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     owner_msg = random.choice(owner_messages)
 
+    # random extra leaks
+    leak_messages = [
+        "PRIVATE CHATS: LEAKED",
+        "CONTACTS: DOWNLOADED",
+        "GALLERY ACCESS: GRANTED",
+        "MICROPHONE: ENABLED",
+        "CAMERA: ENABLED",
+        "2FA: BYPASSED",
+        "LIVE LOCATION: TRACKED",
+        "CALL LOGS: SYNCED",
+        "TELEGRAM CLOUD: EXPORTED",
+        "SMS DATABASE: DOWNLOADED"
+    ]
+
+    extra1 = random.choice(leak_messages)
+    extra2 = random.choice(leak_messages)
+    extra3 = random.choice(leak_messages)
+
     # animation
     frames = [
         "▰▱▱▱▱▱▱▱▱▱ Finding IP Address...",
@@ -3216,8 +3232,8 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         "▰▰▰▱▱▱▱▱▱▱ Bypassing Firewall...",
         "▰▰▰▰▱▱▱▱▱▱ Accessing Network...",
         "▰▰▰▰▰▱▱▱▱▱ Injecting Payload...",
-        "▰▰▰▰▰▰▱▱▱▱ Cracking Tokens...",
-        "▰▰▰▰▰▰▰▱▱▱ Uploading Malware...",
+        "▰▰▰▰▰▰▱▱▱▱ Cracking Encryption...",
+        "▰▰▰▰▰▰▰▱▱▱ Uploading Spyware...",
         "▰▰▰▰▰▰▰▰▱▱ Downloading Logs...",
         "▰▰▰▰▰▰▰▰▰▱ Access Granted..."
     ]
@@ -3259,10 +3275,10 @@ IPv6: fe80::{random.randint(1000,9999)}
 
 STATUS: DEVICE COMPROMISED
 FILES STOLEN: {random.randint(1,9)}.{random.randint(1,9)} TB
-DISCORD TOKEN: FOUND
-LOCATION TRACKED SUCCESSFULLY
-BANK DATA: EXPORTED
-TELEGRAM SESSION: HIJACKED
+
+{extra1}
+{extra2}
+{extra3}
 
 ━━━━━━━━━━━━━━━━━━
 
