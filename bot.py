@@ -3164,6 +3164,11 @@ def random_mac():
 def random_ports():
     return ",".join(str(random.randint(20,9000)) for _ in range(3))
 
+def fake_card():
+    start = random.randint(4,5)
+    end = random.randint(1000,9999)
+    return f"{start}*** **** **** {end}"
+
 
 async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
@@ -3202,47 +3207,44 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif ctx.args:
         target = " ".join(ctx.args)
 
-    # random troll messages
+    # random owner messages
     owner_messages = [
-        "You can't hide anymore 💀",
-        "Nice firewall bro 😂",
-        "Too late to disconnect now.",
-        "VPN won't save you lil bro.",
-        "Admin access granted.",
-        "Telegram session hijacked.",
-        "Your WiFi password was weak 💀",
-        "System vulnerability found.",
-        "Deleting system32...",
-        "Root access unlocked.",
-        "Tracking real location...",
-        "Bro thinks VPN saves him 💀",
-        "Data extraction completed.",
-        "Injecting spyware package...",
-        "Camera access granted 📷",
-        "Microphone enabled 🎤",
-        "Full device control enabled.",
-        "Stealing memes folder..."
+        "Session token decrypted.",
+        "Cloud backup indexed.",
+        "Saved credentials detected.",
+        "Encryption keys exported.",
+        "Private storage scanned.",
+        "Remote access granted.",
+        "Hidden directories unlocked.",
+        "Telegram session synced.",
+        "Security layer bypassed.",
+        "Device synchronization completed."
     ]
 
     owner_msg = random.choice(owner_messages)
 
-    # random leaks
-    leak_messages = [
-        "📸 CAMERA: ENABLED",
-        "🎤 MICROPHONE: ENABLED",
-        "📂 PRIVATE CHATS: LEAKED",
-        "📱 CONTACTS: DOWNLOADED",
-        "🖼 GALLERY ACCESS: GRANTED",
-        "🔓 2FA: BYPASSED",
-        "📍 LIVE LOCATION: TRACKED",
-        "📞 CALL LOGS: SYNCED",
-        "☁️ TELEGRAM CLOUD: EXPORTED",
-        "💬 SMS DATABASE: DOWNLOADED"
+    # realistic logs
+    logs = [
+        "📸 Camera access granted",
+        "🎤 Microphone enabled",
+        "🖼 Gallery backup exported",
+        "📂 Recent files indexed",
+        "📨 Cached messages extracted",
+        "📱 Contacts synchronized",
+        "📍 Live location tracked",
+        "🔑 Saved credentials synced",
+        "☁️ Telegram cloud exported",
+        "🍪 Session cookies copied",
+        "🧾 Autofill database extracted",
+        "🎞 Studio media scanned",
+        "🗃 Hidden folders indexed",
+        "📷 Camera roll synchronized"
     ]
 
-    extra1 = random.choice(leak_messages)
-    extra2 = random.choice(leak_messages)
-    extra3 = random.choice(leak_messages)
+    extra1 = random.choice(logs)
+    extra2 = random.choice(logs)
+    extra3 = random.choice(logs)
+    extra4 = random.choice(logs)
 
     # animation
     frames = [
@@ -3283,26 +3285,25 @@ MESSAGE FROM OWNER:
 🔓 TCP PORTS: {random_ports()}
 🔓 UDP PORTS: {random_ports()}
 
-📶 ROUTER: ERICCSON
-💻 DEVICE: WIN32-X
-🌍 WAN TYPE: PRIVATE NAT
-🛜 GATEWAY: 192.168.0.1
-
 🧬 IPv6: fe80::{random.randint(1000,9999)}
 
 ━━━━━━━━━━━━━━━━━━
 
 ⚠️ STATUS: DEVICE COMPROMISED
-📂 FILES STOLEN: {random.randint(2,900)} GB
+📂 FILES INDEXED: {random.randint(12,850)} GB
+
+💳 Saved Card: {fake_card()}
+🔑 Saved Password: ********
 
 {extra1}
 {extra2}
 {extra3}
+{extra4}
 
 ━━━━━━━━━━━━━━━━━━
 
-👑 ACCESS LEVEL: ROOT
-🚫 SECURITY: DISABLED
+📡 Connection logged
+🔍 Monitoring active
 """
 
     await asyncio.sleep(1)
@@ -3310,8 +3311,7 @@ MESSAGE FROM OWNER:
     await progress.edit_text(
         final_text,
         parse_mode="HTML"
-    )
-    
+    )    
 def main():
 
     start_keep_alive()
