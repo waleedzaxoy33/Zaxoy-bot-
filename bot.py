@@ -3146,55 +3146,26 @@ async def auto_delete_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     print(f"[AUTODEL] failed to delete: {e}")
                 return
 
-
-import random
-import asyncio
-from telegram import Update
-from telegram.ext import ContextTypes
-
-def random_ip():
-    while True:
-        parts = [random.randint(1, 255) for _ in range(4)]
-        if parts[0] not in [10, 127, 172, 192, 255]:
-            return ".".join(str(p) for p in parts)
-
-def random_ipv6():
-    return ":".join(''.join(random.choice('0123456789abcdef') for _ in range(4)) for _ in range(8))
-
-def random_mac():
-    return ":".join(''.join(random.choice('0123456789ABCDEF') for _ in range(2)) for _ in range(6))
-
-def random_ports():
-    return ", ".join(str(random.randint(20, 9000)) for _ in range(4))
-
-def fake_card():
-    prefix = random.choice(["4", "5"])
-    end = random.randint(1000, 9999)
-    return f"{prefix}*** **** **** {end}"
-
-def fake_hash():
-    return ''.join(random.choice('0123456789abcdef') for _ in range(32))
-
-def fake_session_id():
-    return ''.join(random.choice('0123456789ABCDEFabcdef') for _ in range(24))
-
-def fake_signal():
-    return random.randint(-90, -40)
-
-def fake_ping():
-    return random.randint(8, 240)
-
-def fake_files():
-    return round(random.uniform(4.2, 420.8), 1)
-
 async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user = msg.from_user
 
+    # No permission response
     if not has_perm(user.id, "//hack"):
+        no_perm = [
+            "You don't have permission to use this command.",
+            "This command is not for you.",
+            "Ask an admin for access first.",
+            "//hack requires special permissions.",
+            "Access denied. Not authorized.",
+            "Permission level too low.",
+            "You are not allowed to run this.",
+            "Unauthorized user detected.",
+        ]
+        await msg.reply_text(f"<code>{random.choice(no_perm)}</code>", parse_mode="HTML")
         return
 
-    # لو حاول يهاكر نفسه
+    # Self hack protection
     is_self = msg.reply_to_message and msg.reply_to_message.from_user.id == user.id
     if is_self:
         self_roasts = [
@@ -3212,7 +3183,7 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(f"<code>{random.choice(self_roasts)}</code>", parse_mode="HTML")
         return
 
-    # لو حاول يهاكر البوت
+    # Bot hack protection
     bot_id = ctx.bot.id
     if msg.reply_to_message and msg.reply_to_message.from_user.id == bot_id:
         bot_roasts = [
@@ -3230,7 +3201,7 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(f"<code>{random.choice(bot_roasts)}</code>", parse_mode="HTML")
         return
 
-    # تحديد التارقت
+    # Target identification
     target = "Unknown"
     if msg.reply_to_message:
         u = msg.reply_to_message.from_user
@@ -3238,7 +3209,7 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif ctx.args:
         target = " ".join(ctx.args)
 
-    # انيميشن التحميل
+    # Loading animation
     frames = [
         "<code>Scanning target...         [          ] 0%</code>",
         "<code>Connecting to server...    [==        ] 20%</code>",
@@ -3256,7 +3227,7 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     await asyncio.sleep(0.8)
 
-    # لوقات عشوائية
+    # Logs and final report
     all_logs = [
         "📸 Camera feed intercepted ✓",
         "🎤 Microphone stream active ✓",
@@ -3327,6 +3298,8 @@ Connection logged.
 
     await asyncio.sleep(0.5)
     await progress.edit_text(final_text, parse_mode="HTML")
+
+
 
 def main():
 
