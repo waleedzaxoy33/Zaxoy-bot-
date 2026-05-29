@@ -3269,7 +3269,7 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
        await asyncio.sleep(0.8)
 
         # logs
-    all_logs = [
+        all_logs = [
         "📸 Camera feed intercepted ✓",
         "🎤 Microphone stream active ✓",
         "🖼 Media gallery exported ✓",
