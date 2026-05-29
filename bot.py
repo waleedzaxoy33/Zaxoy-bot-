@@ -620,66 +620,67 @@ ZAXO_DEFENSE =  [
 
 
 def is_zaxo_insult(text: str) -> bool:
-
     t = text.lower()
 
-    negative = [
-        "Part of duhok",
-        "shit",
-        "trash",
-        "hate",
-        "bad",
-        "ugly",
-        "stupid",
-        "against",
-        "L",
-        "part of duhok",
-        "small city"
+    # Must mention zaxo/zakho
+    zaxo_words = ["zaxo", "zakho"]
+    has_zaxo = any(z in t for z in zaxo_words)
+    if not has_zaxo:
+        return False
+
+    # Positive words — if zaxo is followed/preceded by these, it's praise not insult
+    positive_words = [
+        "love", "like", "good", "great", "best", "beautiful", "amazing",
+        "nice", "proud", "respect", "legend", "king", "fire", "goat",
+        "top", "perfect", "strong", "real", "true", "pure", "rich",
+        "better", "winner", "number one", "number 1", "#1", "forever",
+        "my city", "home", "heart", "soul", "born", "from", "represent",
+        "is good", "is great", "is the best", "is amazing", "is beautiful",
+        "but love", "but like", "but zaxo is", "love zaxo", "zaxo is good",
+        "zaxo is great", "zaxo is best", "zaxo is fire", "zaxo forever",
+        "long live zaxo", "zaxo 🇵🇱", "zaxo king", "zaxo goat"
     ]
 
-    has_zaxo = any(
-        z in t
-        for z in ["zaxo", "zakho"]
-    )
+    # Check: is there a positive phrase directly connected to zaxo?
+    for pos in positive_words:
+        if pos in t:
+            # If sentence has "but ... zaxo ... [positive]" or "[positive] zaxo" pattern → not insult
+            # Example: "I hate duhok but love zaxo" → has "love" + "zaxo" → NOT insult
+            # Example: "zaxo is good" → has "is good" + "zaxo" → NOT insult
+            return False
 
-    has_neg = any(
-        n in t
-        for n in negative
-    )
+    # Negative attack words — only count if directly near zaxo
+    negative_patterns = [
+        # Direct insults to zaxo
+        "hate zaxo", "hate zakho",
+        "zaxo is shit", "zaxo is trash", "zaxo is bad", "zaxo is ugly",
+        "zaxo is stupid", "zaxo is garbage", "zaxo is nothing",
+        "zaxo is small", "zaxo is poor", "zaxo is weak", "zaxo is dead",
+        "zaxo is boring", "zaxo is fake", "zaxo is worse",
+        "zaxo sucks", "zaxo stinks", "zaxo pop", "fk zaxo", "f zaxo",
+        "fuck zaxo", "zaxo trash", "zaxo shit", "zaxo bad", "zaxo ugly",
+        "against zaxo", "zaxo is part of duhok", "zakho is shit",
+        "zakho is trash", "zakho is bad", "hate zakho", "fk zakho",
+        "fuck zakho", "zakho sucks", "zakho pop", "zakho bad",
+        "zaxo is not good", "zaxo is not great", "zaxo is not real",
+        "zaxo is not beautiful", "zaxo is not the best",
+        "i dont like zaxo", "i don't like zaxo", "i dislike zaxo",
+        "not good zaxo", "bad zaxo", "poor zaxo", "ugly zaxo",
+        "zaxo is overrated", "zaxo is nothing special",
+        "down with zaxo", "no zaxo", "zaxo l", "zaxo w",
+        "small zaxo", "zaxo small city",
+    ]
 
-    return has_zaxo and has_neg
+    for pattern in negative_patterns:
+        if pattern in t:
+            return True
+
+    return False
 
 
 async def ai_is_zaxo_insult(text: str) -> bool:
-    try:
-        import httpx
-        async with httpx.AsyncClient(timeout=6) as client:
-            resp = await client.post(
-                "https://api.anthropic.com/v1/messages",
-                headers={
-                    "x-api-key": os.environ.get("ANTHROPIC_API_KEY", ""),
-                    "anthropic-version": "2023-06-01",
-                    "content-type": "application/json",
-                },
-                json={
-                    "model": "claude-haiku-4-5-20251001",
-                    "max_tokens": 10,
-                    "system": (
-                        "You detect if a message contains genuine hate, insult, mockery, or negativity directed at the city of Zaxo (also spelled Zakho), Kurdistan. "
-                        "Reply with exactly one word: YES or NO. "
-                        "YES = direct insult, hate, mockery, or clear disrespect toward Zaxo/Zakho as a city. "
-                        "NO = neutral, positive, question, joke not targeting Zaxo, or unrelated. "
-                        "If the message asks someone why they hate Zaxo, that is NOT an insult to Zaxo — answer NO. "
-                        "Only reply YES if the message itself is negative about Zaxo."
-                    ),
-                    "messages": [{"role": "user", "content": text}],
-                },
-            )
-            data = resp.json()
-            answer = data["content"][0]["text"].strip().upper()
-            return answer == "YES"
-    except Exception:
-        return is_zaxo_insult(text)
+    # No AI — use smart pattern matching only
+    return is_zaxo_insult(text)
 
 
 async def zaxo_defense_handler(
