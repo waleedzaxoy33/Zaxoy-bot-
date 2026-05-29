@@ -3173,11 +3173,12 @@ async def hack_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not has_perm(msg.from_user.id, "//hack"):
         return
 
-    # target
+    # target mention
     target = "Unknown"
 
     if msg.reply_to_message:
-        target = msg.reply_to_message.from_user.full_name
+        user = msg.reply_to_message.from_user
+        target = f'<a href="tg://user?id={user.id}">{user.full_name}</a>'
 
     elif ctx.args:
         target = " ".join(ctx.args)
@@ -3271,8 +3272,11 @@ SECURITY: DISABLED
 
     await asyncio.sleep(1)
 
-    await progress.edit_text(final_text)
-
+    await progress.edit_text(
+        final_text,
+        parse_mode="HTML"
+    )
+    
 def main():
 
     start_keep_alive()
