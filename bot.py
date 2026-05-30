@@ -47,7 +47,7 @@ BOT_TOKEN = "8502998355:AAHt5Er-xzPxBBl6m6hfPBlvN_R8M4j0Vis"
 
 OWNER_ID = int(os.environ.get("OWNER_ID", "7735152814"))
 
-GEMINI_API_KEY = "AQ.Ab8RN6JEB4ZlrCa-NzD_vv9z_sA0IcKy9g4vCzr8ZaUhdbWR-w"
+GEMINI_API_KEY = "AQ.Ab8RN6LuEpbzk0unrq3DQpE6H0Dzr4bzRuqwmRT-IPRUCGddkA"
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
