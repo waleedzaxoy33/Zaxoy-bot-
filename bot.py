@@ -47,7 +47,7 @@ BOT_TOKEN = "8502998355:AAHt5Er-xzPxBBl6m6hfPBlvN_R8M4j0Vis"
 
 OWNER_ID = int(os.environ.get("OWNER_ID", "7735152814"))
 
-OPENROUTER_API_KEY = os.environ.get("OPENROUTER_API_KEY")
+GEMINI_API_KEY = "AIzaSyAQ.Ab8RN6IJExQpsd9VODzS-o-c4WF98Nblm-jiiBTnxZ1jGqgbPg"
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -1333,26 +1333,17 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-                    "Content-Type": "application/json",
-                    "HTTP-Referer": "https://t.me/",
-                    "X-Title": "ZaxoyBot",
-                },
+                f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}",
+                headers={"Content-Type": "application/json"},
                 json={
-                    "model": "google/gemma-2-9b-it:free",
-                    "messages": [
-                        {"role": "user", "content": question}
-                    ],
-                    "max_tokens": 1000,
+                    "contents": [{"parts": [{"text": question}]}]
                 }
             )
 
         data = resp.json()
 
-        if "choices" in data and len(data["choices"]) > 0:
-            answer = data["choices"][0]["message"]["content"]
+        if "candidates" in data and len(data["candidates"]) > 0:
+            answer = data["candidates"][0]["content"]["parts"][0]["text"]
         else:
             answer = str(data)
 
