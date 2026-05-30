@@ -365,16 +365,23 @@ async def resolve_target_from_mention(msg, ctx):
             if entity.type == "text_mention" and entity.user:
                 return entity.user.id, entity.user.full_name
 
-    # 3. @username — search ALL parts (not just parts[1:]) so order doesn't matter
-    # e.g. "//add //re @user" or "//add @user //re" both work
+    # 3. @username — search ALL parts, any order
     parts = text.strip().split()
     for part in parts:
         raw = part.strip()
-        if raw.startswith("@") and len(raw) > 1 and not raw.startswith("//"):
-            cached_id = USER_CACHE.get(raw.lower())
+        if raw.startswith("@") and len(raw) > 1:
+            key = raw.lower()
+            # Cache lookup
+            cached_id = USER_CACHE.get(key)
             if cached_id:
                 cached_data = USER_CACHE.get(str(cached_id), {})
                 return int(cached_id), cached_data.get("name", raw)
+            # Scan full USER_CACHE for matching username
+            for uid_str, data in USER_CACHE.items():
+                if isinstance(data, dict):
+                    if data.get("username", "").lower() == raw[1:].lower():
+                        return int(uid_str), data.get("name", raw)
+            # Last resort: get_chat
             try:
                 chat = await ctx.bot.get_chat(raw)
                 return chat.id, chat.full_name or raw
