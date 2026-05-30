@@ -1362,12 +1362,12 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if msg.from_user.id != OWNER_ID:
         return
 
-    # Parse optional command arg (everything after @mention or user)
     text = msg.text.strip()
     parts = text.split()
+    # specific_cmd = any part starting with // that is NOT //add itself
     specific_cmd = None
     for p in parts[1:]:
-        if not p.startswith("@") and not p.lstrip("-").isdigit():
+        if p.startswith("//") and p != "//add":
             specific_cmd = p
             break
 
@@ -1383,21 +1383,21 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_remove_hack_blocked(target_id)
         await msg.reply_text(
             f"✅ {target_name} can use //hack again 🇵🇱",
-            reply_to_message_id=target.message_id if target else None
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd is None or specific_cmd == "":
         perms = {"all"}
         sb_upsert_admin(target_id, perms)
         await msg.reply_text(
             f"🎖️ {target_name} is admin of Zaxoy Bot now 🇵🇱",
-            reply_to_message_id=target.message_id if target else None
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd in VALID_CMDS:
         perms.add(specific_cmd)
         sb_upsert_admin(target_id, perms)
         await msg.reply_text(
             f"✅ {target_name} can use {specific_cmd} now 🇵🇱",
-            reply_to_message_id=target.message_id if target else None
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     else:
         await msg.reply_text(f"⚠️ Unknown command: {specific_cmd}")
@@ -1411,9 +1411,10 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     text = msg.text.strip()
     parts = text.split()
+    # specific_cmd = any part starting with // that is NOT //remove itself
     specific_cmd = None
     for p in parts[1:]:
-        if not p.startswith("@") and not p.lstrip("-").isdigit():
+        if p.startswith("//") and p != "//remove":
             specific_cmd = p
             break
 
@@ -1429,13 +1430,13 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_add_hack_blocked(target_id)
         await msg.reply_text(
             f"🚫 {target_name} has been blocked from //hack 🇵🇱",
-            reply_to_message_id=target.message_id if target else None
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd is None or specific_cmd == "":
         sb_delete_admin(target_id)
         await msg.reply_text(
             f"😔 Sadly {target_name} can't use me now 🇵🇱",
-            reply_to_message_id=target.message_id if target else None
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd in perms or "all" in perms:
         if "all" in perms:
@@ -1451,7 +1452,7 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         await msg.reply_text(
             f"🗑️ {target_name}: {specific_cmd} has been removed 🇵🇱",
-            reply_to_message_id=target.message_id if target else None
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     else:
         await msg.reply_text(f"⚠️ {target_name} didn't have {specific_cmd}")
