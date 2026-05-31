@@ -49,7 +49,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "7735152814"))
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 CUSTOM_SYS_PROMPT = ""  # Set by owner via //setsys
-OWNER_FACTS = ["Waleed is from Zaxo, Kurdistan."]  # Owner facts, editable via //ask //edit
+OWNER_FACTS = []  # Loaded from Supabase on startup
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -60,6 +60,47 @@ logging.basicConfig(level=logging.INFO)
 # ─────────────────────────────────────────────────────────────
 # Supabase Helpers
 # ─────────────────────────────────────────────────────────────
+
+def sb_load_owner_facts() -> list:
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.owner_fact_%&select=key,value",
+            headers=sb_headers(), timeout=10
+        )
+        rows = r.json()
+        if not isinstance(rows, list):
+            return ["Waleed is from Zaxo, Kurdistan."]
+        facts = [row["value"] for row in sorted(rows, key=lambda x: x["key"])]
+        return facts if facts else ["Waleed is from Zaxo, Kurdistan."]
+    except Exception:
+        return ["Waleed is from Zaxo, Kurdistan."]
+
+def sb_save_owner_fact(fact: str):
+    try:
+        # Get current count
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.owner_fact_%&select=key",
+            headers=sb_headers(), timeout=10
+        )
+        rows = r.json()
+        idx = len(rows) + 1
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/bot_settings",
+            headers=sb_headers(),
+            json={"key": f"owner_fact_{idx}", "value": fact},
+            timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_save_owner_fact error: {e}")
+
+def sb_delete_owner_fact(fact: str):
+    try:
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/bot_settings?value=eq.{requests.utils.quote(fact)}",
+            headers=sb_headers(), timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_delete_owner_fact error: {e}")
 
 def sb_headers():
     return {
@@ -1369,14 +1410,15 @@ async def ask_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not OWNER_FACTS:
         await msg.reply_text("ℹ️ No facts saved yet.")
         return
+    text = "📋 <b>Your facts about you:</b>\n\n"
+    text += "\n".join([f"{i+1}. {f}" for i, f in enumerate(OWNER_FACTS)])
     kb_rows = []
     for i, f in enumerate(OWNER_FACTS):
         kb_rows.append([
-            InlineKeyboardButton(f"🗑 {i+1}", callback_data=f"askdel_{i}"),
-            InlineKeyboardButton(f"{f[:30]}...", callback_data=f"askview_{i}") if len(f) > 30 else InlineKeyboardButton(f, callback_data=f"askview_{i}"),
+            InlineKeyboardButton(f"🗑 Delete #{i+1}", callback_data=f"askdel_{i}"),
         ])
     await msg.reply_text(
-        "📋 <b>Your facts:</b>",
+        text,
         parse_mode="HTML",
         reply_markup=InlineKeyboardMarkup(kb_rows)
     )
@@ -1398,6 +1440,7 @@ async def ask_edit_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYP
         await msg.reply_text("⚠️ Send a valid fact:")
         return
     OWNER_FACTS.append(fact)
+    sb_save_owner_fact(fact)
     ask_edit_sessions.pop(OWNER_ID, None)
     await msg.reply_text(f"✅ Fact added:\n<i>{fact}</i>", parse_mode="HTML")
 
@@ -1412,6 +1455,7 @@ async def ask_facts_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         idx = int(data[7:])
         if 0 <= idx < len(OWNER_FACTS):
             removed = OWNER_FACTS.pop(idx)
+            sb_delete_owner_fact(removed)
             await query.edit_message_text(f"🗑 Deleted: <i>{removed}</i>", parse_mode="HTML")
     elif data.startswith("askview_"):
         idx = int(data[8:])
@@ -4250,6 +4294,8 @@ app.add_handler(CallbackQueryHandler(
     ask_facts_callback,
     pattern="^(askdel_|askview_)"
 ))
+# Load owner facts from Supabase on startup
+OWNER_FACTS.extend(sb_load_owner_facts())
 app.run_polling()
 
 
