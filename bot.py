@@ -1384,12 +1384,18 @@ def sb_load_ai_instructions_with_ids() -> list:
 
 def sb_save_ai_instruction(instruction: str):
     try:
-        requests.post(
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+        resp = requests.post(
             f"{SUPABASE_URL}/rest/v1/ai_instructions",
-            headers=sb_headers(),
+            headers=headers,
             json={"instruction": instruction},
             timeout=10
         )
+        logging.info(f"sb_save_ai_instruction: {resp.status_code} {resp.text[:100]}")
     except Exception as e:
         logging.error(f"sb_save_ai_instruction: {e}")
 
