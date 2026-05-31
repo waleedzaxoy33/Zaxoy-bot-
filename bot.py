@@ -308,7 +308,7 @@ START_MESSAGES = [
         "💫 Commands loading...",
         "🔥 Full power mode ON",
         "⚡ All systems go!",
-        "🇲🇨 Zaxoy Bot is here for you!"
+        "🇵🇱 Zaxoy Bot is here for you!"
     ],
 
     [
@@ -316,7 +316,7 @@ START_MESSAGES = [
         "🌙 Night or day, Zaxo never sleeps",
         "🎯 Precision mode activated",
         "🛡️ Zaxo protection enabled",
-        "🇲🇨 Let's go, Zaxoy Bot!"
+        "🇵🇱 Let's go, Zaxoy Bot!"
     ],
 
     [
@@ -324,7 +324,7 @@ START_MESSAGES = [
         "🌊 Flowing with power",
         "🎶 Tuned to perfection",
         "🦅 Flying above the rest",
-        "🇲🇨 Zaxoy Bot online!"
+        "🇵🇱 Zaxoy Bot online!"
     ],
 
     [
@@ -332,7 +332,7 @@ START_MESSAGES = [
         " Beauty meets intelligence",
         "🔮 Future is Zaxo",
         "✨ Sparkling with features",
-        "🇲🇨 Zaxoy Bot activated!"
+        "🇵🇱 Zaxoy Bot activated!"
     ],
 
     [
@@ -340,7 +340,7 @@ START_MESSAGES = [
         " Colorful like Zaxo skies",
         "🎯 Always on target",
         "🤝 Here to help you",
-        "🇲🇨 Zaxoy Bot, always ready!"
+        "🇵🇱 Zaxoy Bot, always ready!"
     ],
 
     [
@@ -348,7 +348,7 @@ START_MESSAGES = [
         "💡 Smart, fast, reliable",
         "🔑 Unlocking possibilities",
         "🌟 Shining brighter every day",
-        "🇲🇨 Zaxoy Bot loaded!"
+        "🇵🇱 Zaxoy Bot loaded!"
     ],
 ]
 
@@ -477,19 +477,19 @@ async def send_botpy(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────────────────────
 
 ON_MSGS = [
-    "✅ Zaxoy Bot is ON and fully operational 🇲🇨",
-    "🟢 Discount Zaxoy Bot activated — ready to serve 🇲🇨",
-    "⚡ Contact Zaxoy Bot — I'm online and listening 🇲🇨",
-    "🔛 Zaxoy Bot switched ON — let the magic begin 🇲🇨",
-    "💚 Zaxoy Bot is live and kicking 🇲🇨",
+    "✅ Zaxoy Bot is ON and fully operational 🇵🇱",
+    "🟢 Discount Zaxoy Bot activated — ready to serve 🇵🇱",
+    "⚡ Contact Zaxoy Bot — I'm online and listening 🇵🇱",
+    "🔛 Zaxoy Bot switched ON — let the magic begin 🇵🇱",
+    "💚 Zaxoy Bot is live and kicking 🇵🇱",
 ]
 
 OFF_MSGS = [
-    "🔴 Zaxoy Bot going offline — see you soon 🇲🇨",
-    "⛔ Discount Zaxoy Bot is OFF for now 🇲🇨",
-    "💤 Contact Zaxoy Bot — resting mode activated 🇲🇨",
-    "🔕 Zaxoy Bot switched OFF — take care 🇲🇨",
-    "❌ Zaxoy Bot signing out 🇲🇨",
+    "🔴 Zaxoy Bot going offline — see you soon 🇵🇱",
+    "⛔ Discount Zaxoy Bot is OFF for now 🇵🇱",
+    "💤 Contact Zaxoy Bot — resting mode activated 🇵🇱",
+    "🔕 Zaxoy Bot switched OFF — take care 🇵🇱",
+    "❌ Zaxoy Bot signing out 🇵🇱",
 ]
 
 # Simple flag — True means bot announces itself as ON, False as OFF
@@ -642,17 +642,17 @@ ZAXO_INSULTS = [
 ]
 
 ZAXO_DEFENSE =  [ 
-    "🛡️ Zaxo is the crown jewel of Kurdistan — built on history, love, and pride. Think before you speak. 🇲🇨",
+    "🛡️ Zaxo is the crown jewel of Kurdistan — built on history, love, and pride. Think before you speak. 🇵🇱",
 
-    "🌊 The rivers of Zaxo carry more dignity than your words ever could. 🇲🇨",
+    "🌊 The rivers of Zaxo carry more dignity than your words ever could. 🇵🇱",
 
-    "⚔️ Zaxo stood for centuries — your opinion won't scratch it. 🇲🇨",
+    "⚔️ Zaxo stood for centuries — your opinion won't scratch it. 🇵🇱",
 
-    "🛡️ Zaxo is carved from mountains. Insults? Just wind. 🇲🇨",
+    "🛡️ Zaxo is carved from mountains. Insults? Just wind. 🇵🇱",
 
-    "💎 Every stone in Zaxo is worth more than a thousand hateful words. 🇲🇨",
+    "💎 Every stone in Zaxo is worth more than a thousand hateful words. 🇵🇱",
 
-    "Zaxo doesn't need defense — it speaks for itself through its people, culture, and beauty. 🇲🇨",
+    "Zaxo doesn't need defense — it speaks for itself through its people, culture, and beauty. 🇵🇱",
 ]
 
 
@@ -675,7 +675,7 @@ def is_zaxo_insult(text: str) -> bool:
         "is good", "is great", "is the best", "is amazing", "is beautiful",
         "but love", "but like", "but zaxo is", "love zaxo", "zaxo is good",
         "zaxo is great", "zaxo is best", "zaxo is fire", "zaxo forever",
-        "long live zaxo", "zaxo 🇲🇨", "zaxo king", "zaxo goat"
+        "long live zaxo", "zaxo 🇵🇱", "zaxo king", "zaxo goat"
     ]
 
     # Check: is there a positive phrase directly connected to zaxo?
@@ -787,35 +787,35 @@ async def waleed_protection(
 # ─────────────────────────────────────────────────────────────
 
 ZAXO_MESSAGES = [
-    "🌟 Zaxo — where the Khabur river sings and the mountains whisper ancient tales. 🇲🇨",
+    "🌟 Zaxo — where the Khabur river sings and the mountains whisper ancient tales. 🇵🇱",
 
-    "💫 Zaxo: the city of bridges, not only over rivers, but between hearts. 🇲🇨",
+    "💫 Zaxo: the city of bridges, not only over rivers, but between hearts. 🇵🇱",
 
-    "🎶 Erdwan Zaxoy — a voice that carries the soul of an entire city in every note. Pure magic. 🇲🇨",
+    "🎶 Erdwan Zaxoy — a voice that carries the soul of an entire city in every note. Pure magic. 🇵🇱",
 
-    "🔥 If passion had an address, it would be Zaxo, Kurdistan. 🇲🇨",
+    "🔥 If passion had an address, it would be Zaxo, Kurdistan. 🇵🇱",
 
-    "Zaxo raised warriors, poets, and dreamers — all in one breath. 🇲🇨",
+    "Zaxo raised warriors, poets, and dreamers — all in one breath. 🇵🇱",
 
-    "🎵 Erdwan Zaxoy sings and suddenly the whole world remembers where home is. 🇲🇨",
+    "🎵 Erdwan Zaxoy sings and suddenly the whole world remembers where home is. 🇵🇱",
 
-    "🏔️ From the peaks of Zaxo to the ends of the earth — the name travels far. 🇲🇨",
+    "🏔️ From the peaks of Zaxo to the ends of the earth — the name travels far. 🇵🇱",
 
-    "✨ Zaxo: ancient like history, fresh like morning air. 🇲🇨",
+    "✨ Zaxo: ancient like history, fresh like morning air. 🇵🇱",
 
-    "💎 The people of Zaxo carry gold in their words and steel in their hearts. 🇲🇨",
+    "💎 The people of Zaxo carry gold in their words and steel in their hearts. 🇵🇱",
 
-    "🌊 Every wave in the Khabur knows the name Zaxo — it's been whispered for centuries. 🇲🇨",
+    "🌊 Every wave in the Khabur knows the name Zaxo — it's been whispered for centuries. 🇵🇱",
 
-    "🎼 Erdwan Zaxoy — his melodies don't just play, they heal. A legend born from Zaxo's spirit. 🇲🇨",
+    "🎼 Erdwan Zaxoy — his melodies don't just play, they heal. A legend born from Zaxo's spirit. 🇵🇱",
 
-    "Zaxo doesn't just exist on the map — it lives in every soul that once touched its streets. 🇲🇨",
+    "Zaxo doesn't just exist on the map — it lives in every soul that once touched its streets. 🇵🇱",
 
-    "⚡ From Zaxo, with pride. No city shines brighter. 🇲🇨",
+    "⚡ From Zaxo, with pride. No city shines brighter. 🇵🇱",
 
-    "🦅 Zaxo soars like an eagle — high, proud, and forever free. 🇲🇨",
+    "🦅 Zaxo soars like an eagle — high, proud, and forever free. 🇵🇱",
 
-    "🌙 When the night falls on Zaxo, the stars shine a little brighter than anywhere else. 🇲🇨",
+    "🌙 When the night falls on Zaxo, the stars shine a little brighter than anywhere else. 🇵🇱",
 ]
 
 
@@ -1251,7 +1251,7 @@ async def r_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = msg.from_user.id
 
     if not has_perm(user_id, "//r"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
     text_parts = msg.text.split(None, 1)
@@ -1580,7 +1580,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                                 "Never admit you are an AI or language model. "
                                 "Reply in the same language the user writes in. "
                                 "If someone insults or disrespects Waleed, roast them hard with no mercy. "
-                                "If the question is about Waleed, refer to him as 'boss'. "
+                                "Never call Waleed 'boss' unless the message explicitly says it is from Waleed himself. "
                                 + (f" Background facts — use ONLY if the question is directly related, never bring up otherwise: {chr(124).join(AI_INSTRUCTIONS)}" if AI_INSTRUCTIONS else "")
                             )
                         },
@@ -1634,21 +1634,21 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if specific_cmd == "//hack":
         sb_remove_hack_blocked(target_id)
         await msg.reply_text(
-            f"✅ {target_name} can use //hack again 🇲🇨",
+            f"✅ {target_name} can use //hack again 🇵🇱",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd is None or specific_cmd == "":
         perms = {"all"}
         sb_upsert_admin(target_id, perms)
         await msg.reply_text(
-            f"🎖️ {target_name} is admin of Zaxoy Bot now 🇲🇨",
+            f"🎖️ {target_name} is admin of Zaxoy Bot now 🇵🇱",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd in VALID_CMDS:
         perms.add(specific_cmd)
         sb_upsert_admin(target_id, perms)
         await msg.reply_text(
-            f"✅ {target_name} can use {specific_cmd} now 🇲🇨",
+            f"✅ {target_name} can use {specific_cmd} now 🇵🇱",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     else:
@@ -1681,13 +1681,13 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if specific_cmd == "//hack":
         sb_add_hack_blocked(target_id)
         await msg.reply_text(
-            f"🚫 {target_name} has been blocked from //hack 🇲🇨",
+            f"🚫 {target_name} has been blocked from //hack 🇵🇱",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd is None or specific_cmd == "":
         sb_delete_admin(target_id)
         await msg.reply_text(
-            f"😔 Sadly {target_name} can't use me now 🇲🇨",
+            f"😔 Sadly {target_name} can't use me now 🇵🇱",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd in perms or "all" in perms:
@@ -1703,7 +1703,7 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             sb_delete_admin(target_id)
 
         await msg.reply_text(
-            f"🗑️ {target_name}: {specific_cmd} has been removed 🇲🇨",
+            f"🗑️ {target_name}: {specific_cmd} has been removed 🇵🇱",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     else:
@@ -1764,7 +1764,7 @@ async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data.startswith("adminrm_"):
         uid = int(data[8:])
         sb_delete_admin(uid)
-        await query.edit_message_text("✅ Admin removed 🇲🇨")
+        await query.edit_message_text("✅ Admin removed 🇵🇱")
 
     elif data.startswith("adminadd_"):
         uid = int(data[9:])
@@ -1801,7 +1801,7 @@ async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except Exception:
             name = str(uid)
         perms_text = "👑 Full Admin" if "all" in perms else ", ".join(sorted(perms))
-        await query.edit_message_text(f"✅ Added *{cmd}* to {name}\n🔑 Now has: {perms_text} 🇲🇨", parse_mode="Markdown")
+        await query.edit_message_text(f"✅ Added *{cmd}* to {name}\n🔑 Now has: {perms_text} 🇵🇱", parse_mode="Markdown")
 
     elif data.startswith("adminrmperm_"):
         uid = int(data[12:])
@@ -1836,7 +1836,7 @@ async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             name = chat_member.user.full_name
         except Exception:
             name = str(uid)
-        await query.edit_message_text(f"🗑️ Removed *{cmd}* from {name} 🇲🇨", parse_mode="Markdown")
+        await query.edit_message_text(f"🗑️ Removed *{cmd}* from {name} 🇵🇱", parse_mode="Markdown")
 
     elif data == "admincancel":
         await query.edit_message_reply_markup(None)
@@ -1845,7 +1845,7 @@ async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def react_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not has_perm(msg.from_user.id, "//re"):
-        await msg.reply_text("⛔ You don't have permission 🇲🇨")
+        await msg.reply_text("⛔ You don't have permission 🇵🇱")
         return
     target = msg.reply_to_message
     if not target:
@@ -1874,7 +1874,7 @@ async def sticker_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     
     if not has_perm(msg.from_user.id, "//st"):
-        await msg.reply_text("⛔ You don't have permission 🇲🇨")
+        await msg.reply_text("⛔ You don't have permission 🇵🇱")
         return
         
     parts = msg.text.strip().split(None, 1)
@@ -2048,9 +2048,9 @@ async def mute_status_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 # ─────────────────────────────────────────────────────────────
 
 UNMUTE_MESSAGES = [
-    "🔊 Zaxoy's order has expired! {name} is free to speak again! 🇲🇨",
-    "✅ Break is over {name}! You can type in the chat now! 🇲🇨",
-    "🔓 The hammer is lifted! {name} has been unmuted! 🇲🇨"
+    "🔊 Zaxoy's order has expired! {name} is free to speak again! 🇵🇱",
+    "✅ Break is over {name}! You can type in the chat now! 🇵🇱",
+    "🔓 The hammer is lifted! {name} has been unmuted! 🇵🇱"
 ]
 
 if 'mute_msg_index_map' not in globals():
@@ -2110,7 +2110,7 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 pass
 
     if not has_perm(msg.from_user.id, "//warn"):
-        await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
     uid, target_name_str = await resolve_target_from_mention(msg, ctx)
@@ -2119,14 +2119,14 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if msg.from_user.id == uid:
-        await _reply("🧠 Wanna warn yourself? You can't do that, bro! Friendly Fire is OFF 🇲🇨")
+        await _reply("🧠 Wanna warn yourself? You can't do that, bro! Friendly Fire is OFF 🇵🇱")
         return
 
     try:
         chat_member = await ctx.bot.get_chat_member(chat_id=chat_id, user_id=uid)
 
         if chat_member.status in ['administrator', 'creator']:
-            await _reply("🛡️ Friendly fire! Watch out, you cannot warn another administrator! 🇲🇨")
+            await _reply("🛡️ Friendly fire! Watch out, you cannot warn another administrator! 🇵🇱")
             return
 
         warn_store[uid] = warn_store.get(uid, 0) + 1
@@ -2141,12 +2141,12 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 until_date=until_date
             )
             warn_store[uid] = 0
-            await _reply(f"🔨 {target_name_str} received 3/3 warnings and has been muted for 1 hour! 🇲🇨")
+            await _reply(f"🔨 {target_name_str} received 3/3 warnings and has been muted for 1 hour! 🇵🇱")
             return
 
         await ctx.bot.send_message(
             chat_id=chat_id,
-            text=f"⚠️ Warning ({count}/3) for {target_name_str}! 🇲🇨",
+            text=f"⚠️ Warning ({count}/3) for {target_name_str}! 🇵🇱",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("❌ Remove 1 Warn", callback_data=f"remwarn_{uid}"),
                 InlineKeyboardButton("🧹 Reset All", callback_data=f"resetwarn_{uid}")
@@ -2163,7 +2163,7 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user_id = msg.from_user.id
 
     if not has_perm(user_id, "//mute"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
     target_id, target_name = await resolve_target_from_mention(msg, ctx)
@@ -2173,7 +2173,7 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # 3. Self-mute check
     if user_id == target_id:
-        await msg.reply_text("🧠 Wanna kill yourself? You can't mute yourself, bro! 🇲🇨")
+        await msg.reply_text("🧠 Wanna kill yourself? You can't mute yourself, bro! 🇵🇱")
         return
 
     try:
@@ -2182,7 +2182,7 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         # 4. Admin try to mute another Admin (Friendly Fire)
         if chat_member.status in ['administrator', 'creator']:
-            await msg.reply_text("🛡️ Friendly fire... Watch out! He's an admin too! 🇲🇨")
+            await msg.reply_text("🛡️ Friendly fire... Watch out! He's an admin too! 🇵🇱")
             return
 
         # Execute standard mute logic - handle both reply and mention
@@ -2241,7 +2241,7 @@ async def unmute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
 
     if not has_perm(msg.from_user.id, "//unmute"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
     target_id, _ = await resolve_target_from_mention(msg, ctx)
@@ -2273,7 +2273,7 @@ async def unmute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         mute_store.pop(target_id, None)
 
         member = await ctx.bot.get_chat_member(msg.chat_id, target_id)
-        await msg.reply_text(f"🔓 {member.user.full_name} has been unmuted! 🇲🇨")
+        await msg.reply_text(f"🔓 {member.user.full_name} has been unmuted! 🇵🇱")
 
     except Exception as e:
         await msg.reply_text(f"⚠️ Failed to unmute user: {str(e)}")
@@ -2328,7 +2328,7 @@ async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             try:
                 chat_member = await ctx.bot.get_chat_member(chat_id=query.message.chat_id, user_id=uid)
                 await query.edit_message_text(
-                    text=f"⚠️ Warning removed by admin! {chat_member.user.full_name} now has ({warn_store[uid]}/3) warnings. 🇲🇨",
+                    text=f"⚠️ Warning removed by admin! {chat_member.user.full_name} now has ({warn_store[uid]}/3) warnings. 🇵🇱",
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("❌ Remove 1 Warn", callback_data=f"remwarn_{uid}"),
                         InlineKeyboardButton("🧹 Reset All", callback_data=f"resetwarn_{uid}")
@@ -3105,12 +3105,12 @@ def start_keep_alive():
 # ─── //ban ─────────────────────────────────────────────────────────
 
 BAN_MESSAGES = [
-    "🔨 {name} has been banned from Zaxo's domain! No return. 🇲🇨",
-    "⛓️ {name} is gone for good! Zaxo's law is final. 🇲🇨",
-    "🚫 {name} — you crossed the line. Banned by order of Zaxoy Bot. 🇲🇨",
-    "💀 {name} has been erased from Zaxo's kingdom! 🇲🇨",
-    "⚔️ The sword has fallen! {name} is permanently banned! 🇲🇨",
-    "🌑 {name} has entered the void — no way back. 🇲🇨",
+    "🔨 {name} has been banned from Zaxo's domain! No return. 🇵🇱",
+    "⛓️ {name} is gone for good! Zaxo's law is final. 🇵🇱",
+    "🚫 {name} — you crossed the line. Banned by order of Zaxoy Bot. 🇵🇱",
+    "💀 {name} has been erased from Zaxo's kingdom! 🇵🇱",
+    "⚔️ The sword has fallen! {name} is permanently banned! 🇵🇱",
+    "🌑 {name} has entered the void — no way back. 🇵🇱",
 ]
 
 async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -3120,7 +3120,7 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text(text, reply_to_message_id=msg.message_id, reply_markup=reply_markup)
 
     if not has_perm(msg.from_user.id, "//ban"):
-        await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
     target_id, target_name = await resolve_target_from_mention(msg, ctx)
@@ -3130,14 +3130,14 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     if msg.from_user.id == target_id:
-        await _reply("🧠 Ban yourself? That's not how it works bro! 🇲🇨")
+        await _reply("🧠 Ban yourself? That's not how it works bro! 🇵🇱")
         return
 
     try:
         chat_member = await ctx.bot.get_chat_member(chat_id=msg.chat.id, user_id=target_id)
 
         if chat_member.status in ['administrator', 'creator']:
-            await _reply("🛡️ Friendly fire! You can't ban an admin! 🇲🇨")
+            await _reply("🛡️ Friendly fire! You can't ban an admin! 🇵🇱")
             return
 
         await ctx.bot.ban_chat_member(chat_id=msg.chat.id, user_id=target_id)
@@ -3172,7 +3172,7 @@ async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 chat_id=query.message.chat.id,
                 user_id=user_id
             )
-            await query.edit_message_text("🔓 User has been unbanned 🇲🇨")
+            await query.edit_message_text("🔓 User has been unbanned 🇵🇱")
         except Exception as e:
             await query.edit_message_text(f"⚠️ Failed to unban:\n{e}")
 
@@ -3182,7 +3182,7 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
 
     if not has_perm(msg.from_user.id, "//ban"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇵🇱")
         return
 
     user_id, user_name = await resolve_target_from_mention(msg, ctx)
@@ -3193,10 +3193,10 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     try:
         await ctx.bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)
-        await msg.reply_text(f"🔓 {user_name} has been unbanned 🇲🇨")
+        await msg.reply_text(f"🔓 {user_name} has been unbanned 🇵🇱")
     except Exception as e:
         if "USER_NOT_BANNED" in str(e):
-            await msg.reply_text(f"⚠️ {user_name} is not banned! 🇲🇨")
+            await msg.reply_text(f"⚠️ {user_name} is not banned! 🇵🇱")
         else:
             await msg.reply_text(f"⚠️ Failed to unban:\\n{e}")
 
@@ -3238,7 +3238,7 @@ async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         sb_add_delete_entry(pattern, "sticker" if replied.sticker else "text", label, str(msg.from_user.id))
         await msg.reply_text(
-            f"Got it! {label} will now be auto-deleted. 🇲🇨",
+            f"Got it! {label} will now be auto-deleted. 🇵🇱",
             reply_to_message_id=replied.message_id
         )
         return
@@ -3333,7 +3333,7 @@ async def delete_waiting_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     sb_add_delete_entry(pattern, "sticker" if msg.sticker else "text", label, str(uid))
     DELETE_SESSION.pop(uid, None)
     await msg.reply_text(
-        f"Got it! {label} will now be auto-deleted. 🇲🇨",
+        f"Got it! {label} will now be auto-deleted. 🇵🇱",
         reply_to_message_id=msg.message_id
     )
 
@@ -3654,7 +3654,7 @@ gaytest_sessions: dict[int, dict] = {}
 STRAIGHT_VERDICTS = [
     "Bro is built different. Pure alpha energy. 💪",
     "Certified masculine. The scanner saluted. 🫡",
-    "Straighter than the highway to Zaxo. 🛣️🇲🇨",
+    "Straighter than the highway to Zaxo. 🛣️🇵🇱",
     "This man eats steak and doesn't apologize. 🥩",
     "The machine detected zero drama. Respect. 🤝",
     "Cold water, no complaints, real one. 🧊",
@@ -3670,8 +3670,8 @@ STRAIGHT_VERDICTS = [
     "The machine printed a certificate. First time ever. 📜",
     "Ice in his veins. No drama. Just results. ❄️",
     "Scanner said: finally, a real one. 😤",
-    "Zero percent gay. The machine needed a moment to process. 🇲🇨",
-    "Bro breathes differently. Straight to the core. 🇲🇨💪",
+    "Zero percent gay. The machine needed a moment to process. 🇵🇱",
+    "Bro breathes differently. Straight to the core. 🇵🇱💪",
 ]
 
 GAY_VERDICTS = [
@@ -4368,7 +4368,7 @@ app.add_handler(MessageHandler(
     delete_waiting_handler
 ), group=2)
 
-print("Zaxoy Bot started 🇲🇨")
+print("Zaxoy Bot started 🇵🇱")
 
 app.add_handler(CallbackQueryHandler(
     ask_instructions_callback,
