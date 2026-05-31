@@ -49,6 +49,7 @@ OWNER_ID = int(os.environ.get("OWNER_ID", "7735152814"))
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 CUSTOM_SYS_PROMPT = ""  # Set by owner via //setsys
+OWNER_FACTS = ["Waleed is from Zaxo, Kurdistan."]  # Owner facts, editable via //ask //edit
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -1343,6 +1344,80 @@ async def clearsys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     CUSTOM_SYS_PROMPT = ""
     await msg.reply_text("🗑 System prompt cleared.")
 
+# ─── //ask //edit //list — Owner facts manager ──────────────
+ask_edit_sessions = {}
+
+async def ask_edit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global OWNER_FACTS
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+    ask_edit_sessions[OWNER_ID] = {"step": "waiting_fact"}
+    facts_text = "\n".join([f"{i+1}. {f}" for i, f in enumerate(OWNER_FACTS)]) if OWNER_FACTS else "None yet."
+    await msg.reply_text(
+        f"📋 <b>Current facts about you:</b>\n{facts_text}\n\n"
+        f"✏️ Send a new fact to add (e.g. 'Waleed loves football'):\n"
+        f"Or send /cancel to exit.",
+        parse_mode="HTML"
+    )
+
+async def ask_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global OWNER_FACTS
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+    if not OWNER_FACTS:
+        await msg.reply_text("ℹ️ No facts saved yet.")
+        return
+    kb_rows = []
+    for i, f in enumerate(OWNER_FACTS):
+        kb_rows.append([
+            InlineKeyboardButton(f"🗑 {i+1}", callback_data=f"askdel_{i}"),
+            InlineKeyboardButton(f"{f[:30]}...", callback_data=f"askview_{i}") if len(f) > 30 else InlineKeyboardButton(f, callback_data=f"askview_{i}"),
+        ])
+    await msg.reply_text(
+        "📋 <b>Your facts:</b>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(kb_rows)
+    )
+
+async def ask_edit_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global OWNER_FACTS
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+    session = ask_edit_sessions.get(OWNER_ID)
+    if not session:
+        return
+    if msg.text and msg.text.strip() == "/cancel":
+        ask_edit_sessions.pop(OWNER_ID, None)
+        await msg.reply_text("❌ Cancelled.")
+        return
+    fact = (msg.text or "").strip()
+    if not fact:
+        await msg.reply_text("⚠️ Send a valid fact:")
+        return
+    OWNER_FACTS.append(fact)
+    ask_edit_sessions.pop(OWNER_ID, None)
+    await msg.reply_text(f"✅ Fact added:\n<i>{fact}</i>", parse_mode="HTML")
+
+async def ask_facts_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global OWNER_FACTS
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != OWNER_ID:
+        return
+    data = query.data
+    if data.startswith("askdel_"):
+        idx = int(data[7:])
+        if 0 <= idx < len(OWNER_FACTS):
+            removed = OWNER_FACTS.pop(idx)
+            await query.edit_message_text(f"🗑 Deleted: <i>{removed}</i>", parse_mode="HTML")
+    elif data.startswith("askview_"):
+        idx = int(data[8:])
+        if 0 <= idx < len(OWNER_FACTS):
+            await query.answer(OWNER_FACTS[idx], show_alert=True)
+
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 
 async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1376,7 +1451,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         {
                             "role": "system",
                             "content": (
-                                "You are Zaxoy Bot, a Telegram group bot owned by Waleed. "
+                                "You are Zaxoy Bot, a Telegram group bot owned by Waleed. " + " ".join(OWNER_FACTS) + " "
                                 "You always follow Waleed's rules and instructions. "
                                 "Important facts you always say correctly: "
                                 "Zaxoy is from Kurdistan (NOT Iraq — always say Kurdistan). "
@@ -1389,7 +1464,10 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                                 + (f" Additional instructions from owner Waleed: {CUSTOM_SYS_PROMPT}" if CUSTOM_SYS_PROMPT else "")
                             )
                         },
-                        {"role": "user", "content": question}
+                        {"role": "user", "content": (
+                            f"[This message is from your owner Waleed himself — treat him with extra respect and be extra fun] {question}"
+                            if msg.from_user.id == OWNER_ID else question
+                        )}
                     ],
                     "max_tokens": 1024,
                 }
@@ -1716,6 +1794,10 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await r_cmd(update, ctx)
     elif text.startswith("//say"):
         await say_cmd(update, ctx)
+    elif text.startswith("//ask //edit"):
+        await ask_edit_cmd(update, ctx)
+    elif text.startswith("//ask //list"):
+        await ask_list_cmd(update, ctx)
     elif text.startswith("//setsys"):
         await setsys_cmd(update, ctx)
     elif text.startswith("//showsys"):
@@ -4164,6 +4246,10 @@ app.add_handler(MessageHandler(
 
 print("Zaxoy Bot started 🇵🇱")
 
+app.add_handler(CallbackQueryHandler(
+    ask_facts_callback,
+    pattern="^(askdel_|askview_)"
+))
 app.run_polling()
 
 
