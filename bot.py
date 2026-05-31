@@ -1399,12 +1399,17 @@ def sb_save_ai_instruction(instruction: str):
             json={"instruction": instruction},
             timeout=10
         )
+        logging.info(f"sb_save_ai_instruction status={resp.status_code} body={resp.text[:300]}")
         data = resp.json()
         if isinstance(data, list) and data:
             return data[0].get("id")
+        # Try dict response
+        if isinstance(data, dict) and data.get("id"):
+            return data["id"]
+        logging.error(f"sb_save_ai_instruction unexpected response: {data}")
         return None
     except Exception as e:
-        logging.error(f"sb_save_ai_instruction: {e}")
+        logging.error(f"sb_save_ai_instruction exception: {e}")
         return None
 
 def sb_update_ai_instruction(row_id: int, instruction: str):
