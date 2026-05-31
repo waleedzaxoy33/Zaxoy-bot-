@@ -48,6 +48,7 @@ BOT_TOKEN = "8502998355:AAHt5Er-xzPxBBl6m6hfPBlvN_R8M4j0Vis"
 OWNER_ID = int(os.environ.get("OWNER_ID", "7735152814"))
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+CUSTOM_SYS_PROMPT = ""  # Set by owner via //setsys
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -1311,6 +1312,37 @@ async def say_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ─────────────────────────────────────────────────────────────
+# ─── //setsys //showsys //clearsys — Owner system prompt control ────
+async def setsys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global CUSTOM_SYS_PROMPT
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+    text = msg.text.strip()
+    prompt = text.replace("//setsys", "", 1).strip()
+    if not prompt:
+        await msg.reply_text("⚠️ Usage: //setsys [your instructions]")
+        return
+    CUSTOM_SYS_PROMPT = prompt
+    await msg.reply_text(f"✅ System prompt updated:\n\n<i>{prompt}</i>", parse_mode="HTML")
+
+async def showsys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+    if CUSTOM_SYS_PROMPT:
+        await msg.reply_text(f"📋 Current system prompt:\n\n<i>{CUSTOM_SYS_PROMPT}</i>", parse_mode="HTML")
+    else:
+        await msg.reply_text("ℹ️ No custom system prompt set.")
+
+async def clearsys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global CUSTOM_SYS_PROMPT
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+    CUSTOM_SYS_PROMPT = ""
+    await msg.reply_text("🗑 System prompt cleared.")
+
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 
 async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1340,7 +1372,25 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 },
                 json={
                     "model": "llama-3.3-70b-versatile",
-                    "messages": [{"role": "user", "content": question}],
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": (
+                                "You are Zaxoy Bot, a Telegram group bot owned by Waleed. "
+                                "You always follow Waleed's rules and instructions. "
+                                "Important facts you always say correctly: "
+                                "Zaxoy is from Kurdistan (NOT Iraq — always say Kurdistan). "
+                                "You are funny, witty, and sarcastic but not rude. "
+                                "Never be boring or overly formal. "
+                                "Keep answers short and punchy unless asked for detail. "
+                                "You can respond in Arabic, Kurdish, or English depending on what the user writes. "
+                                "You love Kurdistan and always represent it proudly. "
+                                "If someone says something wrong about Kurdistan or Waleed, correct them confidently."
+                                + (f" Additional instructions from owner Waleed: {CUSTOM_SYS_PROMPT}" if CUSTOM_SYS_PROMPT else "")
+                            )
+                        },
+                        {"role": "user", "content": question}
+                    ],
                     "max_tokens": 1024,
                 }
             )
@@ -1666,6 +1716,12 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await r_cmd(update, ctx)
     elif text.startswith("//say"):
         await say_cmd(update, ctx)
+    elif text.startswith("//setsys"):
+        await setsys_cmd(update, ctx)
+    elif text.startswith("//showsys"):
+        await showsys_cmd(update, ctx)
+    elif text.startswith("//clearsys"):
+        await clearsys_cmd(update, ctx)
     elif text.startswith("//ask"):
         await ask_cmd(update, ctx)
     elif text.startswith("//zaxo"):
