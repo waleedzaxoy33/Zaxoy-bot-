@@ -1359,7 +1359,7 @@ ask_edit_sessions = {}
 def sb_load_ai_instructions() -> list:
     try:
         r = requests.get(
-            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%&select=key,value&order=key.asc",
+            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%25&select=key,value&order=key.asc",
             headers=sb_headers(), timeout=10
         )
         rows = r.json()
@@ -1372,7 +1372,7 @@ def sb_load_ai_instructions() -> list:
 def sb_save_ai_instruction(instruction: str):
     try:
         r = requests.get(
-            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%&select=key",
+            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%25&select=key",
             headers=sb_headers(), timeout=10
         )
         rows = r.json() if isinstance(r.json(), list) else []
@@ -1389,7 +1389,7 @@ def sb_save_ai_instruction(instruction: str):
 def sb_delete_all_ai_instructions():
     try:
         existing = requests.get(
-            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%&select=key",
+            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%25&select=key",
             headers=sb_headers(), timeout=10
         ).json()
         for row in (existing if isinstance(existing, list) else []):
@@ -1478,7 +1478,7 @@ async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
             # reload keys and delete by index
             try:
                 rows = requests.get(
-                    f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%&select=key,value&order=key.asc",
+                    f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%25&select=key,value&order=key.asc",
                     headers=sb_headers(), timeout=10
                 ).json()
                 if isinstance(rows, list) and idx < len(rows):
