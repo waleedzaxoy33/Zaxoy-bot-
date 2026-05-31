@@ -1359,73 +1359,35 @@ ask_edit_sessions = {}
 def sb_load_ai_instructions() -> list:
     """Returns list of instruction strings only (for //ask use)"""
     try:
-        r = requests.get(
-            f"{SUPABASE_URL}/rest/v1/ai_instructions?select=id,instruction&order=id.asc",
-            headers=sb_headers(), timeout=10
-        )
-        rows = r.json()
-        if not isinstance(rows, list):
-            return []
-        return [row["instruction"] for row in rows]
-    except Exception:
-        return []
-
-def sb_load_ai_instructions_with_ids() -> list:
-    """Returns list of {id, instruction} dicts"""
-    try:
-        r = requests.get(
-            f"{SUPABASE_URL}/rest/v1/ai_instructions?select=id,instruction&order=id.asc",
-            headers=sb_headers(), timeout=10
-        )
-        rows = r.json()
-        if not isinstance(rows, list):
-            return []
-        return rows
-    except Exception:
+        res = sb.table("ai_instructions").select("instruction").order("id").execute()
+        return [row["instruction"] for row in res.data] if res.data else []
+    except Exception as e:
+        logging.error(f"sb_load_ai_instructions: {e}")
         return []
 
 def sb_save_ai_instruction(instruction: str):
-    """Insert new instruction - same style as sb_save_if_store"""
     try:
-        requests.post(
-            f"{SUPABASE_URL}/rest/v1/ai_instructions",
-            headers=sb_headers(),
-            json={"instruction": instruction},
-            timeout=10
-        )
+        sb.table("ai_instructions").insert({"instruction": instruction}).execute()
         return True
     except Exception as e:
         logging.error(f"sb_save_ai_instruction: {e}")
         return False
 
 def sb_update_ai_instruction(old_text: str, new_text: str):
-    """Update instruction by matching old text - no ID needed"""
     try:
-        requests.patch(
-            f"{SUPABASE_URL}/rest/v1/ai_instructions?instruction=eq.{requests.utils.quote(old_text)}",
-            headers=sb_headers(),
-            json={"instruction": new_text},
-            timeout=10
-        )
+        sb.table("ai_instructions").update({"instruction": new_text}).eq("instruction", old_text).execute()
     except Exception as e:
         logging.error(f"sb_update_ai_instruction: {e}")
 
 def sb_delete_all_ai_instructions():
     try:
-        requests.delete(
-            f"{SUPABASE_URL}/rest/v1/ai_instructions?instruction=neq.ZAXOY_PLACEHOLDER_NONE",
-            headers=sb_headers(), timeout=10
-        )
+        sb.table("ai_instructions").delete().neq("instruction", "ZAXOY_PLACEHOLDER_NONE").execute()
     except Exception as e:
         logging.error(f"sb_delete_all_ai_instructions: {e}")
 
 def sb_delete_ai_instruction_by_text(instruction: str):
-    """Delete instruction by matching text - no ID needed"""
     try:
-        requests.delete(
-            f"{SUPABASE_URL}/rest/v1/ai_instructions?instruction=eq.{requests.utils.quote(instruction)}",
-            headers=sb_headers(), timeout=10
-        )
+        sb.table("ai_instructions").delete().eq("instruction", instruction).execute()
     except Exception as e:
         logging.error(f"sb_delete_ai_instruction_by_text: {e}")
 
