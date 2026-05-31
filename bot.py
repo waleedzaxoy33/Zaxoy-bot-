@@ -1359,62 +1359,57 @@ ask_edit_sessions = {}
 def sb_load_ai_instructions() -> list:
     try:
         r = requests.get(
-            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%25&select=key,value&order=key.asc",
+            f"{SUPABASE_URL}/rest/v1/ai_instructions?select=id,instruction&order=id.asc",
             headers=sb_headers(), timeout=10
         )
         rows = r.json()
         if not isinstance(rows, list):
             return []
-        return [row["value"] for row in rows]
+        return [row["instruction"] for row in rows]
+    except Exception:
+        return []
+
+def sb_load_ai_instructions_with_ids() -> list:
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/ai_instructions?select=id,instruction&order=id.asc",
+            headers=sb_headers(), timeout=10
+        )
+        rows = r.json()
+        if not isinstance(rows, list):
+            return []
+        return rows
     except Exception:
         return []
 
 def sb_save_ai_instruction(instruction: str):
     try:
-        r = requests.get(
-            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%25&select=key",
-            headers=sb_headers(), timeout=10
-        )
-        rows = r.json() if isinstance(r.json(), list) else []
-        idx = len(rows) + 1
-        key = f"ai_inst_{idx:04d}"
-        headers = sb_headers()
-        headers["Prefer"] = "return=representation"
-        resp = requests.post(
-            f"{SUPABASE_URL}/rest/v1/bot_settings",
-            headers=headers,
-            json={"key": key, "value": instruction},
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/ai_instructions",
+            headers=sb_headers(),
+            json={"instruction": instruction},
             timeout=10
         )
-        logging.info(f"sb_save_ai_instruction: {resp.status_code} {resp.text[:100]}")
     except Exception as e:
         logging.error(f"sb_save_ai_instruction: {e}")
 
 def sb_delete_all_ai_instructions():
     try:
-        existing = requests.get(
-            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%25&select=key",
-            headers=sb_headers(), timeout=10
-        ).json()
-        for row in (existing if isinstance(existing, list) else []):
-            requests.delete(
-                f"{SUPABASE_URL}/rest/v1/bot_settings?key=eq.{row['key']}",
-                headers=sb_headers(), timeout=10
-            )
-    except Exception as e:
-        logging.error(f"sb_delete_all_ai_instructions: {e}")
-
-def sb_delete_one_ai_instruction(key: str):
-    try:
         requests.delete(
-            f"{SUPABASE_URL}/rest/v1/bot_settings?key=eq.{key}",
+            f"{SUPABASE_URL}/rest/v1/ai_instructions?id=gte.0",
             headers=sb_headers(), timeout=10
         )
     except Exception as e:
-        logging.error(f"sb_delete_one_ai_instruction: {e}")
+        logging.error(f"sb_delete_all_ai_instructions: {e}")
 
-# keys list parallel to AI_INSTRUCTIONS
-AI_INSTRUCTION_KEYS = []
+def sb_delete_ai_instruction_by_id(row_id: int):
+    try:
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/ai_instructions?id=eq.{row_id}",
+            headers=sb_headers(), timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_delete_ai_instruction_by_id: {e}")
 
 async def ask_edit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -1479,21 +1474,14 @@ async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
         idx = int(data[7:])
         if 0 <= idx < len(AI_INSTRUCTIONS):
             removed = AI_INSTRUCTIONS.pop(idx)
-            # reload keys and delete by index
-            try:
-                rows = requests.get(
-                    f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_inst_%25&select=key,value&order=key.asc",
-                    headers=sb_headers(), timeout=10
-                ).json()
-                if isinstance(rows, list) and idx < len(rows):
-                    sb_delete_one_ai_instruction(rows[idx]["key"])
-            except Exception:
-                pass
+            rows = sb_load_ai_instructions_with_ids()
+            if idx < len(rows):
+                sb_delete_ai_instruction_by_id(rows[idx]["id"])
             await query.edit_message_text(f"Deleted: {removed}")
     elif data == "aiireset_confirm":
         AI_INSTRUCTIONS.clear()
         sb_delete_all_ai_instructions()
-        await query.edit_message_text("All AI instructions reset.")
+        await query.edit_message_text("Done. All AI instructions deleted. Bot is back to default.")
     elif data == "aiireset_cancel":
         await query.edit_message_text("Cancelled.")
 
@@ -4339,7 +4327,7 @@ app.add_handler(MessageHandler(
     ask_edit_session_handler
 ), group=2)
 # Load owner facts from Supabase on startup
-AI_INSTRUCTIONS.extend(sb_load_ai_instructions())
+AI_INSTRUCTIONS.extend(sb_load_ai_instructions())  # Load from ai_instructions table
 app.run_polling()
 
 
