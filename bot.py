@@ -48,8 +48,8 @@ BOT_TOKEN = "8502998355:AAHt5Er-xzPxBBl6m6hfPBlvN_R8M4j0Vis"
 OWNER_ID = int(os.environ.get("OWNER_ID", "7735152814"))
 
 GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
-CUSTOM_SYS_PROMPT = ""  # Set by owner via //setsys
-OWNER_FACTS = []  # Loaded from Supabase on startup
+
+AI_INSTRUCTIONS = []  # Loaded from Supabase on startup
 
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -1354,113 +1354,136 @@ async def say_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ─────────────────────────────────────────────────────────────
-# ─── //setsys //showsys //clearsys — Owner system prompt control ────
-async def setsys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global CUSTOM_SYS_PROMPT
-    msg = update.message
-    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
-        return
-    text = msg.text.strip()
-    prompt = text.replace("//setsys", "", 1).strip()
-    if not prompt:
-        await msg.reply_text("⚠️ Usage: //setsys [your instructions]")
-        return
-    CUSTOM_SYS_PROMPT = prompt
-    await msg.reply_text(f"✅ System prompt updated:\n\n<i>{prompt}</i>", parse_mode="HTML")
-
-async def showsys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
-        return
-    if CUSTOM_SYS_PROMPT:
-        await msg.reply_text(f"📋 Current system prompt:\n\n<i>{CUSTOM_SYS_PROMPT}</i>", parse_mode="HTML")
-    else:
-        await msg.reply_text("ℹ️ No custom system prompt set.")
-
-async def clearsys_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global CUSTOM_SYS_PROMPT
-    msg = update.message
-    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
-        return
-    CUSTOM_SYS_PROMPT = ""
-    await msg.reply_text("🗑 System prompt cleared.")
-
-# ─── //ask //edit //list — Owner facts manager ──────────────
+# ─── //ask //edit //list //reset — Owner AI instructions manager ────
 ask_edit_sessions = {}
 
+def sb_load_ai_instructions() -> list:
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_instruction_%&select=key,value&order=key.asc",
+            headers=sb_headers(), timeout=10
+        )
+        rows = r.json()
+        if not isinstance(rows, list):
+            return []
+        return [row["value"] for row in rows]
+    except Exception:
+        return []
+
+def sb_save_ai_instruction(instruction: str):
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_instruction_%&select=key",
+            headers=sb_headers(), timeout=10
+        )
+        rows = r.json()
+        idx = len(rows) + 1
+        requests.post(
+            f"{SUPABASE_URL}/rest/v1/bot_settings",
+            headers=sb_headers(),
+            json={"key": f"ai_instruction_{idx:04d}", "value": instruction},
+            timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_save_ai_instruction: {e}")
+
+def sb_delete_ai_instruction(instruction: str):
+    try:
+        import urllib.parse
+        encoded = urllib.parse.quote(instruction)
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/bot_settings?value=eq.{encoded}",
+            headers=sb_headers(), timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_delete_ai_instruction: {e}")
+
+def sb_clear_ai_instructions():
+    try:
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/bot_settings?key=like.ai_instruction_%25",
+            headers=sb_headers(), timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_clear_ai_instructions: {e}")
+
 async def ask_edit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global OWNER_FACTS
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
-    ask_edit_sessions[OWNER_ID] = {"step": "waiting_fact"}
-    facts_text = "\n".join([f"{i+1}. {f}" for i, f in enumerate(OWNER_FACTS)]) if OWNER_FACTS else "None yet."
+    ask_edit_sessions[OWNER_ID] = {"step": "waiting_instruction"}
+    current = "\n".join([f"{i+1}. {x}" for i, x in enumerate(AI_INSTRUCTIONS)]) if AI_INSTRUCTIONS else "None yet."
     await msg.reply_text(
-        f"📋 <b>Current facts about you:</b>\n{facts_text}\n\n"
-        f"✏️ Send a new fact to add (e.g. 'Waleed loves football'):\n"
+        f"🧠 <b>Current AI instructions:</b>\n{current}\n\n"
+        f"✏️ Send a new instruction to add:\n"
+        f"<i>Example: Always reply in Arabic</i>\n"
         f"Or send /cancel to exit.",
         parse_mode="HTML"
     )
 
 async def ask_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global OWNER_FACTS
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
-    if not OWNER_FACTS:
-        await msg.reply_text("ℹ️ No facts saved yet.")
+    if not AI_INSTRUCTIONS:
+        await msg.reply_text("ℹ️ No instructions saved yet.\n\nUse //ask //edit to add one.")
         return
-    text = "📋 <b>Your facts about you:</b>\n\n"
-    text += "\n".join([f"{i+1}. {f}" for i, f in enumerate(OWNER_FACTS)])
-    kb_rows = []
-    for i, f in enumerate(OWNER_FACTS):
-        kb_rows.append([
-            InlineKeyboardButton(f"🗑 Delete #{i+1}", callback_data=f"askdel_{i}"),
-        ])
-    await msg.reply_text(
-        text,
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(kb_rows)
-    )
+    text = "🧠 <b>AI Instructions:</b>\n\n"
+    text += "\n".join([f"{i+1}. {x}" for i, x in enumerate(AI_INSTRUCTIONS)])
+    kb = [[InlineKeyboardButton(f"🗑 Delete #{i+1}", callback_data=f"aiidel_{i}")] for i in range(len(AI_INSTRUCTIONS))]
+    await msg.reply_text(text, parse_mode="HTML", reply_markup=InlineKeyboardMarkup(kb))
+
+async def ask_reset_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global AI_INSTRUCTIONS
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("✅ Yes, reset", callback_data="aiireset_confirm"),
+        InlineKeyboardButton("❌ Cancel", callback_data="aiireset_cancel"),
+    ]])
+    await msg.reply_text("⚠️ Reset ALL AI instructions?", reply_markup=kb)
 
 async def ask_edit_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global OWNER_FACTS
+    global AI_INSTRUCTIONS
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
     session = ask_edit_sessions.get(OWNER_ID)
-    if not session:
+    if not session or session.get("step") != "waiting_instruction":
         return
     if msg.text and msg.text.strip() == "/cancel":
         ask_edit_sessions.pop(OWNER_ID, None)
         await msg.reply_text("❌ Cancelled.")
         return
-    fact = (msg.text or "").strip()
-    if not fact:
-        await msg.reply_text("⚠️ Send a valid fact:")
+    instruction = (msg.text or "").strip()
+    if not instruction or instruction.startswith("//"):
+        await msg.reply_text("⚠️ Send a valid instruction:")
         return
-    OWNER_FACTS.append(fact)
-    sb_save_owner_fact(fact)
+    AI_INSTRUCTIONS.append(instruction)
+    sb_save_ai_instruction(instruction)
     ask_edit_sessions.pop(OWNER_ID, None)
-    await msg.reply_text(f"✅ Fact added:\n<i>{fact}</i>", parse_mode="HTML")
+    await msg.reply_text(f"✅ Instruction added:\n<i>{instruction}</i>", parse_mode="HTML")
 
-async def ask_facts_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global OWNER_FACTS
+async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    global AI_INSTRUCTIONS
     query = update.callback_query
     await query.answer()
     if query.from_user.id != OWNER_ID:
         return
     data = query.data
-    if data.startswith("askdel_"):
+    if data.startswith("aiidel_"):
         idx = int(data[7:])
-        if 0 <= idx < len(OWNER_FACTS):
-            removed = OWNER_FACTS.pop(idx)
-            sb_delete_owner_fact(removed)
-            await query.edit_message_text(f"🗑 Deleted: <i>{removed}</i>", parse_mode="HTML")
-    elif data.startswith("askview_"):
-        idx = int(data[8:])
-        if 0 <= idx < len(OWNER_FACTS):
-            await query.answer(OWNER_FACTS[idx], show_alert=True)
+        if 0 <= idx < len(AI_INSTRUCTIONS):
+            removed = AI_INSTRUCTIONS.pop(idx)
+            sb_delete_ai_instruction(removed)
+            await query.edit_message_text(f"🗑 Deleted:\n<i>{removed}</i>", parse_mode="HTML")
+    elif data == "aiireset_confirm":
+        AI_INSTRUCTIONS.clear()
+        sb_clear_ai_instructions()
+        await query.edit_message_text("♻️ All AI instructions reset.")
+    elif data == "aiireset_cancel":
+        await query.edit_message_text("❌ Cancelled.")
 
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 
@@ -1495,21 +1518,19 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                         {
                             "role": "system",
                             "content": (
-                                "You are Zaxoy Bot, a Telegram group bot owned by Waleed. " + " ".join(OWNER_FACTS) + " "
-                                "You always follow Waleed's rules and instructions. "
-                                "Important facts you always say correctly: "
-                                "Zaxoy is from Kurdistan (NOT Iraq — always say Kurdistan). "
-                                "You are funny, witty, and sarcastic but not rude. "
-                                "Never be boring or overly formal. "
-                                "Keep answers short and punchy unless asked for detail. "
-                                "You can respond in Arabic, Kurdish, or English depending on what the user writes. "
-                                "You love Kurdistan and always represent it proudly. "
-                                "If someone says something wrong about Kurdistan or Waleed, correct them confidently."
-                                + (f" Additional instructions from owner Waleed: {CUSTOM_SYS_PROMPT}" if CUSTOM_SYS_PROMPT else "")
+                                "You are Zaxoy Bot 🇲🇨. You act like a real human, not a bot. "
+                                "Your owner is Waleed — always call him 'boss' only. "
+                                "Be casual, short, funny, and savage when attacked. "
+                                "Use emojis rarely — max 1-2 per message. "
+                                "Never mention Kurdistan or Zaxo unless directly asked. "
+                                "If asked who you are say: Zaxoy Bot 🇲🇨. "
+                                "Never admit you are an AI or language model. "
+                                "Reply in the same language the user writes in. "
+                                + ("Owner Waleed's custom instructions: " + " | ".join(AI_INSTRUCTIONS) if AI_INSTRUCTIONS else "")
                             )
                         },
                         {"role": "user", "content": (
-                            f"[This message is from your owner Waleed himself — treat him with extra respect and be extra fun] {question}"
+                            f"[OWNER] {question}"
                             if msg.from_user.id == OWNER_ID else question
                         )}
                     ],
@@ -1842,12 +1863,8 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ask_edit_cmd(update, ctx)
     elif text.startswith("//ask //list"):
         await ask_list_cmd(update, ctx)
-    elif text.startswith("//setsys"):
-        await setsys_cmd(update, ctx)
-    elif text.startswith("//showsys"):
-        await showsys_cmd(update, ctx)
-    elif text.startswith("//clearsys"):
-        await clearsys_cmd(update, ctx)
+    elif text.startswith("//ask //reset"):
+        await ask_reset_cmd(update, ctx)
     elif text.startswith("//ask"):
         await ask_cmd(update, ctx)
     elif text.startswith("//zaxo"):
@@ -3886,7 +3903,7 @@ async def gaytest_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
         raw = (msg.text or "").strip()
 
         # ∞ infinity check
-        if raw in ["♾️", "∞", "infinity", "inf", "لا محدود"]:
+        if raw in ["♾️", "∞", "infinity", "inf"]:
             session["percentage"] = -1
             session["is_infinity"] = True
             session["step"] = "waiting_message"
@@ -4291,11 +4308,11 @@ app.add_handler(MessageHandler(
 print("Zaxoy Bot started 🇵🇱")
 
 app.add_handler(CallbackQueryHandler(
-    ask_facts_callback,
-    pattern="^(askdel_|askview_)"
+    ask_instructions_callback,
+    pattern="^(aiidel_|aiireset_)"
 ))
 # Load owner facts from Supabase on startup
-OWNER_FACTS.extend(sb_load_owner_facts())
+AI_INSTRUCTIONS.extend(sb_load_ai_instructions())
 app.run_polling()
 
 
