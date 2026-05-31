@@ -1416,7 +1416,7 @@ async def ask_edit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await msg.reply_text(
         f"🧠 <b>Current AI instructions:</b>\n{current}\n\n"
         f"✏️ Send a new instruction to add:\n"
-        f"<i>Example: Always reply in Arabic</i>\n"
+        f"<i>Example: Always reply in Kurdish</i>\n"
         f"Or send /cancel to exit.",
         parse_mode="HTML"
     )
@@ -4311,6 +4311,10 @@ app.add_handler(CallbackQueryHandler(
     ask_instructions_callback,
     pattern="^(aiidel_|aiireset_)"
 ))
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE & filters.TEXT & filters.User(OWNER_ID),
+    ask_edit_session_handler
+), group=2)
 # Load owner facts from Supabase on startup
 AI_INSTRUCTIONS.extend(sb_load_ai_instructions())
 app.run_polling()
