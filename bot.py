@@ -1357,6 +1357,7 @@ async def say_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 ask_edit_sessions = {}
 
 def sb_load_ai_instructions() -> list:
+    """Returns list of instruction strings only (for //ask use)"""
     try:
         r = requests.get(
             f"{SUPABASE_URL}/rest/v1/ai_instructions?select=id,instruction&order=id.asc",
@@ -1370,6 +1371,7 @@ def sb_load_ai_instructions() -> list:
         return []
 
 def sb_load_ai_instructions_with_ids() -> list:
+    """Returns list of {id, instruction} dicts"""
     try:
         r = requests.get(
             f"{SUPABASE_URL}/rest/v1/ai_instructions?select=id,instruction&order=id.asc",
@@ -1383,11 +1385,13 @@ def sb_load_ai_instructions_with_ids() -> list:
         return []
 
 def sb_save_ai_instruction(instruction: str):
+    """Insert new instruction, returns new row ID"""
     try:
         headers = {
             "apikey": SUPABASE_KEY,
             "Authorization": f"Bearer {SUPABASE_KEY}",
             "Content-Type": "application/json",
+            "Prefer": "return=representation",
         }
         resp = requests.post(
             f"{SUPABASE_URL}/rest/v1/ai_instructions",
@@ -1395,9 +1399,30 @@ def sb_save_ai_instruction(instruction: str):
             json={"instruction": instruction},
             timeout=10
         )
-        logging.info(f"sb_save_ai_instruction: {resp.status_code} {resp.text[:100]}")
+        data = resp.json()
+        if isinstance(data, list) and data:
+            return data[0].get("id")
+        return None
     except Exception as e:
         logging.error(f"sb_save_ai_instruction: {e}")
+        return None
+
+def sb_update_ai_instruction(row_id: int, instruction: str):
+    """Update existing instruction by ID"""
+    try:
+        headers = {
+            "apikey": SUPABASE_KEY,
+            "Authorization": f"Bearer {SUPABASE_KEY}",
+            "Content-Type": "application/json",
+        }
+        requests.patch(
+            f"{SUPABASE_URL}/rest/v1/ai_instructions?id=eq.{row_id}",
+            headers=headers,
+            json={"instruction": instruction},
+            timeout=10
+        )
+    except Exception as e:
+        logging.error(f"sb_update_ai_instruction: {e}")
 
 def sb_delete_all_ai_instructions():
     try:
@@ -1417,57 +1442,106 @@ def sb_delete_ai_instruction_by_id(row_id: int):
     except Exception as e:
         logging.error(f"sb_delete_ai_instruction_by_id: {e}")
 
+# ─── helpers ─────────────────────────────────────────────────
+def _ask_instructions_text(rows: list) -> str:
+    if not rows:
+        return "None yet."
+    return "\n".join([f"{i+1}. {r['instruction']}" for i, r in enumerate(rows)])
+
+def _ask_list_keyboard(rows: list) -> InlineKeyboardMarkup:
+    kb = []
+    for i, r in enumerate(rows):
+        row_id = r["id"]
+        kb.append([
+            InlineKeyboardButton(f"✏️ Edit #{i+1}", callback_data=f"aiiedit_{row_id}"),
+            InlineKeyboardButton(f"🗑 Del #{i+1}", callback_data=f"aiidel_{row_id}"),
+        ])
+    kb.append([InlineKeyboardButton("🗑🗑 Reset All", callback_data="aiireset_confirm")])
+    return InlineKeyboardMarkup(kb)
+
+# ─── commands ─────────────────────────────────────────────────
 async def ask_edit_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
+    rows = sb_load_ai_instructions_with_ids()
+    global AI_INSTRUCTIONS
+    AI_INSTRUCTIONS = [r["instruction"] for r in rows]
     ask_edit_sessions[OWNER_ID] = {"step": "waiting_instruction"}
-    current = "\n".join([f"{i+1}. {x}" for i, x in enumerate(AI_INSTRUCTIONS)]) if AI_INSTRUCTIONS else "None yet."
+    current = _ask_instructions_text(rows)
     await msg.reply_text(
-        f"🧠 Current instructions:\n{current}\n\nSend a new instruction to add:\nOr /cancel to exit."
+        f"🧠 <b>Current instructions:</b>\n{current}\n\n"
+        f"📝 Send a new instruction to add:\n"
+        f"Or /cancel to exit.",
+        parse_mode="HTML"
     )
 
 async def ask_list_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
-    if not AI_INSTRUCTIONS:
-        await msg.reply_text("No instructions yet. Use //ask //edit to add one.")
+    rows = sb_load_ai_instructions_with_ids()
+    global AI_INSTRUCTIONS
+    AI_INSTRUCTIONS = [r["instruction"] for r in rows]
+    if not rows:
+        await msg.reply_text("📭 No instructions yet.\nUse <code>//ask //edit</code> to add.", parse_mode="HTML")
         return
-    text = "🧠 AI Instructions:\n\n"
-    text += "\n".join([f"{i+1}. {x}" for i, x in enumerate(AI_INSTRUCTIONS)])
-    kb = [[InlineKeyboardButton(f"🗑 Delete #{i+1}", callback_data=f"aiidel_{i}")] for i in range(len(AI_INSTRUCTIONS))]
-    await msg.reply_text(text, reply_markup=InlineKeyboardMarkup(kb))
+    text = f"🧠 <b>AI Instructions ({len(rows)}):</b>\n\n" + _ask_instructions_text(rows)
+    await msg.reply_text(text, parse_mode="HTML", reply_markup=_ask_list_keyboard(rows))
 
 async def ask_reset_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
     kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("Yes, reset", callback_data="aiireset_confirm"),
-        InlineKeyboardButton("Cancel", callback_data="aiireset_cancel"),
+        InlineKeyboardButton("✅ Yes, reset all", callback_data="aiireset_confirm"),
+        InlineKeyboardButton("❌ Cancel", callback_data="aiireset_cancel"),
     ]])
-    await msg.reply_text("Reset ALL AI instructions?", reply_markup=kb)
+    await msg.reply_text("⚠️ Reset ALL AI instructions?", reply_markup=kb)
 
 async def ask_edit_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    global AI_INSTRUCTIONS, AI_INSTRUCTION_KEYS
+    global AI_INSTRUCTIONS
     msg = update.message
     if not msg or msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
     session = ask_edit_sessions.get(OWNER_ID)
-    if not session or session.get("step") != "waiting_instruction":
+    if not session:
         return
+
+    step = session.get("step")
+
     if msg.text and msg.text.strip() in ["/cancel", "//cancel"]:
         ask_edit_sessions.pop(OWNER_ID, None)
-        await msg.reply_text("Cancelled.")
+        await msg.reply_text("❌ Cancelled.")
         return
-    instruction = (msg.text or "").strip()
-    if not instruction or instruction.startswith("//"):
-        return
-    AI_INSTRUCTIONS.append(instruction)
-    sb_save_ai_instruction(instruction)
-    ask_edit_sessions.pop(OWNER_ID, None)
-    await msg.reply_text(f"Instruction added:\n{instruction}")
+
+    if step == "waiting_instruction":
+        instruction = (msg.text or "").strip()
+        if not instruction or instruction.startswith("//"):
+            await msg.reply_text("⚠️ Send valid text (not a command).")
+            return
+        new_id = sb_save_ai_instruction(instruction)
+        AI_INSTRUCTIONS = sb_load_ai_instructions()
+        ask_edit_sessions.pop(OWNER_ID, None)
+        await msg.reply_text(
+            f"✅ Instruction added (ID: {new_id}):\n<code>{instruction}</code>",
+            parse_mode="HTML"
+        )
+
+    elif step == "waiting_edit":
+        new_text = (msg.text or "").strip()
+        if not new_text or new_text.startswith("//"):
+            await msg.reply_text("⚠️ Send valid text (not a command).")
+            return
+        row_id = session["row_id"]
+        old_text = session["old_text"]
+        sb_update_ai_instruction(row_id, new_text)
+        AI_INSTRUCTIONS = sb_load_ai_instructions()
+        ask_edit_sessions.pop(OWNER_ID, None)
+        await msg.reply_text(
+            f"✏️ Updated!\n\n<b>Before:</b> <code>{old_text}</code>\n<b>After:</b> <code>{new_text}</code>",
+            parse_mode="HTML"
+        )
 
 async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     global AI_INSTRUCTIONS
@@ -1476,20 +1550,47 @@ async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
     if query.from_user.id != OWNER_ID:
         return
     data = query.data
+
     if data.startswith("aiidel_"):
-        idx = int(data[7:])
-        if 0 <= idx < len(AI_INSTRUCTIONS):
-            removed = AI_INSTRUCTIONS.pop(idx)
-            rows = sb_load_ai_instructions_with_ids()
-            if idx < len(rows):
-                sb_delete_ai_instruction_by_id(rows[idx]["id"])
-            await query.edit_message_text(f"Deleted: {removed}")
+        row_id = int(data[7:])
+        rows = sb_load_ai_instructions_with_ids()
+        target = next((r for r in rows if r["id"] == row_id), None)
+        if not target:
+            await query.edit_message_text("⚠️ Not found — maybe already deleted.")
+            return
+        sb_delete_ai_instruction_by_id(row_id)
+        AI_INSTRUCTIONS = sb_load_ai_instructions()
+        rows = sb_load_ai_instructions_with_ids()
+        if rows:
+            text = f"🗑 Deleted: <code>{target['instruction']}</code>\n\n🧠 <b>Remaining ({len(rows)}):</b>\n" + _ask_instructions_text(rows)
+            await query.edit_message_text(text, parse_mode="HTML", reply_markup=_ask_list_keyboard(rows))
+        else:
+            await query.edit_message_text("🗑 Deleted. No instructions left.")
+
+    elif data.startswith("aiiedit_"):
+        row_id = int(data[8:])
+        rows = sb_load_ai_instructions_with_ids()
+        target = next((r for r in rows if r["id"] == row_id), None)
+        if not target:
+            await query.answer("⚠️ Not found", show_alert=True)
+            return
+        ask_edit_sessions[OWNER_ID] = {
+            "step": "waiting_edit",
+            "row_id": row_id,
+            "old_text": target["instruction"],
+        }
+        await query.edit_message_text(
+            f"✏️ Editing instruction (ID: {row_id}):\n<code>{target['instruction']}</code>\n\nSend the new text:",
+            parse_mode="HTML"
+        )
+
     elif data == "aiireset_confirm":
-        AI_INSTRUCTIONS.clear()
         sb_delete_all_ai_instructions()
-        await query.edit_message_text("Done. All AI instructions deleted. Bot is back to default.")
+        AI_INSTRUCTIONS.clear()
+        await query.edit_message_text("✅ Done. All AI instructions deleted.")
+
     elif data == "aiireset_cancel":
-        await query.edit_message_text("Cancelled.")
+        await query.edit_message_text("❌ Cancelled.")
 
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 
@@ -4326,7 +4427,7 @@ print("Zaxoy Bot started 🇵🇱")
 
 app.add_handler(CallbackQueryHandler(
     ask_instructions_callback,
-    pattern="^(aiidel_|aiireset_)"
+    pattern="^(aiidel_|aiiedit_|aiireset_)"
 ))
 app.add_handler(MessageHandler(
     filters.ChatType.PRIVATE & filters.TEXT & filters.User(OWNER_ID),
