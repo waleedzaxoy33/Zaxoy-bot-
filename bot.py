@@ -1377,12 +1377,16 @@ def sb_save_ai_instruction(instruction: str):
         )
         rows = r.json() if isinstance(r.json(), list) else []
         idx = len(rows) + 1
-        requests.post(
+        key = f"ai_inst_{idx:04d}"
+        headers = sb_headers()
+        headers["Prefer"] = "return=representation"
+        resp = requests.post(
             f"{SUPABASE_URL}/rest/v1/bot_settings",
-            headers=sb_headers(),
-            json={"key": f"ai_inst_{idx:04d}", "value": instruction},
+            headers=headers,
+            json={"key": key, "value": instruction},
             timeout=10
         )
+        logging.info(f"sb_save_ai_instruction: {resp.status_code} {resp.text[:100]}")
     except Exception as e:
         logging.error(f"sb_save_ai_instruction: {e}")
 
