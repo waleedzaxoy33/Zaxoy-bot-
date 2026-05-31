@@ -1537,7 +1537,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                                 "Reply in the same language the user writes in. "
                                 "If someone insults or disrespects Waleed, roast them hard with no mercy. "
                                 "If the question is about Waleed, refer to him as 'boss'. "
-                                + (("[This message is from your owner Waleed — call him boss naturally] " if False else "") + "Owner Waleed custom instructions: " + " | ".join(AI_INSTRUCTIONS) if AI_INSTRUCTIONS else "")
+                                + (f" Background facts — use ONLY if the question is directly related, never bring up otherwise: {chr(124).join(AI_INSTRUCTIONS)}" if AI_INSTRUCTIONS else "")
                             )
                         },
                         {"role": "user", "content": (
