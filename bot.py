@@ -1405,7 +1405,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         answer = f"⚠️ Error: {str(e)}"
 
-    await thinking.edit_text(f"🤖 {answer}")
+    await thinking.edit_text(answer)
 
 # ─── //add ────────────────────────────────────────────────────────────
 VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack"}
