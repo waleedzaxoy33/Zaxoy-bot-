@@ -1,7 +1,7 @@
 # bot.py — Zaxoy Bot | Part 1/2
 # Replace YOUR_BOT_TOKEN with your actual token
 # ─────────────────────────────────────────────────────────────
-# Imports    
+# Imports   
 # ─────────────────────────────────────────────────────────────
 import os 
 import io
@@ -401,7 +401,8 @@ async def cache_user_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 sb_increment_top_count(chat_id, user_id, user.full_name)
             # Track active groups
             if msg.chat.type in ("group", "supergroup"):
-                sb_track_active_group(chat_id)
+                title = msg.chat.title or ""
+                sb_track_active_group(chat_id, title)
     except Exception as e:
         logging.error(f"top counter error: {e}")
 
@@ -4450,35 +4451,48 @@ def sb_increment_top_count(chat_id: str, user_id: str, name: str):
 
 def sb_load_top_counts(chat_id: str) -> list:
     try:
-        res = sb.table("top_counts").select("*").eq("chat_id", chat_id).order("count", desc=True).limit(10).execute()
+        res = sb.table("top_counts").select("*").eq("chat_id", chat_id).order("count", desc=True).limit(5).execute()
         return res.data or []
     except Exception as e:
         logging.error(f"sb_load_top_counts: {e}")
         return []
 
-def sb_track_active_group(chat_id: str):
+def sb_reset_top_counts(chat_id: str):
     try:
-        sb.table("active_groups").upsert({"chat_id": chat_id}).execute()
+        sb.table("top_counts").delete().eq("chat_id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"sb_reset_top_counts: {e}")
+
+def sb_track_active_group(chat_id: str, title: str = ""):
+    try:
+        sb.table("active_groups").upsert({"chat_id": chat_id, "title": title}).execute()
     except Exception as e:
         logging.error(f"sb_track_active_group: {e}")
 
 def sb_load_active_groups() -> list:
     try:
-        res = sb.table("active_groups").select("chat_id").execute()
-        return [r["chat_id"] for r in res.data] if res.data else []
+        res = sb.table("active_groups").select("chat_id, title").execute()
+        return res.data or []
     except Exception as e:
         logging.error(f"sb_load_active_groups: {e}")
         return []
 
-def build_top_text(rows: list, chat_title: str = "") -> str:
-    medals = ["🥇", "🥈", "🥉"]
-    title = f"🏆 <b>Top Chatters</b>"
+TITLES = [
+    ("🥇", "👑 King of the Chat"),
+    ("🥈", "🗣️ Motor Mouth"),
+    ("🥉", "💬 Chatterbox"),
+    ("4.", "🤙 Just Vibing"),
+    ("💩", "😴 Where You Been?"),
+]
+
+def build_top_text(rows: list, chat_title: str = "", daily: bool = False) -> str:
+    header = "🌙 <b>Daily Top 5!</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
     if chat_title:
-        title += f" — {chat_title}"
-    text = title + "\n\n"
-    for i, row in enumerate(rows):
-        medal = medals[i] if i < 3 else f"{i+1}."
-        text += f"{medal} <b>{row['name']}</b> — {row['count']} msgs\n"
+        header += f" — {chat_title}"
+    text = header + "\n\n"
+    for i, row in enumerate(rows[:5]):
+        medal, title = TITLES[i]
+        text += f"{medal} <b>{row['name']}</b> — {row['count']} msgs {title}\n"
     if not rows:
         text += "No data yet."
     return text
@@ -4493,51 +4507,94 @@ async def top_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         chat_title = ""
     await msg.reply_text(build_top_text(rows, chat_title), parse_mode="HTML")
 
+async def top_cmd_group(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if msg.from_user.id != OWNER_ID:
+        return
+    chat_id = str(msg.chat_id)
+    rows = sb_load_top_counts(chat_id)
+    try:
+        chat_title = msg.chat.title or ""
+    except Exception:
+        chat_title = ""
+    await msg.reply_text(build_top_text(rows, chat_title), parse_mode="HTML")
+
 async def top_owner_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
-    # Send to all active groups
     groups = sb_load_active_groups()
     if not groups:
         await msg.reply_text("No active groups yet.")
         return
-    sent = 0
-    for chat_id in groups:
-        try:
-            rows = sb_load_top_counts(chat_id)
-            if rows:
-                try:
-                    chat = await ctx.bot.get_chat(chat_id)
-                    title = chat.title or ""
-                except Exception:
-                    title = ""
-                await ctx.bot.send_message(
-                    chat_id=int(chat_id),
-                    text=build_top_text(rows, title),
-                    parse_mode="HTML"
-                )
-                sent += 1
-        except Exception as e:
-            logging.error(f"top_owner_cmd send error {chat_id}: {e}")
-    await msg.reply_text(f"✅ Sent to {sent} groups 🇲🇨")
+    btns = []
+    for g in groups:
+        title = g.get("title") or g["chat_id"]
+        btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{g['chat_id']}")])
+    kb = InlineKeyboardMarkup(btns)
+    await msg.reply_text("📋 Choose a group:", reply_markup=kb)
+
+async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != OWNER_ID:
+        return
+
+    chat_id = query.data[7:]
+    try:
+        chat = await ctx.bot.get_chat(int(chat_id))
+        title = chat.title or ""
+    except Exception:
+        title = chat_id
+
+    rows = sb_load_top_counts(chat_id)
+    text = build_top_text(rows, title)
+
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
+        InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
+    ]])
+    await query.edit_message_text(f"📢 <b>{title}</b>\nWhat do you want to do?", parse_mode="HTML", reply_markup=kb)
+
+async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if query.from_user.id != OWNER_ID:
+        return
+
+    action = query.data[:7]
+    chat_id = query.data[7:]
+
+    try:
+        chat = await ctx.bot.get_chat(int(chat_id))
+        title = chat.title or ""
+    except Exception:
+        title = chat_id
+
+    rows = sb_load_top_counts(chat_id)
+    text = build_top_text(rows, title)
+
+    if action == "topshow":
+        await query.edit_message_text(text, parse_mode="HTML")
+    elif action == "topsend":
+        await ctx.bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
+        await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
 
 async def send_daily_top(app):
     groups = sb_load_active_groups()
-    for chat_id in groups:
+    for g in groups:
+        chat_id = g["chat_id"]
         try:
             rows = sb_load_top_counts(chat_id)
+            title = g.get("title", "")
             if rows:
-                try:
-                    chat = await app.bot.get_chat(chat_id)
-                    title = chat.title or ""
-                except Exception:
-                    title = ""
                 await app.bot.send_message(
                     chat_id=int(chat_id),
-                    text="🌙 <b>Daily Top Chatters!</b>\n\n" + build_top_text(rows, title),
+                    text=build_top_text(rows, title, daily=True),
                     parse_mode="HTML"
                 )
+            # Reset counts for new day
+            sb_reset_top_counts(chat_id)
         except Exception as e:
             logging.error(f"daily top error {chat_id}: {e}")
 
@@ -4546,8 +4603,7 @@ async def top_scheduler(app):
     tz = pytz.timezone("Asia/Riyadh")
     while True:
         now = datetime.now(tz)
-        # Next midnight
-        next_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        next_midnight = now.replace(hour=0, minute=1, second=0, microsecond=0) + timedelta(days=1)
         wait_seconds = (next_midnight - now).total_seconds()
         await asyncio.sleep(wait_seconds)
         await send_daily_top(app)
@@ -4582,12 +4638,20 @@ app.add_handler(CommandHandler("rps", rps_cmd))
 app.add_handler(CallbackQueryHandler(rps_callback, pattern=r"^rps_\d+_(rock|paper|scissors)$"))
 app.add_handler(CallbackQueryHandler(rps_again_callback, pattern=r"^rpsagain_\d+$"))
 
-# /top
-app.add_handler(CommandHandler("top", top_cmd))
+# /top — group (owner only sends instantly)
+app.add_handler(MessageHandler(
+    (filters.ChatType.GROUPS) & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
+    top_cmd_group
+))
+# //top — private owner selector
 app.add_handler(MessageHandler(
     filters.ChatType.PRIVATE & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
     top_owner_cmd
 ))
+# /top — anyone in group or private
+app.add_handler(CommandHandler("top", top_cmd))
+app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^topsel_"))
+app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow|topsend)"))
 
 # //gaytest — private owner setup session (must be before general // router)
 app.add_handler(MessageHandler(
