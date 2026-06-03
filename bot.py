@@ -3679,12 +3679,15 @@ def sb_remove_top_blacklist(user_id: int):
         logging.error(f"sb_remove_top_blacklist: {e}")
 def sb_increment_top_count(chat_id: str, user_id: str, name: str):
     try:
-        res = sb.table("top_counts").select("count").eq("chat_id", chat_id).eq("user_id", user_id).execute()
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        res = sb.table("top_counts").select("count, first_msg").eq("chat_id", chat_id).eq("user_id", user_id).execute()
         if res.data:
             new_count = res.data[0]["count"] + 1
-            sb.table("top_counts").update({"count": new_count, "name": name}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
+            first = res.data[0].get("first_msg") or now
+            sb.table("top_counts").update({"count": new_count, "name": name, "first_msg": first, "last_msg": now}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
         else:
-            sb.table("top_counts").insert({"chat_id": chat_id, "user_id": user_id, "name": name, "count": 1}).execute()
+            sb.table("top_counts").insert({"chat_id": chat_id, "user_id": user_id, "name": name, "count": 1, "first_msg": now, "last_msg": now}).execute()
     except Exception as e:
         logging.error(f"sb_increment_top_count: {e}")
 def sb_load_top_counts(chat_id: str) -> list:
@@ -3701,6 +3704,8 @@ def sb_reset_top_counts(chat_id: str):
         logging.error(f"sb_reset_top_counts: {e}")
 def sb_track_active_group(chat_id: str, title: str = ""):
     try:
+        if sb_is_group_banned(chat_id):
+            return
         sb.table("active_groups").upsert({"chat_id": chat_id, "title": title}).execute()
     except Exception as e:
         logging.error(f"sb_track_active_group: {e}")
@@ -3709,6 +3714,20 @@ def sb_delete_active_group(chat_id: str):
         sb.table("active_groups").delete().eq("chat_id", chat_id).execute()
     except Exception as e:
         logging.error(f"sb_delete_active_group: {e}")
+
+def sb_ban_group(chat_id: str):
+    try:
+        sb.table("banned_groups").upsert({"chat_id": chat_id}).execute()
+        sb.table("active_groups").delete().eq("chat_id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"sb_ban_group: {e}")
+
+def sb_is_group_banned(chat_id: str) -> bool:
+    try:
+        res = sb.table("banned_groups").select("chat_id").eq("chat_id", chat_id).execute()
+        return bool(res.data)
+    except Exception:
+        return False
 
 def sb_load_active_groups() -> list:
     try:
@@ -3774,54 +3793,168 @@ def convert_time_between_zones(hour: int, minute: int, from_tz: str, to_tz: str)
 def fmt_time(h: int, m: int) -> str:
     ap = "AM" if h < 12 else "PM"
     return f"{h % 12 or 12:02d}:{m:02d} {ap}"
-TITLES = [
-    ("🥇", "👑 King of the Chat"),
-    ("🥈", "🗣️ Motor Mouth"),
-    ("🥉", "💬 Chatterbox"),
-    ("4️⃣", "🤙 Just Vibing"),
-    ("💩", "😴 Where You Been?"),
-]
-def build_top_text(rows: list, chat_title: str = "", daily: bool = False) -> str:
-    header = "🌙 <b>Daily Top 5</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
+# Daily rotating titles — 7 days x 5 ranks
+# Rank 0 = #1 (strongest praise), Rank 4 = #5 (weakest/roast)
+DAILY_TITLES = {
+    0: [  # Monday
+        ("🥇", "⚡ MONDAY MONARCH — You didn't start the week, you OWNED it. Every message a statement, every word a decree. This chat runs because of you."),
+        ("🥈", "🔥 The Relentless #2 — Hungrier than anyone in this chat. You pushed hard and the throne felt it. Monday isn't over till you say so."),
+        ("🥉", "💬 Bronze on Monday — Most people don't even show up. You did. Third place with more energy than the rest combined."),
+        ("4️⃣", "😑 4th on a Monday — The week just started and you're already falling behind. This is your warning."),
+        ("💩", "🪦 Dead last on MONDAY — The laziest start possible. The week began without you and honestly... it didn't notice."),
+    ],
+    1: [  # Tuesday
+        ("🥇", "👑 TUESDAY TITAN — Two days in and already untouchable. While others were warming up, you were already dominating. Bow. Down."),
+        ("🥈", "⚔️ The Silver Blade — Sharp, fast, dangerous. One position away from the crown and everyone knows it. Tuesday isn't done yet."),
+        ("🥉", "🎯 Solid Third — Not flashy, not loud, just consistent. Bronze on Tuesday means you showed up when it mattered."),
+        ("4️⃣", "🌀 Spinning in 4th — You were here but barely present. Tuesday deserved more from you and you know it."),
+        ("💩", "😶 5th on a Tuesday — Two days in and already invisible. At this point the chat has forgotten your name."),
+    ],
+    2: [  # Wednesday
+        ("🥇", "🏆 MIDWEEK GOD — Wednesday is where weak people collapse. Not you. You hit the middle of the week like a hammer. GOAT. No debate."),
+        ("🥈", "🚀 The Rocket at #2 — You're not chasing the top, you're haunting it. Wednesday belongs to those who stay hungry — and you're starving."),
+        ("🥉", "🔶 Holding Third — The week is halfway done and you're still standing. That's not nothing. Wednesday bronze is earned, not given."),
+        ("4️⃣", "😐 Fourth at Midweek — You've had two full days to climb and still landed here. Wednesday is judging you silently."),
+        ("💩", "💀 LAST PLACE — WEDNESDAY — The week is literally half over and this is where you are. There are no more excuses left."),
+    ],
+    3: [  # Thursday
+        ("🥇", "💎 THURSDAY LEGEND — Four days deep and still absolutely untouchable. This isn't luck. This is dominance. The chat is yours and everyone knows it."),
+        ("🥈", "🔱 The Throne Chaser — You've been breathing down #1's neck all week. Thursday is your last real shot — and the pressure is showing."),
+        ("🥉", "🎙️ Third and Standing Tall — Four days of showing up while others disappeared. Thursday bronze means you outlasted most of this chat."),
+        ("4️⃣", "⚠️ 4th on Thursday — One day from the weekend and still buried. Whatever you're doing, it's not enough. Not even close."),
+        ("💩", "🗑️ Bottom of Thursday — The week is almost over and your only achievement is this spot. Genuinely impressive how little effort this took."),
+    ],
+    4: [  # Friday
+        ("🥇", "🌟 FRIDAY KING — You carried this chat all week and closed it in style. While everyone else came and went, you STAYED. Crown on. Lights out."),
+        ("🥈", "🎸 The Friday Rockstar — Second on the last day. You gave everything and came within inches of the top. Legendary effort. Agonizing finish."),
+        ("🥉", "🎉 Bronze Friday — The week ends and you're still here. Most people faded by Wednesday. You made it to the final day standing. Respect."),
+        ("4️⃣", "😬 4th on a Friday — The week is done. This is your final grade. You had five full days and THIS is what you chose to submit."),
+        ("💩", "🚮 DEAD LAST ON FRIDAY — Five days. Five chances. Five failures. The week closed its eyes so it wouldn't have to see this."),
+    ],
+    5: [  # Saturday
+        ("🥇", "🔱 WEEKEND SUPREME — You don't rest, you conquer. Saturday is when normal people disappear — you showed up and went HARDER. Untouchable."),
+        ("🥈", "🏄 Silver Saturday — The weekend belongs to those who earn it. You fought for #2 on your day off. That hunger is rare. That hunger is dangerous."),
+        ("🥉", "🎮 Third on Saturday — Most people are offline, silent, gone. You showed up on a weekend and took bronze. That alone sets you apart."),
+        ("4️⃣", "😒 4th on a Saturday — You had all day, no work, no excuses, full freedom — and still ended up here. On a WEEKEND. Let that sink in."),
+        ("💩", "🛌 Last Place on Saturday — You had the entire weekend and chose to contribute absolutely nothing. The chat carried on just fine without you."),
+    ],
+    6: [  # Sunday
+        ("🥇", "☀️ SUNDAY OVERLORD — The week ends and you stand alone at the top. Seven days of competition and you close it like this — dominant, unmatched, immortal."),
+        ("🥈", "🌤️ The Silver Closer — Second on the final day of the week. All week you fought and Sunday still couldn't give you the crown. Almost legendary."),
+        ("🥉", "🌈 Sunday Bronze — The last day of the week and you're still in the top three. While most people vanished, you finished. That means something."),
+        ("4️⃣", "🛋️ 4th on Sunday — The last day to prove yourself and this is the outcome. The week is officially over and 4th is how you'll be remembered."),
+        ("💩", "🌑 LAST ON SUNDAY — The final day of the week. The final chance. Gone. You ended seven days of opportunity in last place. Remarkable dedication to failure."),
+    ],
+}
+
+def get_daily_titles():
+    from datetime import datetime
+    day = datetime.now().weekday()  # 0=Monday, 6=Sunday
+    return DAILY_TITLES[day]
+
+def _format_active_time(first_msg, last_msg) -> str:
+    try:
+        from datetime import datetime, timezone
+        fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
+        def parse(s):
+            try:
+                return datetime.fromisoformat(s)
+            except Exception:
+                return None
+        f = parse(first_msg)
+        l = parse(last_msg)
+        if not f or not l:
+            return ""
+        diff = int((l - f).total_seconds())
+        if diff < 60:
+            return f"{diff}s active"
+        elif diff < 3600:
+            return f"{diff // 60}m active"
+        else:
+            h = diff // 3600
+            m = (diff % 3600) // 60
+            return f"{h}h {m}m active" if m else f"{h}h active"
+    except Exception:
+        return ""
+
+def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: bool = False) -> str:
+    from datetime import datetime
+    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
+    day = datetime.now().weekday()
+    day_name = day_names[day]
+
+    if daily:
+        header = f"🌙 <b>Daily Top 5 — {day_name}</b>"
+    else:
+        header = f"🏆 <b>Top 5 — {day_name}</b>"
+
     if chat_title:
-        header += f" — <b>{chat_title}</b>"
-    text = header + "\n" + "─" * 22 + "\n\n"
+        header += f"\n╔═══════════════════════╗\n      📍 <b>{chat_title}</b>\n╚═══════════════════════╝"
+    else:
+        header += "\n" + "▬" * 22
+
+    text = header + "\n\n"
+
     if not rows:
         text += "📭 No data yet."
         return text
+
+    titles = get_daily_titles()
     for i, row in enumerate(rows[:5]):
-        medal, title = TITLES[i]
+        medal, praise = titles[i]
         uid = row.get("user_id")
         if uid:
-            name_tag = f'<a href="tg://user?id={uid}">{row["name"]}</a>'
+            name_tag = f'<a href="tg://user?id={uid}"><b>{row["name"]}</b></a>'
         else:
             name_tag = f'<b>{row["name"]}</b>'
-        text += f"{medal} {name_tag}\n   ↳ {row['count']} msgs  {title}\n\n"
+        count = row["count"]
+        time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"))
+
+        stats = f"<code>  💬 {count} msgs"
+        if time_str:
+            stats += f"   🕐 {time_str}"
+        stats += "</code>"
+
+        text += f"{medal} {name_tag}\n{stats}\n<i>{praise}</i>\n"
+        if i < 4:
+            text += "┄" * 22 + "\n"
+
+    text += "\n▬" * 22
+    if test:
+        text += "\n<i>🧪 TEST</i>"
     return text.strip()
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
-    mentions = get_top_mentions()
-    # 1. Send mentions FIRST (before countdown)
-    if mentions:
-        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">' + (m.get("name") or str(m["user_id"])) + '</a>' for m in mentions])
-    else:
-        mention_text = f'<a href="tg://user?id={OWNER_ID}">​</a>'
-    await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML")
-    # 2. Countdown
-    countdown_msg = await bot.send_message(chat_id=int(chat_id), text="🏆 <b>Top 5 Chatters Today in...</b> 5", parse_mode="HTML")
+    # Suspense countdown — single message edited each step
+    cid = int(chat_id)
+    msg = await bot.send_message(chat_id=cid, text="👀 <b>someone's watching...</b>", parse_mode="HTML")
+    mid = msg.message_id
+    await asyncio.sleep(2)
+    await bot.edit_message_text("⚡ <b>calculating results...</b>", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await asyncio.sleep(2)
+    await bot.edit_message_text("🔒 <b>unlocking the leaderboard...</b>", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await asyncio.sleep(2)
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 5️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 4️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 3️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 2️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2 • 1 🎉", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 1️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await asyncio.sleep(1)
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 🔥", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
     # 3. Send result
-    text = build_top_text(rows, title, daily=daily)
-    if test:
-        text += "\n\n<i>🧪 TEST</i>"
-    await bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
+    text = build_top_text(rows, title, daily=daily, test=test)
+    result_msg = await bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
+    asyncio.create_task(_pin_after_delay(bot, int(chat_id), result_msg.message_id))
+async def _pin_after_delay(bot, chat_id: int, message_id: int):
+    await asyncio.sleep(60)
+    try:
+        await bot.pin_chat_message(chat_id=chat_id, message_id=message_id, disable_notification=True)
+    except Exception as e:
+        logging.error(f"pin_after_delay error: {e}")
 async def top_cmd_group(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     uid = msg.from_user.id
@@ -4018,9 +4151,35 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 continue
             seen.add(cid)
             title = g.get("title") or cid
-            btns.append([InlineKeyboardButton(f"🗑 {title}", callback_data=f"topdelgroup_{cid}")])
+            btns.append([
+                InlineKeyboardButton(f"🗑 {title}", callback_data=f"topdelgroup_{cid}"),
+                InlineKeyboardButton(f"🚫 Ban", callback_data=f"topbangroup_{cid}")
+            ])
         btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
-        await query.edit_message_text("🗑 <b>Delete a Group</b>\n\nTap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
+        await query.edit_message_text("🗑 <b>Manage Groups</b>\n\n🗑 Delete — removes but may return\n🚫 Ban — removes forever", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
+        return
+    if data.startswith("topbangroup_"):
+        cid = data[12:]
+        sb_ban_group(cid)
+        await query.answer("🚫 Banned forever")
+        groups = sb_load_active_groups()
+        if not groups:
+            await query.edit_message_text("✅ All groups removed.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="topback_main")]]))
+            return
+        seen = set()
+        btns = []
+        for g in groups:
+            cid2 = g["chat_id"]
+            if cid2 in seen:
+                continue
+            seen.add(cid2)
+            title2 = g.get("title") or cid2
+            btns.append([
+                InlineKeyboardButton(f"🗑 {title2}", callback_data=f"topdelgroup_{cid2}"),
+                InlineKeyboardButton(f"🚫 Ban", callback_data=f"topbangroup_{cid2}")
+            ])
+        btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
+        await query.edit_message_text("🗑 <b>Manage Groups</b>\n\n🗑 Delete — removes but may return\n🚫 Ban — removes forever", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
         return
     if data.startswith("topdelgroup_"):
         cid = data[12:]
@@ -4039,9 +4198,12 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 continue
             seen.add(cid2)
             title = g.get("title") or cid2
-            btns.append([InlineKeyboardButton(f"🗑 {title}", callback_data=f"topdelgroup_{cid2}")])
+            btns.append([
+                InlineKeyboardButton(f"🗑 {title}", callback_data=f"topdelgroup_{cid2}"),
+                InlineKeyboardButton(f"🚫 Ban", callback_data=f"topbangroup_{cid2}")
+            ])
         btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
-        await query.edit_message_text("🗑 <b>Delete a Group</b>\n\nTap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
+        await query.edit_message_text("🗑 <b>Manage Groups</b>\n\n🗑 Delete — removes but may return\n🚫 Ban — removes forever", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
         return
     if data.startswith("topshow_"):
         chat_id = data[8:]
@@ -4320,7 +4482,7 @@ app.add_handler(MessageHandler(
     top_owner_cmd
 ))
 app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^(topsel_|topset_|topback_|toptz_|topadd_)"))
-app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_|topmanage_groups|topdelgroup_)"))
+app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_|topmanage_groups|topdelgroup_|topbangroup_)"))
 app.add_handler(InlineQueryHandler(inline_query_handler))
 app.add_handler(ChosenInlineResultHandler(chosen_inline_handler))
 # //top private input
