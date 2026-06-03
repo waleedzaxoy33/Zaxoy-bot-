@@ -4302,6 +4302,9 @@ async def rps_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         reply_markup=kb
     )
 
+# in-memory scores: {user_id: {"w": 0, "l": 0, "d": 0}}
+rps_scores: dict[int, dict] = {}
+
 async def rps_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     parts = query.data.split("_")
@@ -4311,29 +4314,50 @@ async def rps_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.answer("❌ Not your game!", show_alert=True)
         return
     await query.answer()
+
     choices = {"rock": "🪨", "paper": "📄", "scissors": "✂️"}
     wins = {"rock": "scissors", "paper": "rock", "scissors": "paper"}
     user_name = query.from_user.first_name
-    await query.edit_message_text("🪨 . . . 📄 . . . ✂️")
-    await asyncio.sleep(0.8)
-    await query.edit_message_text("3️⃣")
-    await asyncio.sleep(0.8)
-    await query.edit_message_text("2️⃣")
-    await asyncio.sleep(0.8)
-    await query.edit_message_text("1️⃣")
-    await asyncio.sleep(0.8)
+
+    # Spinning animation
+    frames = [
+        "🪨 📄 ✂️ 🪨 📄 ✂️",
+        "📄 ✂️ 🪨 📄 ✂️ 🪨",
+        "✂️ 🪨 📄 ✂️ 🪨 📄",
+        "🪨 📄 ✂️ 🪨 📄 ✂️",
+        "📄 ✂️ 🪨 📄 ✂️ 🪨",
+    ]
+    for frame in frames:
+        await query.edit_message_text(frame)
+        await asyncio.sleep(0.8)
+
     bot_choice = random.choice(list(choices.keys()))
+
+    # Update scores
+    score = rps_scores.setdefault(owner_id, {"w": 0, "l": 0, "d": 0})
+    bot_score = rps_scores.setdefault(-1, {"w": 0, "l": 0, "d": 0})
+
     if user_choice == bot_choice:
-        result = "🤝 <b>Draw!</b>"
+        result = "🤝 <b>Draw!</b> 🇲🇨"
+        score["d"] += 1
+        bot_score["d"] += 1
     elif wins[user_choice] == bot_choice:
-        result = f"🏆 <b>{user_name} wins!</b>"
+        result = f"🏆 <b>{user_name} wins!</b> 🇲🇨"
+        score["w"] += 1
+        bot_score["l"] += 1
     else:
-        result = "🤖 <b>Bot wins!</b>"
+        result = "🤖 <b>Bot wins!</b> 🇲🇨"
+        score["l"] += 1
+        bot_score["w"] += 1
+
     text = (
         f"👤 <b>{user_name}:</b> {choices[user_choice]}\n"
         f"🤖 <b>Bot:</b> {choices[bot_choice]}\n\n"
-        f"{result}"
+        f"{result}\n\n"
+        f"🤖 Bot: {bot_score['w']}\n"
+        f"👤 {user_name}: {score['w']}"
     )
+
     kb = InlineKeyboardMarkup([[
         InlineKeyboardButton("🔄 Play again", callback_data=f"rpsagain_{owner_id}")
     ]])
