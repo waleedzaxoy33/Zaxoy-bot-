@@ -4585,7 +4585,12 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False) -> str
         return text
     for i, row in enumerate(rows[:5]):
         medal, title = TITLES[i]
-        text += f"{medal} <b>{row['name']}</b>\n   ↳ {row['count']} msgs  {title}\n\n"
+        uid = row.get("user_id")
+        if uid:
+            name_tag = f'<a href="tg://user?id={uid}">{row["name"]}</a>'
+        else:
+            name_tag = f'<b>{row["name"]}</b>'
+        text += f"{medal} {name_tag}\n   ↳ {row['count']} msgs  {title}\n\n"
     return text.strip()
 
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
