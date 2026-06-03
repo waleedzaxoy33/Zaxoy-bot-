@@ -27,7 +27,9 @@ from telegram import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     ReactionTypeEmoji,
-    ChatPermissions
+    ChatPermissions,
+    InlineQueryResultArticle,
+    InputTextMessageContent
 )
 
 from telegram.ext import (
@@ -35,6 +37,7 @@ from telegram.ext import (
     CommandHandler,
     MessageHandler,
     CallbackQueryHandler,
+    InlineQueryHandler,
     filters,
     ContextTypes
 )
@@ -1654,7 +1657,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await thinking.edit_text(answer)
 
 # ─── //add ────────────────────────────────────────────────────────────
-VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top"}
+VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     global admin_perms
@@ -1695,6 +1698,14 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_remove_top_blacklist(target_id)
         await msg.reply_text(
             f"✅ {target_name} added back to /top 🇲🇨",
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
+        )
+    elif specific_cmd == "//top":
+        current_perms = current.get(target_id, set())
+        current_perms.add("//top")
+        sb_upsert_admin(target_id, current_perms)
+        await msg.reply_text(
+            f"✅ {target_name} can now use //top in groups 🇲🇨",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd is None or specific_cmd == "":
@@ -1754,6 +1765,17 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_add_top_blacklist(target_id)
         await msg.reply_text(
             f"🚫 {target_name} removed from /top counting 🇲🇨",
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
+        )
+    elif specific_cmd == "//top":
+        current_perms = current.get(target_id, set())
+        current_perms.discard("//top")
+        if current_perms:
+            sb_upsert_admin(target_id, current_perms)
+        else:
+            sb_delete_admin(target_id)
+        await msg.reply_text(
+            f"🚫 {target_name} can no longer use //top 🇲🇨",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd is None or specific_cmd == "":
@@ -4589,7 +4611,9 @@ async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bo
 
 async def top_cmd_group(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
-    if msg.from_user.id != OWNER_ID:
+    uid = msg.from_user.id
+    # owner or has //top permission
+    if uid != OWNER_ID and not has_perm(uid, "//top"):
         return
     chat_id = str(msg.chat_id)
     rows = sb_load_top_counts(chat_id)
@@ -4721,13 +4745,17 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
 
         if data == "topadd_mention":
-            ctx.user_data["top_state"] = "waiting_mention"
+            await query.answer()
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("👤 اختار شخص", switch_inline_query_current_chat="addmention ")
+            ], [
+                InlineKeyboardButton("◀️ Back", callback_data="topset_mentions")
+            ]])
             await query.edit_message_text(
                 "👥 <b>Add Person</b>\n\n"
-                "• Forward a message from them\n"
-                "• Or send their @username\n"
-                "• Or send their user ID",
-                parse_mode="HTML"
+                "اضغط الزر واختار الشخص من محادثاتك 👇",
+                parse_mode="HTML",
+                reply_markup=kb
             )
             return
 
@@ -4798,6 +4826,20 @@ async def top_private_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
+
+    # handle inline selection result
+    if msg.text and msg.text.startswith("addmention:"):
+        try:
+            parts = msg.text.split(":", 2)
+            uid = parts[1]
+            name = parts[2] if len(parts) > 2 else uid
+            sb_save_top_mention(uid, name)
+            back_btn = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Mentions", callback_data="topset_mentions")]])
+            await msg.reply_text(f"✅ <b>{name}</b> added to mentions!", parse_mode="HTML", reply_markup=back_btn)
+        except Exception as e:
+            await msg.reply_text(f"❌ Error: {e}")
+        return
+
     state = ctx.user_data.get("top_state")
     if not state:
         return
@@ -4885,6 +4927,46 @@ async def top_private_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply_markup=back_btn
         )
         return
+
+async def inline_query_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.inline_query
+    if query.from_user.id != OWNER_ID:
+        return
+    q = query.query.strip()
+
+    # only handle "addmention ..." queries
+    if not q.startswith("addmention"):
+        return
+
+    search = q[len("addmention"):].strip().lower()
+
+    # get recent chats from top_counts or mentions as suggestions
+    results = []
+    try:
+        res = sb.table("top_counts").select("user_id, username, first_name").limit(50).execute()
+        rows = res.data or []
+        seen_ids = set()
+        for row in rows:
+            uid = str(row.get("user_id", ""))
+            if not uid or uid in seen_ids:
+                continue
+            seen_ids.add(uid)
+            fname = row.get("first_name") or ""
+            uname = row.get("username") or ""
+            display = fname or uname or uid
+            # filter by search
+            if search and search not in display.lower() and search not in uname.lower():
+                continue
+            results.append(InlineQueryResultArticle(
+                id=uid,
+                title=display,
+                description=f"@{uname}" if uname else uid,
+                input_message_content=InputTextMessageContent(f"addmention:{uid}:{display}")
+            ))
+    except Exception as e:
+        logging.error(f"inline_query_handler error: {e}")
+
+    await query.answer(results[:20], cache_time=0)
 
 async def send_daily_top(app):
     groups = sb_load_active_groups()
@@ -4974,18 +5056,19 @@ app.add_handler(CommandHandler("rps", rps_cmd))
 app.add_handler(CallbackQueryHandler(rps_callback, pattern=r"^rps_\d+_(rock|paper|scissors)$"))
 app.add_handler(CallbackQueryHandler(rps_again_callback, pattern=r"^rpsagain_\d+$"))
 
-# /top — group (owner only sends instantly)
+# //top — group (owner or permitted users)
 app.add_handler(MessageHandler(
-    (filters.ChatType.GROUPS) & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
+    filters.ChatType.GROUPS & filters.TEXT & filters.Regex(r"^//top$"),
     top_cmd_group
 ))
-# //top — private owner selector
+# //top — private owner selector only
 app.add_handler(MessageHandler(
     filters.ChatType.PRIVATE & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
     top_owner_cmd
 ))
 app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^(topsel_|topset_|topback_|toptz_|topadd_)"))
 app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_)"))
+app.add_handler(InlineQueryHandler(inline_query_handler))
 
 # //top private input
 app.add_handler(MessageHandler(
