@@ -38,6 +38,7 @@ from telegram.ext import (
     MessageHandler,
     CallbackQueryHandler,
     InlineQueryHandler,
+    ChosenInlineResultHandler,
     filters,
     ContextTypes
 )
@@ -4963,6 +4964,24 @@ async def inline_query_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     await query.answer(results[:20], cache_time=0)
 
+async def chosen_inline_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    result = update.chosen_inline_result
+    if result.from_user.id != OWNER_ID:
+        return
+    # result.result_id = uid, result.query starts with "addmention"
+    if not result.query.startswith("addmention"):
+        return
+    uid = result.result_id
+    # get name from inline_message content
+    try:
+        parts = result.inline_message_id  # not available here, use result_id + top_counts
+        res = sb.table("top_counts").select("name").eq("user_id", uid).limit(1).execute()
+        name = res.data[0]["name"] if res.data else uid
+    except Exception:
+        name = uid
+    sb_save_top_mention(uid, name)
+    logging.info(f"Mention saved via inline: {uid} {name}")
+
 async def send_daily_top(app):
     groups = sb_load_active_groups()
     seen = set()
@@ -5064,6 +5083,7 @@ app.add_handler(MessageHandler(
 app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^(topsel_|topset_|topback_|toptz_|topadd_)"))
 app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_)"))
 app.add_handler(InlineQueryHandler(inline_query_handler))
+app.add_handler(ChosenInlineResultHandler(chosen_inline_handler))
 
 # //top private input
 app.add_handler(MessageHandler(
