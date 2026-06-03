@@ -3704,6 +3704,12 @@ def sb_track_active_group(chat_id: str, title: str = ""):
         sb.table("active_groups").upsert({"chat_id": chat_id, "title": title}).execute()
     except Exception as e:
         logging.error(f"sb_track_active_group: {e}")
+def sb_delete_active_group(chat_id: str):
+    try:
+        sb.table("active_groups").delete().eq("chat_id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"sb_delete_active_group: {e}")
+
 def sb_load_active_groups() -> list:
     try:
         res = sb.table("active_groups").select("chat_id, title").execute()
@@ -3845,6 +3851,7 @@ async def show_top_main_menu(target):
         seen.add(cid)
         title = g.get("title") or cid
         btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{cid}")])
+    btns.append([InlineKeyboardButton("🗑 Manage Groups", callback_data="topmanage_groups")])
     btns.append([InlineKeyboardButton("⚙️ Settings", callback_data="topset_main")])
     kb = InlineKeyboardMarkup(btns)
     if hasattr(target, "edit_message_text"):
@@ -3996,6 +4003,49 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_delete_top_mention(uid)
         await query.answer("✅ Removed")
         await show_mentions_menu(query)
+        return
+    if data == "topmanage_groups":
+        await query.answer()
+        groups = sb_load_active_groups()
+        if not groups:
+            await query.edit_message_text("No groups found.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="topback_main")]]))
+            return
+        seen = set()
+        btns = []
+        for g in groups:
+            cid = g["chat_id"]
+            if cid in seen:
+                continue
+            seen.add(cid)
+            title = g.get("title") or cid
+            btns.append([InlineKeyboardButton(f"🗑 {title}", callback_data=f"topdelgroup_{cid}")])
+        btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
+        await query.edit_message_text("🗑 <b>Delete a Group</b>
+
+Tap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
+        return
+    if data.startswith("topdelgroup_"):
+        cid = data[12:]
+        sb_delete_active_group(cid)
+        await query.answer("✅ Deleted")
+        # Refresh the manage groups menu
+        groups = sb_load_active_groups()
+        if not groups:
+            await query.edit_message_text("✅ All groups removed.", reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back", callback_data="topback_main")]]))
+            return
+        seen = set()
+        btns = []
+        for g in groups:
+            cid2 = g["chat_id"]
+            if cid2 in seen:
+                continue
+            seen.add(cid2)
+            title = g.get("title") or cid2
+            btns.append([InlineKeyboardButton(f"🗑 {title}", callback_data=f"topdelgroup_{cid2}")])
+        btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
+        await query.edit_message_text("🗑 <b>Delete a Group</b>
+
+Tap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
         return
     if data.startswith("topshow_"):
         chat_id = data[8:]
