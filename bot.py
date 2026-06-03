@@ -4576,8 +4576,8 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     if query.from_user.id != OWNER_ID:
+        await query.answer()
         return
 
     data = query.data
@@ -4588,6 +4588,7 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         action = "topsend"
         chat_id = data[8:]
     else:
+        await query.answer()
         return
 
     try:
@@ -4600,11 +4601,13 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     text = build_top_text(rows, title)
 
     if action == "topshow":
+        await query.answer()
         await query.edit_message_text(text, parse_mode="HTML")
     elif action == "topsend":
         try:
+            await query.answer("📤 Sending...")
             # Countdown message
-            countdown = await ctx.bot.send_message(
+            await ctx.bot.send_message(
                 chat_id=int(chat_id),
                 text="🏆 <b>Top 5 Chatters Today in...</b>\n5️⃣4️⃣3️⃣2️⃣1️⃣",
                 parse_mode="HTML"
