@@ -4472,7 +4472,16 @@ def sb_track_active_group(chat_id: str, title: str = ""):
 def sb_load_active_groups() -> list:
     try:
         res = sb.table("active_groups").select("chat_id, title").execute()
-        return res.data or []
+        groups = res.data or []
+        if not groups:
+            res2 = sb.table("top_counts").select("chat_id").execute()
+            seen = set()
+            for row in (res2.data or []):
+                cid = row["chat_id"]
+                if cid not in seen:
+                    seen.add(cid)
+                    groups.append({"chat_id": cid, "title": ""})
+        return groups
     except Exception as e:
         logging.error(f"sb_load_active_groups: {e}")
         return []
@@ -4525,11 +4534,18 @@ async def top_owner_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     groups = sb_load_active_groups()
     if not groups:
-        await msg.reply_text("No active groups yet.")
+        await msg.reply_text("⚠️ No data yet. The bot needs to receive at least one group message first.")
         return
     btns = []
     for g in groups:
-        title = g.get("title") or g["chat_id"]
+        title = g.get("title") or ""
+        if not title:
+            try:
+                chat = await ctx.bot.get_chat(int(g["chat_id"]))
+                title = chat.title or g["chat_id"]
+                sb_track_active_group(g["chat_id"], title)
+            except Exception:
+                title = g["chat_id"]
         btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{g['chat_id']}")])
     kb = InlineKeyboardMarkup(btns)
     await msg.reply_text("📋 Choose a group:", reply_markup=kb)
@@ -4648,8 +4664,6 @@ app.add_handler(MessageHandler(
     filters.ChatType.PRIVATE & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
     top_owner_cmd
 ))
-# /top — anyone in group or private
-app.add_handler(CommandHandler("top", top_cmd))
 app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^topsel_"))
 app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow|topsend)"))
 
