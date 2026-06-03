@@ -4590,6 +4590,13 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False) -> str
 
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
     mentions = get_top_mentions()
+    # 1. Send mentions FIRST (before countdown)
+    if mentions:
+        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">​</a>' for m in mentions])
+    else:
+        mention_text = f'<a href="tg://user?id={OWNER_ID}">​</a>'
+    await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML")
+    # 2. Countdown
     countdown_msg = await bot.send_message(chat_id=int(chat_id), text="🏆 <b>Top 5 Chatters Today in...</b> 5", parse_mode="HTML")
     await asyncio.sleep(1)
     await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
@@ -4600,15 +4607,11 @@ async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bo
     await asyncio.sleep(1)
     await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2 • 1 🎉", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
+    # 3. Send result
     text = build_top_text(rows, title, daily=daily)
     if test:
         text += "\n\n<i>🧪 TEST</i>"
-    result_msg = await bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
-    if mentions:
-        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">​</a>' for m in mentions])
-    else:
-        mention_text = f'<a href="tg://user?id={OWNER_ID}">​</a>'
-    await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML", reply_to_message_id=result_msg.message_id)
+    await bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
 
 async def top_cmd_group(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -4762,12 +4765,19 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
         if data.startswith("topsel_"):
             chat_id = data[7:]
+            # Try to get fresh title from Telegram, fallback to stored title in DB
+            stored_title = chat_id
+            groups = sb_load_active_groups()
+            for g in groups:
+                if g["chat_id"] == chat_id:
+                    stored_title = g.get("title") or chat_id
+                    break
             try:
                 chat = await query.bot.get_chat(int(chat_id))
-                title = chat.title or chat_id
+                title = chat.title or stored_title
                 sb_track_active_group(chat_id, title)
             except Exception:
-                title = chat_id
+                title = stored_title
             kb = InlineKeyboardMarkup([[
                 InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
                 InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
@@ -4799,11 +4809,17 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data.startswith("topshow_"):
         chat_id = data[8:]
         await query.answer()
+        stored_title = chat_id
+        groups = sb_load_active_groups()
+        for g in groups:
+            if g["chat_id"] == chat_id:
+                stored_title = g.get("title") or chat_id
+                break
         try:
             chat = await query.bot.get_chat(int(chat_id))
-            title = chat.title or chat_id
+            title = chat.title or stored_title
         except Exception:
-            title = chat_id
+            title = stored_title
         rows = sb_load_top_counts(chat_id)
         await query.edit_message_text(build_top_text(rows, title), parse_mode="HTML")
         return
@@ -4811,11 +4827,17 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if data.startswith("topsend_"):
         chat_id = data[8:]
         await query.answer("📤 Sending...")
+        stored_title = chat_id
+        groups = sb_load_active_groups()
+        for g in groups:
+            if g["chat_id"] == chat_id:
+                stored_title = g.get("title") or chat_id
+                break
         try:
             chat = await query.bot.get_chat(int(chat_id))
-            title = chat.title or chat_id
+            title = chat.title or stored_title
         except Exception:
-            title = chat_id
+            title = stored_title
         rows = sb_load_top_counts(chat_id)
         await send_top_to_group(query.bot, chat_id, title, rows, daily=False, test=True)
         await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
