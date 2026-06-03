@@ -4624,40 +4624,54 @@ async def show_top_main_menu(target):
         await target.reply_text("📋 <b>Top Menu</b>", parse_mode="HTML", reply_markup=kb)
 
 async def show_top_settings_menu(query):
-    hour, minute, tz_name = get_top_schedule()
-    kurd_h, kurd_m = hour, minute
-    if tz_name != "Asia/Baghdad":
-        kurd_h, kurd_m = convert_time_between_zones(hour, minute, tz_name, "Asia/Baghdad")
-    uk_h, uk_m = convert_time_between_zones(kurd_h, kurd_m, "Asia/Baghdad", "Europe/London")
-    mentions = get_top_mentions()
-    mention_count = f"{len(mentions)} person(s)" if mentions else "none"
-    btns = [
-        [InlineKeyboardButton("🕐 Change Time", callback_data="topset_time")],
-        [InlineKeyboardButton(f"👥 Manage Mentions  ({mention_count})", callback_data="topset_mentions")],
-        [InlineKeyboardButton("◀️ Back", callback_data="topback_main")],
-    ]
-    await query.edit_message_text(
-        f"⚙️ <b>Settings</b>\n\n"
-        f"☀️ Kurdistan: <b>{fmt_time(kurd_h, kurd_m)}</b>\n"
-        f"🇬🇧 UK: <b>{fmt_time(uk_h, uk_m)}</b>",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(btns)
-    )
+    try:
+        hour, minute, tz_name = get_top_schedule()
+        kurd_h, kurd_m = hour, minute
+        if tz_name != "Asia/Baghdad":
+            kurd_h, kurd_m = convert_time_between_zones(hour, minute, tz_name, "Asia/Baghdad")
+        uk_h, uk_m = convert_time_between_zones(kurd_h, kurd_m, "Asia/Baghdad", "Europe/London")
+        mentions = get_top_mentions()
+        mention_count = f"{len(mentions)} person(s)" if mentions else "none"
+        btns = [
+            [InlineKeyboardButton("🕐 Change Time", callback_data="topset_time")],
+            [InlineKeyboardButton(f"👥 Manage Mentions  ({mention_count})", callback_data="topset_mentions")],
+            [InlineKeyboardButton("◀️ Back", callback_data="topback_main")],
+        ]
+        await query.edit_message_text(
+            f"⚙️ <b>Settings</b>\n\n"
+            f"☀️ Kurdistan: <b>{fmt_time(kurd_h, kurd_m)}</b>\n"
+            f"🇬🇧 UK: <b>{fmt_time(uk_h, uk_m)}</b>",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(btns)
+        )
+    except Exception as e:
+        logging.error(f"show_top_settings_menu error: {e}")
+        try:
+            await query.edit_message_text(f"❌ Error loading settings: {e}")
+        except Exception:
+            pass
 
 async def show_mentions_menu(query):
-    mentions = get_top_mentions()
-    btns = []
-    for m in mentions:
-        name = m.get("name") or m["user_id"]
-        btns.append([InlineKeyboardButton(f"❌ {name}", callback_data=f"topdel_{m['user_id']}")])
-    btns.append([InlineKeyboardButton("➕ Add Person", callback_data="topadd_mention")])
-    btns.append([InlineKeyboardButton("◀️ Back", callback_data="topset_main")])
-    count = len(mentions)
-    await query.edit_message_text(
-        f"👥 <b>Manage Mentions</b>\n\n{'No one added yet.' if not count else f'{count} person(s) will be tagged.'}",
-        parse_mode="HTML",
-        reply_markup=InlineKeyboardMarkup(btns)
-    )
+    try:
+        mentions = get_top_mentions()
+        btns = []
+        for m in mentions:
+            name = m.get("name") or m["user_id"]
+            btns.append([InlineKeyboardButton(f"❌ {name}", callback_data=f"topdel_{m['user_id']}")])
+        btns.append([InlineKeyboardButton("➕ Add Person", callback_data="topadd_mention")])
+        btns.append([InlineKeyboardButton("◀️ Back", callback_data="topset_main")])
+        count = len(mentions)
+        await query.edit_message_text(
+            f"👥 <b>Manage Mentions</b>\n\n{'No one added yet.' if not count else f'{count} person(s) will be tagged.'}",
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(btns)
+        )
+    except Exception as e:
+        logging.error(f"show_mentions_menu error: {e}")
+        try:
+            await query.edit_message_text(f"❌ Error loading mentions: {e}")
+        except Exception:
+            pass
 
 async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -4666,70 +4680,78 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     data = query.data
 
-    if data == "topback_main":
-        await show_top_main_menu(query)
-        return
+    try:
+        if data == "topback_main":
+            await show_top_main_menu(query)
+            return
 
-    if data == "topset_main":
-        await show_top_settings_menu(query)
-        return
+        if data == "topset_main":
+            await show_top_settings_menu(query)
+            return
 
-    if data == "topset_time":
-        btns = [
-            [InlineKeyboardButton("☀️ Kurdistan", callback_data="toptz_kurdistan")],
-            [InlineKeyboardButton("🇬🇧 UK", callback_data="toptz_uk")],
-            [InlineKeyboardButton("◀️ Back", callback_data="topset_main")],
-        ]
-        await query.edit_message_text("🕐 <b>Choose your timezone:</b>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
-        return
+        if data == "topset_time":
+            btns = [
+                [InlineKeyboardButton("☀️ Kurdistan", callback_data="toptz_kurdistan")],
+                [InlineKeyboardButton("🇬🇧 UK", callback_data="toptz_uk")],
+                [InlineKeyboardButton("◀️ Back", callback_data="topset_main")],
+            ]
+            await query.edit_message_text("🕐 <b>Choose your timezone:</b>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
+            return
 
-    if data.startswith("toptz_"):
-        tz_key = data[6:]
-        tz_name = TIMEZONE_MAP.get(tz_key, "Asia/Baghdad")
-        tz_emoji = "☀️" if tz_key == "kurdistan" else "🇬🇧"
-        ctx.user_data["top_state"] = "waiting_time"
-        ctx.user_data["top_tz"] = tz_name
-        ctx.user_data["top_tz_emoji"] = tz_emoji
-        ctx.user_data["top_tz_key"] = tz_key
-        await query.edit_message_text(
-            f"{tz_emoji} <b>Set time for {tz_key.capitalize()}</b>\n\n"
-            f"Send the time in any format:\n"
-            f"• <code>10:30 PM</code>\n"
-            f"• <code>22:30</code>\n"
-            f"• <code>10:30 am</code>",
-            parse_mode="HTML"
-        )
-        return
+        if data.startswith("toptz_"):
+            tz_key = data[6:]
+            tz_name = TIMEZONE_MAP.get(tz_key, "Asia/Baghdad")
+            tz_emoji = "☀️" if tz_key == "kurdistan" else "🇬🇧"
+            ctx.user_data["top_state"] = "waiting_time"
+            ctx.user_data["top_tz"] = tz_name
+            ctx.user_data["top_tz_emoji"] = tz_emoji
+            ctx.user_data["top_tz_key"] = tz_key
+            await query.edit_message_text(
+                f"{tz_emoji} <b>Set time for {tz_key.capitalize()}</b>\n\n"
+                f"Send the time in any format:\n"
+                f"• <code>10:30 PM</code>\n"
+                f"• <code>22:30</code>\n"
+                f"• <code>10:30 am</code>",
+                parse_mode="HTML"
+            )
+            return
 
-    if data == "topset_mentions":
-        await show_mentions_menu(query)
-        return
+        if data == "topset_mentions":
+            await show_mentions_menu(query)
+            return
 
-    if data == "topadd_mention":
-        ctx.user_data["top_state"] = "waiting_mention"
-        await query.edit_message_text(
-            "👥 <b>Add Person</b>\n\n"
-            "• Forward a message from them\n"
-            "• Or send their @username\n"
-            "• Or send their user ID",
-            parse_mode="HTML"
-        )
-        return
+        if data == "topadd_mention":
+            ctx.user_data["top_state"] = "waiting_mention"
+            await query.edit_message_text(
+                "👥 <b>Add Person</b>\n\n"
+                "• Forward a message from them\n"
+                "• Or send their @username\n"
+                "• Or send their user ID",
+                parse_mode="HTML"
+            )
+            return
 
-    if data.startswith("topsel_"):
-        chat_id = data[7:]
+        if data.startswith("topsel_"):
+            chat_id = data[7:]
+            try:
+                chat = await query.bot.get_chat(int(chat_id))
+                title = chat.title or chat_id
+                sb_track_active_group(chat_id, title)
+            except Exception:
+                title = chat_id
+            kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
+                InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
+            ], [InlineKeyboardButton("◀️ Back", callback_data="topback_main")]])
+            await query.edit_message_text(f"📢 <b>{title}</b>", parse_mode="HTML", reply_markup=kb)
+            return
+
+    except Exception as e:
+        logging.error(f"top_select_callback error [{data}]: {e}")
         try:
-            chat = await query.bot.get_chat(int(chat_id))
-            title = chat.title or chat_id
-            sb_track_active_group(chat_id, title)
+            await query.edit_message_text(f"❌ Error: {e}")
         except Exception:
-            title = chat_id
-        kb = InlineKeyboardMarkup([[
-            InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
-            InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
-        ], [InlineKeyboardButton("◀️ Back", callback_data="topback_main")]])
-        await query.edit_message_text(f"📢 <b>{title}</b>", parse_mode="HTML", reply_markup=kb)
-        return
+            pass
 
 async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
