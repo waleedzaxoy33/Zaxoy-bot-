@@ -4747,13 +4747,13 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if data == "topadd_mention":
             await query.answer()
             kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("👤 اختار شخص", switch_inline_query_current_chat="addmention ")
+                InlineKeyboardButton("👤 Choose Person", switch_inline_query_current_chat="addmention ")
             ], [
                 InlineKeyboardButton("◀️ Back", callback_data="topset_mentions")
             ]])
             await query.edit_message_text(
                 "👥 <b>Add Person</b>\n\n"
-                "اضغط الزر واختار الشخص من محادثاتك 👇",
+                "Press the button and choose from the list 👇",
                 parse_mode="HTML",
                 reply_markup=kb
             )
@@ -4934,16 +4934,14 @@ async def inline_query_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     q = query.query.strip()
 
-    # only handle "addmention ..." queries
     if not q.startswith("addmention"):
         return
 
     search = q[len("addmention"):].strip().lower()
 
-    # get recent chats from top_counts or mentions as suggestions
     results = []
     try:
-        res = sb.table("top_counts").select("user_id, username, first_name").limit(50).execute()
+        res = sb.table("top_counts").select("user_id, name").order("count", desc=True).limit(50).execute()
         rows = res.data or []
         seen_ids = set()
         for row in rows:
@@ -4951,17 +4949,14 @@ async def inline_query_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             if not uid or uid in seen_ids:
                 continue
             seen_ids.add(uid)
-            fname = row.get("first_name") or ""
-            uname = row.get("username") or ""
-            display = fname or uname or uid
-            # filter by search
-            if search and search not in display.lower() and search not in uname.lower():
+            name = row.get("name") or uid
+            if search and search not in name.lower():
                 continue
             results.append(InlineQueryResultArticle(
                 id=uid,
-                title=display,
-                description=f"@{uname}" if uname else uid,
-                input_message_content=InputTextMessageContent(f"addmention:{uid}:{display}")
+                title=name,
+                description=uid,
+                input_message_content=InputTextMessageContent(f"addmention:{uid}:{name}")
             ))
     except Exception as e:
         logging.error(f"inline_query_handler error: {e}")
