@@ -1,7 +1,7 @@
 # bot.py — Zaxoy Bot | Part 1/2
 # Replace YOUR_BOT_TOKEN with your actual token
 # ─────────────────────────────────────────────────────────────
-# Imports  
+# Imports   
 # ─────────────────────────────────────────────────────────────
 import os 
 import io
@@ -4536,7 +4536,7 @@ async def top_owner_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     groups = sb_load_active_groups()
     if not groups:
-        await msg.reply_text("⚠️ No data yet. The bot needs to receive at least one group message first.")
+        await msg.reply_text("⚠️ v2 — No groups found yet.")
         return
     btns = []
     for g in groups:
