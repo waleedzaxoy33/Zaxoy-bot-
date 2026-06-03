@@ -1658,7 +1658,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await thinking.edit_text(answer)
 
 # ─── //add ────────────────────────────────────────────────────────────
-VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top"}
+VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top", "//deadchat"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     global admin_perms
@@ -1995,6 +1995,64 @@ async def sticker_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 
 # ─── Message router ──────────────────────────────────────────────────
+DEADCHAT_MESSAGES = [
+    "🪦 This chat is officially dead. Someone call an ambulance.",
+    "💀 Hello?? Is anyone alive in here?? Tap the screen twice if you need help.",
+    "🦗 The silence is so loud I can hear the tumbleweeds.",
+    "😴 Everyone in this chat has entered hibernation mode.",
+    "📵 This group has the energy of an empty waiting room.",
+    "🕸️ Spiders are starting to build webs in this chat.",
+    "🧊 The chat has frozen over. Global warming can't save you now.",
+    "📺 This chat is brought to you by: absolutely nothing.",
+    "🫥 I've seen more activity in a cemetery.",
+    "🔇 The last message here was so long ago it's now a historical artifact.",
+    "😤 Y'all really just ghosted the whole group huh.",
+    "💬 Chat status: deceased. Cause of death: your silence.",
+    "🫠 The group chat is melting from neglect.",
+    "🎻 *plays world's smallest violin for this dying chat*",
+    "👻 Not even the ghost of a conversation in here.",
+    "🏜️ This chat is drier than the Sahara Desert.",
+    "😑 Everyone here has the social energy of a brick wall.",
+    "📦 This chat has been placed in long-term storage.",
+    "🤡 The real dead chat was the friends we lost along the way.",
+    "⚰️ Rest in peace, this conversation. Gone too soon.",
+    "🔔 WAKE UP. This is your chat speaking. WAKE. UP.",
+    "🧟 The chat is so dead it came back as a zombie.",
+    "📉 Engagement levels: negative. Somehow.",
+    "🌵 Growing a cactus requires less patience than waiting for someone to type here.",
+    "😵 Chat flatlined. Time of death: the last message.",
+]
+
+async def deadchat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    import random
+    msg = update.message
+    chat_type = msg.chat.type
+
+    if chat_type not in ("group", "supergroup"):
+        await msg.reply_text("❌ This command only works in groups.")
+        return
+
+    # get all members who have sent messages (from top_counts)
+    chat_id = str(msg.chat_id)
+    try:
+        res = sb.table("top_counts").select("user_id, name").eq("chat_id", chat_id).execute()
+        rows = res.data or []
+    except Exception:
+        rows = []
+
+    # build mention tags
+    tags = ""
+    for row in rows:
+        uid = row.get("user_id")
+        name = row.get("name") or "user"
+        if uid:
+            tags += f'<a href="tg://user?id={uid}">{name}</a> '
+
+    message = random.choice(DEADCHAT_MESSAGES)
+    text = f"{message}\n\n{tags}".strip()
+    await msg.reply_text(text, parse_mode="HTML")
+
+
 async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not msg or not msg.text:
@@ -2056,6 +2114,9 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await top_owner_cmd(update, ctx)
         elif msg.chat.type in ("group", "supergroup") and msg.from_user.id == OWNER_ID:
             await top_cmd_group(update, ctx)
+    elif text == "//deadchat":
+        if msg.from_user.id == OWNER_ID or has_perm(msg.from_user.id, "//deadchat"):
+            await deadchat_cmd(update, ctx)
 
     else:
         await zaxo_defense_handler(update, ctx)
