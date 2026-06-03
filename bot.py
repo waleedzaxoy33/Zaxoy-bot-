@@ -4839,8 +4839,15 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except Exception:
             title = stored_title
         rows = sb_load_top_counts(chat_id)
-        await send_top_to_group(query.bot, chat_id, title, rows, daily=False, test=True)
-        await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
+        try:
+            await send_top_to_group(query.bot, chat_id, title, rows, daily=False, test=True)
+            await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
+        except Exception as e:
+            logging.error(f"topsend_ error: {e}")
+            try:
+                await query.edit_message_text(f"❌ Failed to send: {e}")
+            except Exception:
+                pass
         return
 
     await query.answer()
