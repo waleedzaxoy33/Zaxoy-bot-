@@ -4816,7 +4816,7 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 stored_title = g.get("title") or chat_id
                 break
         try:
-            chat = await query.bot.get_chat(int(chat_id))
+            chat = await ctx.bot.get_chat(int(chat_id))
             title = chat.title or stored_title
         except Exception:
             title = stored_title
@@ -4834,13 +4834,13 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 stored_title = g.get("title") or chat_id
                 break
         try:
-            chat = await query.bot.get_chat(int(chat_id))
+            chat = await ctx.bot.get_chat(int(chat_id))
             title = chat.title or stored_title
         except Exception:
             title = stored_title
         rows = sb_load_top_counts(chat_id)
         try:
-            await send_top_to_group(query.bot, chat_id, title, rows, daily=False, test=True)
+            await send_top_to_group(ctx.bot, chat_id, title, rows, daily=False, test=True)
             await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
         except Exception as e:
             logging.error(f"topsend_ error: {e}")
