@@ -4492,21 +4492,116 @@ TITLES = [
     ("🥇", "👑 King of the Chat"),
     ("🥈", "🗣️ Motor Mouth"),
     ("🥉", "💬 Chatterbox"),
-    ("4.", "🤙 Just Vibing"),
+    ("4️⃣", "🤙 Just Vibing"),
     ("💩", "😴 Where You Been?"),
 ]
 
+TIMEZONE_MAP = {
+    "kurdistan": "Asia/Baghdad",
+    "iraq": "Asia/Baghdad",
+    "uk": "Europe/London",
+    "england": "Europe/London",
+    "britain": "Europe/London",
+    "usa": "America/New_York",
+    "us": "America/New_York",
+    "america": "America/New_York",
+    "riyadh": "Asia/Riyadh",
+    "saudi": "Asia/Riyadh",
+    "dubai": "Asia/Dubai",
+    "uae": "Asia/Dubai",
+    "turkey": "Europe/Istanbul",
+    "germany": "Europe/Berlin",
+    "france": "Europe/Paris",
+}
+
+def sb_load_top_settings() -> dict:
+    try:
+        res = sb.table("top_settings").select("key, value").execute()
+        return {r["key"]: r["value"] for r in (res.data or [])}
+    except Exception:
+        return {}
+
+def sb_save_top_setting(key: str, value: str):
+    try:
+        sb.table("top_settings").upsert({"key": key, "value": value}).execute()
+    except Exception as e:
+        logging.error(f"sb_save_top_setting: {e}")
+
+def get_top_schedule() -> tuple:
+    settings = sb_load_top_settings()
+    hour = int(settings.get("hour", 0))
+    minute = int(settings.get("minute", 1))
+    tz_name = settings.get("timezone", "Asia/Riyadh")
+    return hour, minute, tz_name
+
+def get_top_mentions() -> list:
+    try:
+        res = sb.table("top_mentions").select("user_id").execute()
+        return [r["user_id"] for r in (res.data or [])]
+    except Exception:
+        return []
+
+def sb_save_top_mention(user_id: str):
+    try:
+        sb.table("top_mentions").upsert({"user_id": user_id}).execute()
+    except Exception as e:
+        logging.error(f"sb_save_top_mention: {e}")
+
+def sb_delete_top_mention(user_id: str):
+    try:
+        sb.table("top_mentions").delete().eq("user_id", user_id).execute()
+    except Exception as e:
+        logging.error(f"sb_delete_top_mention: {e}")
+
 def build_top_text(rows: list, chat_title: str = "", daily: bool = False) -> str:
-    header = "🌙 <b>Daily Top 5!</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
+    if daily:
+        header = f"🌙 <b>Daily Top 5</b>"
+    else:
+        header = f"🏆 <b>Top 5 Chatters — Today</b>"
     if chat_title:
-        header += f" — {chat_title}"
-    text = header + "\n\n"
+        header += f" — <b>{chat_title}</b>"
+    text = header + "\n" + "─" * 22 + "\n\n"
+    if not rows:
+        text += "📭 No data yet."
+        return text
     for i, row in enumerate(rows[:5]):
         medal, title = TITLES[i]
-        text += f"{medal} <b>{row['name']}</b> — {row['count']} msgs {title}\n"
-    if not rows:
-        text += "No data yet."
-    return text
+        text += f"{medal} <b>{row['name']}</b>\n"
+        text += f"   ↳ {row['count']} msgs  {title}\n\n"
+    return text.strip()
+
+async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
+    import pytz
+    # Mention message before countdown
+    mentions_ids = get_top_mentions()
+    if mentions_ids:
+        mention_text = " ".join([f'<a href="tg://user?id={uid}">​</a>' for uid in mentions_ids])
+        await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML")
+        await asyncio.sleep(1)
+    # Animated countdown
+    countdown_msg = await bot.send_message(chat_id=int(chat_id), text="🏆 <b>Top 5 Chatters Today in...</b> 5", parse_mode="HTML")
+    await asyncio.sleep(1)
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await asyncio.sleep(1)
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await asyncio.sleep(1)
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await asyncio.sleep(1)
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2 • 1 🎉", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await asyncio.sleep(1)
+    # Results
+    text = build_top_text(rows, title, daily=daily)
+    if test:
+        text += "\n\n<i>🧪 TEST</i>"
+    result_msg = await bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
+    # Reply with 👀 mention
+    mention_text = " ".join([f'<a href="tg://user?id={uid}">​</a>' for uid in mentions_ids]) if mentions_ids else f'<a href="tg://user?id={OWNER_ID}">​</a>'
+    await bot.send_message(
+        chat_id=int(chat_id),
+        text=f"👀 {mention_text}",
+        parse_mode="HTML",
+        reply_to_message_id=result_msg.message_id
+    )
 
 async def top_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -4534,45 +4629,118 @@ async def top_owner_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
+    await show_top_main_menu(msg)
+
+async def show_top_main_menu(msg):
+    hour, minute, tz_name = get_top_schedule()
+    mentions = get_top_mentions()
+    mention_display = f"{len(mentions)} person(s)" if mentions else "none"
     groups = sb_load_active_groups()
-    if not groups:
-        await msg.reply_text("⚠️ v2 — No groups found yet.")
-        return
+    seen = set()
     btns = []
     for g in groups:
-        title = g.get("title") or ""
-        if not title:
-            try:
-                chat = await ctx.bot.get_chat(int(g["chat_id"]))
-                title = chat.title or g["chat_id"]
-                sb_track_active_group(g["chat_id"], title)
-            except Exception:
-                title = g["chat_id"]
-        btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{g['chat_id']}")])
+        cid = g["chat_id"]
+        if cid in seen:
+            continue
+        seen.add(cid)
+        title = g.get("title") or cid
+        btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{cid}")])
+    btns.append([InlineKeyboardButton(f"🕐 Change Time  ({hour:02d}:{minute:02d})", callback_data="topset_time")])
+    btns.append([InlineKeyboardButton(f"👥 Manage Mentions  ({mention_display})", callback_data="topset_mentions")])
     kb = InlineKeyboardMarkup(btns)
-    await msg.reply_text("📋 Choose a group:", reply_markup=kb)
+    await msg.reply_text(
+        f"📋 <b>Top Settings</b>\n\n"
+        f"🕐 Schedule: <code>{hour:02d}:{minute:02d}</code> — <code>{tz_name}</code>\n"
+        f"👥 Mentions: {mention_display}",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
 
 async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     if query.from_user.id != OWNER_ID:
         return
+    data = query.data
 
-    chat_id = query.data[7:]
-    try:
-        chat = await ctx.bot.get_chat(int(chat_id))
-        title = chat.title or ""
-    except Exception:
-        title = chat_id
+    if data == "topset_time":
+        ctx.user_data["top_state"] = "waiting_time"
+        await query.edit_message_text(
+            "🕐 <b>Set Schedule Time</b>\n\n"
+            "Send time + timezone, e.g:\n"
+            "<code>10:30 Kurdistan</code>\n"
+            "<code>22:00 UK</code>\n"
+            "<code>9:00 USA</code>",
+            parse_mode="HTML"
+        )
+        return
 
-    rows = sb_load_top_counts(chat_id)
-    text = build_top_text(rows, title)
+    if data == "topset_mentions":
+        await show_mentions_menu(query)
+        return
 
-    kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
-        InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
-    ]])
-    await query.edit_message_text(f"📢 <b>{title}</b>\nWhat do you want to do?", parse_mode="HTML", reply_markup=kb)
+    if data == "topset_mentions_add":
+        ctx.user_data["top_state"] = "waiting_mention"
+        await query.edit_message_text(
+            "👥 <b>Add Mention</b>\n\n"
+            "Forward a message from the person or send their @username or user ID:",
+            parse_mode="HTML"
+        )
+        return
+
+    if data.startswith("topsel_"):
+        chat_id = data[7:]
+        try:
+            chat = await query.bot.get_chat(int(chat_id))
+            title = chat.title or chat_id
+            sb_track_active_group(chat_id, title)
+        except Exception:
+            title = chat_id
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
+            InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
+        ], [InlineKeyboardButton("◀️ Back", callback_data="topback_main")]])
+        await query.edit_message_text(f"📢 <b>{title}</b>\nWhat do you want to do?", parse_mode="HTML", reply_markup=kb)
+        return
+
+    if data == "topback_main":
+        hour, minute, tz_name = get_top_schedule()
+        mentions = get_top_mentions()
+        mention_display = f"{len(mentions)} person(s)" if mentions else "none"
+        groups = sb_load_active_groups()
+        seen = set()
+        btns = []
+        for g in groups:
+            cid = g["chat_id"]
+            if cid in seen:
+                continue
+            seen.add(cid)
+            title = g.get("title") or cid
+            btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{cid}")])
+        btns.append([InlineKeyboardButton(f"🕐 Change Time  ({hour:02d}:{minute:02d})", callback_data="topset_time")])
+        btns.append([InlineKeyboardButton(f"👥 Manage Mentions  ({mention_display})", callback_data="topset_mentions")])
+        kb = InlineKeyboardMarkup(btns)
+        await query.edit_message_text(
+            f"📋 <b>Top Settings</b>\n\n"
+            f"🕐 Schedule: <code>{hour:02d}:{minute:02d}</code> — <code>{tz_name}</code>\n"
+            f"👥 Mentions: {mention_display}",
+            parse_mode="HTML",
+            reply_markup=kb
+        )
+
+async def show_mentions_menu(query):
+    mentions = get_top_mentions()
+    btns = []
+    for uid in mentions:
+        btns.append([InlineKeyboardButton(f"❌ Remove {uid}", callback_data=f"topdel_mention_{uid}")])
+    btns.append([InlineKeyboardButton("➕ Add Person", callback_data="topset_mentions_add")])
+    btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
+    kb = InlineKeyboardMarkup(btns)
+    await query.edit_message_text(
+        f"👥 <b>Manage Mentions</b>\n\nCurrently: {len(mentions)} person(s)",
+        parse_mode="HTML",
+        reply_markup=kb
+    )
 
 async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -4581,97 +4749,147 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
 
     data = query.data
-    if data.startswith("topshow_"):
-        action = "topshow"
-        chat_id = data[8:]
-    elif data.startswith("topsend_"):
-        action = "topsend"
-        chat_id = data[8:]
-    else:
-        await query.answer()
+
+    if data.startswith("topdel_mention_"):
+        uid = data[15:]
+        sb_delete_top_mention(uid)
+        await query.answer("✅ Removed")
+        await show_mentions_menu(query)
         return
 
-    try:
-        chat = await ctx.bot.get_chat(int(chat_id))
-        title = chat.title or chat_id
-    except Exception:
-        title = chat_id
-
-    rows = sb_load_top_counts(chat_id)
-    text = build_top_text(rows, title)
-
-    if action == "topshow":
+    if data.startswith("topshow_"):
+        chat_id = data[8:]
         await query.answer()
-        await query.edit_message_text(text, parse_mode="HTML")
-    elif action == "topsend":
         try:
-            await query.answer("📤 Sending...")
-            # Countdown message
-            await ctx.bot.send_message(
-                chat_id=int(chat_id),
-                text="🏆 <b>Top 5 Chatters Today in...</b>\n5️⃣4️⃣3️⃣2️⃣1️⃣",
-                parse_mode="HTML"
-            )
-            await asyncio.sleep(3)
-            # Send results with TEST label
-            result_msg = await ctx.bot.send_message(
-                chat_id=int(chat_id),
-                text=text + "\n\n<i>🧪 TEST</i>",
-                parse_mode="HTML"
-            )
-            # Reply with mention
-            await ctx.bot.send_message(
-                chat_id=int(chat_id),
-                text=f'👀 <a href="tg://user?id={OWNER_ID}">​</a>',
-                parse_mode="HTML",
-                reply_to_message_id=result_msg.message_id
-            )
-            await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
-        except Exception as e:
-            await query.edit_message_text(f"⚠️ Failed: {e}")
+            chat = await query.bot.get_chat(int(chat_id))
+            title = chat.title or chat_id
+        except Exception:
+            title = chat_id
+        rows = sb_load_top_counts(chat_id)
+        text = build_top_text(rows, title)
+        await query.edit_message_text(text, parse_mode="HTML")
+        return
+
+    if data.startswith("topsend_"):
+        chat_id = data[8:]
+        await query.answer("📤 Sending...")
+        try:
+            chat = await query.bot.get_chat(int(chat_id))
+            title = chat.title or chat_id
+        except Exception:
+            title = chat_id
+        rows = sb_load_top_counts(chat_id)
+        await send_top_to_group(query.bot, chat_id, title, rows, daily=False, test=True)
+        await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
+        return
+
+    await query.answer()
+
+async def top_private_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
+        return
+    state = ctx.user_data.get("top_state")
+
+    if state == "waiting_time":
+        text = msg.text.strip()
+        parts = text.split()
+        if len(parts) < 2:
+            await msg.reply_text("⚠️ Format: <code>10:30 Kurdistan</code>", parse_mode="HTML")
+            return
+        time_part = parts[0]
+        tz_part = " ".join(parts[1:]).lower()
+        tz_name = TIMEZONE_MAP.get(tz_part)
+        if not tz_name:
+            await msg.reply_text(f"⚠️ Unknown timezone: <code>{tz_part}</code>\nOptions: Kurdistan, UK, USA, Saudi, UAE, Turkey, Germany, France", parse_mode="HTML")
+            return
+        try:
+            h, m = map(int, time_part.split(":"))
+        except Exception:
+            await msg.reply_text("⚠️ Time format: <code>HH:MM</code>", parse_mode="HTML")
+            return
+        sb_save_top_setting("hour", str(h))
+        sb_save_top_setting("minute", str(m))
+        sb_save_top_setting("timezone", tz_name)
+        ctx.user_data.pop("top_state", None)
+        await msg.reply_text(f"✅ Schedule set: <code>{h:02d}:{m:02d}</code> — <code>{tz_name}</code>", parse_mode="HTML")
+        return
+
+    if state == "waiting_mention":
+        uid = None
+        if msg.forward_from:
+            uid = str(msg.forward_from.id)
+        elif msg.text and msg.text.startswith("@"):
+            try:
+                chat = await ctx.bot.get_chat(msg.text.strip())
+                uid = str(chat.id)
+            except Exception:
+                pass
+        elif msg.text and msg.text.strip().lstrip("-").isdigit():
+            uid = msg.text.strip()
+        if not uid:
+            await msg.reply_text("⚠️ Forward a message from them, or send @username or user ID.")
+            return
+        sb_save_top_mention(uid)
+        ctx.user_data.pop("top_state", None)
+        await msg.reply_text(f"✅ Added <code>{uid}</code> to mentions.", parse_mode="HTML")
+        return
 
 async def send_daily_top(app):
     groups = sb_load_active_groups()
+    seen = set()
     for g in groups:
         chat_id = g["chat_id"]
+        if chat_id in seen:
+            continue
+        seen.add(chat_id)
         try:
             rows = sb_load_top_counts(chat_id)
             title = g.get("title", "")
             if rows:
-                # Countdown
-                await app.bot.send_message(
-                    chat_id=int(chat_id),
-                    text="🏆 <b>Top 5 Chatters Today in...</b>\n5️⃣4️⃣3️⃣2️⃣1️⃣",
-                    parse_mode="HTML"
-                )
-                await asyncio.sleep(3)
-                # Results
-                result_msg = await app.bot.send_message(
-                    chat_id=int(chat_id),
-                    text=build_top_text(rows, title, daily=True),
-                    parse_mode="HTML"
-                )
-                # Reply with mention
-                await app.bot.send_message(
-                    chat_id=int(chat_id),
-                    text=f'👀 <a href="tg://user?id={OWNER_ID}">​</a>',
-                    parse_mode="HTML",
-                    reply_to_message_id=result_msg.message_id
-                )
-            # Reset counts for new day
+                await send_top_to_group(app.bot, chat_id, title, rows, daily=True, test=False)
             sb_reset_top_counts(chat_id)
         except Exception as e:
             logging.error(f"daily top error {chat_id}: {e}")
 
 async def top_scheduler(app):
     import pytz
-    tz = pytz.timezone("Asia/Riyadh")
     while True:
-        now = datetime.now(tz)
-        next_midnight = now.replace(hour=0, minute=1, second=0, microsecond=0) + timedelta(days=1)
-        wait_seconds = (next_midnight - now).total_seconds()
-        await asyncio.sleep(wait_seconds)
-        await send_daily_top(app)
+        try:
+            hour, minute, tz_name = get_top_schedule()
+            tz = pytz.timezone(tz_name)
+            now = datetime.now(tz)
+            next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+            if next_run <= now:
+                next_run += timedelta(days=1)
+            # Mention 1 minute before
+            mention_time = next_run - timedelta(minutes=1)
+            wait_mention = (mention_time - now).total_seconds()
+            if wait_mention > 0:
+                await asyncio.sleep(wait_mention)
+                # Send early mention to all groups
+                groups = sb_load_active_groups()
+                mentions_ids = get_top_mentions()
+                if mentions_ids:
+                    mention_text = " ".join([f'<a href="tg://user?id={uid}">​</a>' for uid in mentions_ids])
+                    seen = set()
+                    for g in groups:
+                        if g["chat_id"] in seen:
+                            continue
+                        seen.add(g["chat_id"])
+                        try:
+                            await app.bot.send_message(chat_id=int(g["chat_id"]), text=f"👀 {mention_text}", parse_mode="HTML")
+                        except Exception:
+                            pass
+                await asyncio.sleep(60)
+            else:
+                wait_run = (next_run - datetime.now(tz)).total_seconds()
+                if wait_run > 0:
+                    await asyncio.sleep(wait_run)
+            await send_daily_top(app)
+        except Exception as e:
+            logging.error(f"top_scheduler error: {e}")
+            await asyncio.sleep(60)
 
 def main():
 
@@ -4708,13 +4926,19 @@ app.add_handler(MessageHandler(
     (filters.ChatType.GROUPS) & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
     top_cmd_group
 ))
+# //top private input (time/mention setting)
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE & filters.TEXT & filters.User(OWNER_ID),
+    top_private_input
+), group=1)
+
 # //top — private owner selector
 app.add_handler(MessageHandler(
     filters.ChatType.PRIVATE & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
     top_owner_cmd
 ))
-app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^topsel_"))
-app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_)"))
+app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^(topsel_|topset_|topback_)"))
+app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_mention_)"))
 
 # //gaytest — private owner setup session (must be before general // router)
 app.add_handler(MessageHandler(
