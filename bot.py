@@ -1,7 +1,7 @@
 # bot.py — Zaxoy Bot | Part 1/2
 # Replace YOUR_BOT_TOKEN with your actual token
 # ─────────────────────────────────────────────────────────────
-# Imports   
+# Imports
 # ─────────────────────────────────────────────────────────────
 import os 
 import io
@@ -4536,25 +4536,19 @@ async def top_owner_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     groups = sb_load_active_groups()
     if not groups:
-        await msg.reply_text("⚠️ No groups yet. Send a message in a group first.")
+        await msg.reply_text("⚠️ v2 — No groups found yet.")
         return
-    # Deduplicate by chat_id
-    seen = set()
     btns = []
     for g in groups:
-        cid = g["chat_id"]
-        if cid in seen:
-            continue
-        seen.add(cid)
         title = g.get("title") or ""
         if not title:
             try:
-                chat = await ctx.bot.get_chat(int(cid))
-                title = chat.title or cid
-                sb_track_active_group(cid, title)
+                chat = await ctx.bot.get_chat(int(g["chat_id"]))
+                title = chat.title or g["chat_id"]
+                sb_track_active_group(g["chat_id"], title)
             except Exception:
-                title = cid
-        btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{cid}")])
+                title = g["chat_id"]
+        btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{g['chat_id']}")])
     kb = InlineKeyboardMarkup(btns)
     await msg.reply_text("📋 Choose a group:", reply_markup=kb)
 
@@ -4567,8 +4561,7 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chat_id = query.data[7:]
     try:
         chat = await ctx.bot.get_chat(int(chat_id))
-        title = chat.title or chat_id
-        sb_track_active_group(chat_id, title)
+        title = chat.title or ""
     except Exception:
         title = chat_id
 
@@ -4613,7 +4606,7 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await ctx.bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
             await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
         except Exception as e:
-            await query.edit_message_text(f"⚠️ Failed to send: {e}")
+            await query.edit_message_text(f"⚠️ Failed: {e}")
 
 async def send_daily_top(app):
     groups = sb_load_active_groups()
@@ -4684,7 +4677,7 @@ app.add_handler(MessageHandler(
     top_owner_cmd
 ))
 app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^topsel_"))
-app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow|topsend)"))
+app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_)"))
 
 # //gaytest — private owner setup session (must be before general // router)
 app.add_handler(MessageHandler(
