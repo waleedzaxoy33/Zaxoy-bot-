@@ -1,7 +1,7 @@
 # bot.py — Zaxoy Bot | Part 1/2
 # Replace YOUR_BOT_TOKEN with your actual token
 # ─────────────────────────────────────────────────────────────
-# Imports  
+# Imports   
 # ─────────────────────────────────────────────────────────────
 import os 
 import io
@@ -393,16 +393,14 @@ async def cache_user_message(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Track message count for /top
     try:
-        if msg.chat.type in ("group", "supergroup", "private"):
+        if msg.chat.type in ("group", "supergroup"):
             chat_id = str(msg.chat_id)
             user_id = str(user.id)
             top_blocked = sb_load_top_blacklist()
             if user.id not in top_blocked:
                 sb_increment_top_count(chat_id, user_id, user.full_name)
-            # Track active groups
-            if msg.chat.type in ("group", "supergroup"):
-                title = msg.chat.title or ""
-                sb_track_active_group(chat_id, title)
+            title = msg.chat.title or ""
+            sb_track_active_group(chat_id, title)
     except Exception as e:
         logging.error(f"top counter error: {e}")
 
