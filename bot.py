@@ -4603,7 +4603,26 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.edit_message_text(text, parse_mode="HTML")
     elif action == "topsend":
         try:
-            await ctx.bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
+            # Countdown message
+            countdown = await ctx.bot.send_message(
+                chat_id=int(chat_id),
+                text="🏆 <b>Top 5 Chatters Today in...</b>\n5️⃣4️⃣3️⃣2️⃣1️⃣",
+                parse_mode="HTML"
+            )
+            await asyncio.sleep(3)
+            # Send results with TEST label
+            result_msg = await ctx.bot.send_message(
+                chat_id=int(chat_id),
+                text=text + "\n\n<i>🧪 TEST</i>",
+                parse_mode="HTML"
+            )
+            # Reply with mention
+            await ctx.bot.send_message(
+                chat_id=int(chat_id),
+                text=f'👀 <a href="tg://user?id={OWNER_ID}">​</a>',
+                parse_mode="HTML",
+                reply_to_message_id=result_msg.message_id
+            )
             await query.edit_message_text(f"✅ Sent to {title} 🇲🇨")
         except Exception as e:
             await query.edit_message_text(f"⚠️ Failed: {e}")
@@ -4616,10 +4635,25 @@ async def send_daily_top(app):
             rows = sb_load_top_counts(chat_id)
             title = g.get("title", "")
             if rows:
+                # Countdown
                 await app.bot.send_message(
+                    chat_id=int(chat_id),
+                    text="🏆 <b>Top 5 Chatters Today in...</b>\n5️⃣4️⃣3️⃣2️⃣1️⃣",
+                    parse_mode="HTML"
+                )
+                await asyncio.sleep(3)
+                # Results
+                result_msg = await app.bot.send_message(
                     chat_id=int(chat_id),
                     text=build_top_text(rows, title, daily=True),
                     parse_mode="HTML"
+                )
+                # Reply with mention
+                await app.bot.send_message(
+                    chat_id=int(chat_id),
+                    text=f'👀 <a href="tg://user?id={OWNER_ID}">​</a>',
+                    parse_mode="HTML",
+                    reply_to_message_id=result_msg.message_id
                 )
             # Reset counts for new day
             sb_reset_top_counts(chat_id)
