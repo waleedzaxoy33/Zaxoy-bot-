@@ -4592,7 +4592,7 @@ async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bo
     mentions = get_top_mentions()
     # 1. Send mentions FIRST (before countdown)
     if mentions:
-        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">​</a>' for m in mentions])
+        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">' + (m.get("name") or str(m["user_id"])) + '</a>' for m in mentions])
     else:
         mention_text = f'<a href="tg://user?id={OWNER_ID}">​</a>'
     await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML")
@@ -5046,7 +5046,7 @@ async def top_scheduler(app):
                 groups = sb_load_active_groups()
                 mentions = get_top_mentions()
                 if mentions:
-                    mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">​</a>' for m in mentions])
+                    mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">' + (m.get("name") or str(m["user_id"])) + '</a>' for m in mentions])
                     seen = set()
                     for g in groups:
                         if g["chat_id"] in seen:
