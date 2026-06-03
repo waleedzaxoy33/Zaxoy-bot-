@@ -4488,30 +4488,9 @@ def sb_load_active_groups() -> list:
         logging.error(f"sb_load_active_groups: {e}")
         return []
 
-TITLES = [
-    ("🥇", "👑 King of the Chat"),
-    ("🥈", "🗣️ Motor Mouth"),
-    ("🥉", "💬 Chatterbox"),
-    ("4️⃣", "🤙 Just Vibing"),
-    ("💩", "😴 Where You Been?"),
-]
-
 TIMEZONE_MAP = {
     "kurdistan": "Asia/Baghdad",
-    "iraq": "Asia/Baghdad",
     "uk": "Europe/London",
-    "england": "Europe/London",
-    "britain": "Europe/London",
-    "usa": "America/New_York",
-    "us": "America/New_York",
-    "america": "America/New_York",
-    "riyadh": "Asia/Riyadh",
-    "saudi": "Asia/Riyadh",
-    "dubai": "Asia/Dubai",
-    "uae": "Asia/Dubai",
-    "turkey": "Europe/Istanbul",
-    "germany": "Europe/Berlin",
-    "france": "Europe/Paris",
 }
 
 def sb_load_top_settings() -> dict:
@@ -4536,14 +4515,14 @@ def get_top_schedule() -> tuple:
 
 def get_top_mentions() -> list:
     try:
-        res = sb.table("top_mentions").select("user_id").execute()
-        return [r["user_id"] for r in (res.data or [])]
+        res = sb.table("top_mentions").select("user_id, name").execute()
+        return res.data or []
     except Exception:
         return []
 
-def sb_save_top_mention(user_id: str):
+def sb_save_top_mention(user_id: str, name: str = ""):
     try:
-        sb.table("top_mentions").upsert({"user_id": user_id}).execute()
+        sb.table("top_mentions").upsert({"user_id": user_id, "name": name}).execute()
     except Exception as e:
         logging.error(f"sb_save_top_mention: {e}")
 
@@ -4553,11 +4532,28 @@ def sb_delete_top_mention(user_id: str):
     except Exception as e:
         logging.error(f"sb_delete_top_mention: {e}")
 
+def convert_time_between_zones(hour: int, minute: int, from_tz: str, to_tz: str) -> tuple:
+    import pytz
+    from_zone = pytz.timezone(from_tz)
+    to_zone = pytz.timezone(to_tz)
+    now = datetime.now(from_zone).replace(hour=hour, minute=minute, second=0, microsecond=0)
+    converted = now.astimezone(to_zone)
+    return converted.hour, converted.minute
+
+def fmt_time(h: int, m: int) -> str:
+    ap = "AM" if h < 12 else "PM"
+    return f"{h % 12 or 12:02d}:{m:02d} {ap}"
+
+TITLES = [
+    ("🥇", "👑 King of the Chat"),
+    ("🥈", "🗣️ Motor Mouth"),
+    ("🥉", "💬 Chatterbox"),
+    ("4️⃣", "🤙 Just Vibing"),
+    ("💩", "😴 Where You Been?"),
+]
+
 def build_top_text(rows: list, chat_title: str = "", daily: bool = False) -> str:
-    if daily:
-        header = f"🌙 <b>Daily Top 5</b>"
-    else:
-        header = f"🏆 <b>Top 5 Chatters — Today</b>"
+    header = "🌙 <b>Daily Top 5</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
     if chat_title:
         header += f" — <b>{chat_title}</b>"
     text = header + "\n" + "─" * 22 + "\n\n"
@@ -4566,19 +4562,11 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False) -> str
         return text
     for i, row in enumerate(rows[:5]):
         medal, title = TITLES[i]
-        text += f"{medal} <b>{row['name']}</b>\n"
-        text += f"   ↳ {row['count']} msgs  {title}\n\n"
+        text += f"{medal} <b>{row['name']}</b>\n   ↳ {row['count']} msgs  {title}\n\n"
     return text.strip()
 
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
-    import pytz
-    # Mention message before countdown
-    mentions_ids = get_top_mentions()
-    if mentions_ids:
-        mention_text = " ".join([f'<a href="tg://user?id={uid}">​</a>' for uid in mentions_ids])
-        await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML")
-        await asyncio.sleep(1)
-    # Animated countdown
+    mentions = get_top_mentions()
     countdown_msg = await bot.send_message(chat_id=int(chat_id), text="🏆 <b>Top 5 Chatters Today in...</b> 5", parse_mode="HTML")
     await asyncio.sleep(1)
     await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
@@ -4589,29 +4577,15 @@ async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bo
     await asyncio.sleep(1)
     await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2 • 1 🎉", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
-    # Results
     text = build_top_text(rows, title, daily=daily)
     if test:
         text += "\n\n<i>🧪 TEST</i>"
     result_msg = await bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
-    # Reply with 👀 mention
-    mention_text = " ".join([f'<a href="tg://user?id={uid}">​</a>' for uid in mentions_ids]) if mentions_ids else f'<a href="tg://user?id={OWNER_ID}">​</a>'
-    await bot.send_message(
-        chat_id=int(chat_id),
-        text=f"👀 {mention_text}",
-        parse_mode="HTML",
-        reply_to_message_id=result_msg.message_id
-    )
-
-async def top_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    msg = update.message
-    chat_id = str(msg.chat_id)
-    rows = sb_load_top_counts(chat_id)
-    try:
-        chat_title = msg.chat.title or ""
-    except Exception:
-        chat_title = ""
-    await msg.reply_text(build_top_text(rows, chat_title), parse_mode="HTML")
+    if mentions:
+        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">​</a>' for m in mentions])
+    else:
+        mention_text = f'<a href="tg://user?id={OWNER_ID}">​</a>'
+    await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML", reply_to_message_id=result_msg.message_id)
 
 async def top_cmd_group(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -4631,12 +4605,7 @@ async def top_owner_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     await show_top_main_menu(msg)
 
-async def show_top_main_menu(msg):
-    hour, minute, tz_name = get_top_schedule()
-    mentions = get_top_mentions()
-    mention_display = f"{len(mentions)} person(s)" if mentions else "none"
-    # Get display name for timezone
-    tz_display = next((k.capitalize() for k, v in TIMEZONE_MAP.items() if v == tz_name), tz_name)
+async def show_top_main_menu(target):
     groups = sb_load_active_groups()
     seen = set()
     btns = []
@@ -4647,10 +4616,48 @@ async def show_top_main_menu(msg):
         seen.add(cid)
         title = g.get("title") or cid
         btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{cid}")])
-    btns.append([InlineKeyboardButton(f"🕐 Change Time  ({hour:02d}:{minute:02d} {tz_display})", callback_data="topset_time")])
-    btns.append([InlineKeyboardButton(f"👥 Manage Mentions  ({mention_display})", callback_data="topset_mentions")])
+    btns.append([InlineKeyboardButton("⚙️ Settings", callback_data="topset_main")])
     kb = InlineKeyboardMarkup(btns)
-    await msg.reply_text("📋 <b>Top Menu</b>", parse_mode="HTML", reply_markup=kb)
+    if hasattr(target, "edit_message_text"):
+        await target.edit_message_text("📋 <b>Top Menu</b>", parse_mode="HTML", reply_markup=kb)
+    else:
+        await target.reply_text("📋 <b>Top Menu</b>", parse_mode="HTML", reply_markup=kb)
+
+async def show_top_settings_menu(query):
+    hour, minute, tz_name = get_top_schedule()
+    kurd_h, kurd_m = hour, minute
+    if tz_name != "Asia/Baghdad":
+        kurd_h, kurd_m = convert_time_between_zones(hour, minute, tz_name, "Asia/Baghdad")
+    uk_h, uk_m = convert_time_between_zones(kurd_h, kurd_m, "Asia/Baghdad", "Europe/London")
+    mentions = get_top_mentions()
+    mention_count = f"{len(mentions)} person(s)" if mentions else "none"
+    btns = [
+        [InlineKeyboardButton("🕐 Change Time", callback_data="topset_time")],
+        [InlineKeyboardButton(f"👥 Manage Mentions  ({mention_count})", callback_data="topset_mentions")],
+        [InlineKeyboardButton("◀️ Back", callback_data="topback_main")],
+    ]
+    await query.edit_message_text(
+        f"⚙️ <b>Settings</b>\n\n"
+        f"☀️ Kurdistan: <b>{fmt_time(kurd_h, kurd_m)}</b>\n"
+        f"🇬🇧 UK: <b>{fmt_time(uk_h, uk_m)}</b>",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(btns)
+    )
+
+async def show_mentions_menu(query):
+    mentions = get_top_mentions()
+    btns = []
+    for m in mentions:
+        name = m.get("name") or m["user_id"]
+        btns.append([InlineKeyboardButton(f"❌ {name}", callback_data=f"topdel_{m['user_id']}")])
+    btns.append([InlineKeyboardButton("➕ Add Person", callback_data="topadd_mention")])
+    btns.append([InlineKeyboardButton("◀️ Back", callback_data="topset_main")])
+    count = len(mentions)
+    await query.edit_message_text(
+        f"👥 <b>Manage Mentions</b>\n\n{'No one added yet.' if not count else f'{count} person(s) will be tagged.'}",
+        parse_mode="HTML",
+        reply_markup=InlineKeyboardMarkup(btns)
+    )
 
 async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -4659,14 +4666,37 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     data = query.data
 
+    if data == "topback_main":
+        await show_top_main_menu(query)
+        return
+
+    if data == "topset_main":
+        await show_top_settings_menu(query)
+        return
+
     if data == "topset_time":
+        btns = [
+            [InlineKeyboardButton("☀️ Kurdistan", callback_data="toptz_kurdistan")],
+            [InlineKeyboardButton("🇬🇧 UK", callback_data="toptz_uk")],
+            [InlineKeyboardButton("◀️ Back", callback_data="topset_main")],
+        ]
+        await query.edit_message_text("🕐 <b>Choose your timezone:</b>", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
+        return
+
+    if data.startswith("toptz_"):
+        tz_key = data[6:]
+        tz_name = TIMEZONE_MAP.get(tz_key, "Asia/Baghdad")
+        tz_emoji = "☀️" if tz_key == "kurdistan" else "🇬🇧"
         ctx.user_data["top_state"] = "waiting_time"
+        ctx.user_data["top_tz"] = tz_name
+        ctx.user_data["top_tz_emoji"] = tz_emoji
+        ctx.user_data["top_tz_key"] = tz_key
         await query.edit_message_text(
-            "🕐 <b>Set Schedule Time</b>\n\n"
-            "Send time + timezone, e.g:\n"
-            "<code>10:30 Kurdistan</code>\n"
-            "<code>22:00 UK</code>\n"
-            "<code>9:00 USA</code>",
+            f"{tz_emoji} <b>Set time for {tz_key.capitalize()}</b>\n\n"
+            f"Send the time in any format:\n"
+            f"• <code>10:30 PM</code>\n"
+            f"• <code>22:30</code>\n"
+            f"• <code>10:30 am</code>",
             parse_mode="HTML"
         )
         return
@@ -4675,11 +4705,13 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await show_mentions_menu(query)
         return
 
-    if data == "topset_mentions_add":
+    if data == "topadd_mention":
         ctx.user_data["top_state"] = "waiting_mention"
         await query.edit_message_text(
-            "👥 <b>Add Mention</b>\n\n"
-            "Forward a message from the person or send their @username or user ID:",
+            "👥 <b>Add Person</b>\n\n"
+            "• Forward a message from them\n"
+            "• Or send their @username\n"
+            "• Or send their user ID",
             parse_mode="HTML"
         )
         return
@@ -4696,53 +4728,18 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
             InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
         ], [InlineKeyboardButton("◀️ Back", callback_data="topback_main")]])
-        await query.edit_message_text(f"📢 <b>{title}</b>\nWhat do you want to do?", parse_mode="HTML", reply_markup=kb)
+        await query.edit_message_text(f"📢 <b>{title}</b>", parse_mode="HTML", reply_markup=kb)
         return
-
-    if data == "topback_main":
-        hour, minute, tz_name = get_top_schedule()
-        mentions = get_top_mentions()
-        mention_display = f"{len(mentions)} person(s)" if mentions else "none"
-        tz_display = next((k.capitalize() for k, v in TIMEZONE_MAP.items() if v == tz_name), tz_name)
-        groups = sb_load_active_groups()
-        seen = set()
-        btns = []
-        for g in groups:
-            cid = g["chat_id"]
-            if cid in seen:
-                continue
-            seen.add(cid)
-            title = g.get("title") or cid
-            btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{cid}")])
-        btns.append([InlineKeyboardButton(f"🕐 Change Time  ({hour:02d}:{minute:02d} {tz_display})", callback_data="topset_time")])
-        btns.append([InlineKeyboardButton(f"👥 Manage Mentions  ({mention_display})", callback_data="topset_mentions")])
-        kb = InlineKeyboardMarkup(btns)
-        await query.edit_message_text("📋 <b>Top Menu</b>", parse_mode="HTML", reply_markup=kb)
-
-async def show_mentions_menu(query):
-    mentions = get_top_mentions()
-    btns = []
-    for uid in mentions:
-        btns.append([InlineKeyboardButton(f"❌ Remove {uid}", callback_data=f"topdel_mention_{uid}")])
-    btns.append([InlineKeyboardButton("➕ Add Person", callback_data="topset_mentions_add")])
-    btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
-    kb = InlineKeyboardMarkup(btns)
-    await query.edit_message_text(
-        f"👥 <b>Manage Mentions</b>\n\nCurrently: {len(mentions)} person(s)",
-        parse_mode="HTML",
-        reply_markup=kb
-    )
 
 async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query.from_user.id != OWNER_ID:
         await query.answer()
         return
-
     data = query.data
 
-    if data.startswith("topdel_mention_"):
-        uid = data[15:]
+    if data.startswith("topdel_"):
+        uid = data[7:]
         sb_delete_top_mention(uid)
         await query.answer("✅ Removed")
         await show_mentions_menu(query)
@@ -4757,8 +4754,7 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         except Exception:
             title = chat_id
         rows = sb_load_top_counts(chat_id)
-        text = build_top_text(rows, title)
-        await query.edit_message_text(text, parse_mode="HTML")
+        await query.edit_message_text(build_top_text(rows, title), parse_mode="HTML")
         return
 
     if data.startswith("topsend_"):
@@ -4781,49 +4777,68 @@ async def top_private_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if msg.from_user.id != OWNER_ID or msg.chat.type != "private":
         return
     state = ctx.user_data.get("top_state")
+    if not state:
+        return
 
     if state == "waiting_time":
+        import re
         text = msg.text.strip()
-        parts = text.split()
-        if len(parts) < 2:
-            await msg.reply_text("⚠️ Format: <code>10:30 Kurdistan</code>", parse_mode="HTML")
+        match = re.search(r"(\d{1,2}):(\d{2})\s*(am|pm)?", text, re.IGNORECASE)
+        if not match:
+            await msg.reply_text("⚠️ Couldn't read the time. Try: <code>10:30 PM</code> or <code>22:30</code>", parse_mode="HTML")
             return
-        time_part = parts[0]
-        tz_part = " ".join(parts[1:]).lower()
-        tz_name = TIMEZONE_MAP.get(tz_part)
-        if not tz_name:
-            await msg.reply_text(f"⚠️ Unknown timezone: <code>{tz_part}</code>\nOptions: Kurdistan, UK, USA, Saudi, UAE, Turkey, Germany, France", parse_mode="HTML")
-            return
-        try:
-            h, m = map(int, time_part.split(":"))
-        except Exception:
-            await msg.reply_text("⚠️ Time format: <code>HH:MM</code>", parse_mode="HTML")
-            return
+        h, m, ampm = int(match.group(1)), int(match.group(2)), (match.group(3) or "").upper()
+        if ampm == "PM" and h != 12:
+            h += 12
+        elif ampm == "AM" and h == 12:
+            h = 0
+        tz_name = ctx.user_data.get("top_tz", "Asia/Baghdad")
         sb_save_top_setting("hour", str(h))
         sb_save_top_setting("minute", str(m))
         sb_save_top_setting("timezone", tz_name)
         ctx.user_data.pop("top_state", None)
-        await msg.reply_text(f"✅ Schedule set: <code>{h:02d}:{m:02d}</code> — <code>{tz_name}</code>", parse_mode="HTML")
+        kurd_h, kurd_m = h, m
+        if tz_name != "Asia/Baghdad":
+            kurd_h, kurd_m = convert_time_between_zones(h, m, tz_name, "Asia/Baghdad")
+        uk_h, uk_m = convert_time_between_zones(kurd_h, kurd_m, "Asia/Baghdad", "Europe/London")
+        await msg.reply_text(
+            f"✅ <b>Schedule saved!</b>\n\n"
+            f"☀️ Kurdistan: <b>{fmt_time(kurd_h, kurd_m)}</b>\n"
+            f"🇬🇧 UK: <b>{fmt_time(uk_h, uk_m)}</b>",
+            parse_mode="HTML"
+        )
         return
 
     if state == "waiting_mention":
         uid = None
+        name = ""
         if msg.forward_from:
             uid = str(msg.forward_from.id)
-        elif msg.text and msg.text.startswith("@"):
+            name = msg.forward_from.full_name
+        elif msg.forward_sender_name:
+            await msg.reply_text("⚠️ This person has privacy enabled. Try forwarding from someone who doesn't hide their account.")
+            return
+        elif msg.text and msg.text.strip().startswith("@"):
             try:
                 chat = await ctx.bot.get_chat(msg.text.strip())
                 uid = str(chat.id)
+                name = getattr(chat, "full_name", None) or getattr(chat, "title", uid)
             except Exception:
-                pass
+                await msg.reply_text("⚠️ Couldn't find this username.")
+                return
         elif msg.text and msg.text.strip().lstrip("-").isdigit():
             uid = msg.text.strip()
+            try:
+                chat = await ctx.bot.get_chat(int(uid))
+                name = getattr(chat, "full_name", None) or uid
+            except Exception:
+                name = uid
         if not uid:
             await msg.reply_text("⚠️ Forward a message from them, or send @username or user ID.")
             return
-        sb_save_top_mention(uid)
+        sb_save_top_mention(uid, name)
         ctx.user_data.pop("top_state", None)
-        await msg.reply_text(f"✅ Added <code>{uid}</code> to mentions.", parse_mode="HTML")
+        await msg.reply_text(f"✅ <b>{name}</b> added to mentions.", parse_mode="HTML")
         return
 
 async def send_daily_top(app):
@@ -4853,16 +4868,15 @@ async def top_scheduler(app):
             next_run = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
             if next_run <= now:
                 next_run += timedelta(days=1)
-            # Mention 1 minute before
             mention_time = next_run - timedelta(minutes=1)
+            now = datetime.now(tz)
             wait_mention = (mention_time - now).total_seconds()
             if wait_mention > 0:
                 await asyncio.sleep(wait_mention)
-                # Send early mention to all groups
                 groups = sb_load_active_groups()
-                mentions_ids = get_top_mentions()
-                if mentions_ids:
-                    mention_text = " ".join([f'<a href="tg://user?id={uid}">​</a>' for uid in mentions_ids])
+                mentions = get_top_mentions()
+                if mentions:
+                    mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">​</a>' for m in mentions])
                     seen = set()
                     for g in groups:
                         if g["chat_id"] in seen:
@@ -4872,9 +4886,12 @@ async def top_scheduler(app):
                             await app.bot.send_message(chat_id=int(g["chat_id"]), text=f"👀 {mention_text}", parse_mode="HTML")
                         except Exception:
                             pass
-                await asyncio.sleep(60)
+                now = datetime.now(tz)
+                wait_run = (next_run - now).total_seconds()
+                if wait_run > 0:
+                    await asyncio.sleep(wait_run)
             else:
-                wait_run = (next_run - datetime.now(tz)).total_seconds()
+                wait_run = (next_run - now).total_seconds()
                 if wait_run > 0:
                     await asyncio.sleep(wait_run)
             await send_daily_top(app)
@@ -4917,19 +4934,19 @@ app.add_handler(MessageHandler(
     (filters.ChatType.GROUPS) & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
     top_cmd_group
 ))
-# //top private input (time/mention setting)
-app.add_handler(MessageHandler(
-    filters.ChatType.PRIVATE & filters.TEXT & filters.User(OWNER_ID),
-    top_private_input
-), group=1)
-
 # //top — private owner selector
 app.add_handler(MessageHandler(
     filters.ChatType.PRIVATE & filters.TEXT & filters.Regex(r"^//top$") & filters.User(OWNER_ID),
     top_owner_cmd
 ))
-app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^(topsel_|topset_|topback_)"))
-app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_mention_)"))
+app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^(topsel_|topset_|topback_|toptz_|topadd_)"))
+app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_)"))
+
+# //top private input
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE & filters.User(OWNER_ID),
+    top_private_input
+), group=2)
 
 # //gaytest — private owner setup session (must be before general // router)
 app.add_handler(MessageHandler(
