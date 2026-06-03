@@ -4836,19 +4836,31 @@ async def top_private_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if state == "waiting_mention":
         uid = None
         name = ""
+        back_btn = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Mentions", callback_data="topset_mentions")]])
+
         if msg.forward_from:
+            # forward with public profile
             uid = str(msg.forward_from.id)
             name = msg.forward_from.full_name
-        elif msg.forward_sender_name:
-            await msg.reply_text("⚠️ This person has privacy enabled. Try forwarding from someone who doesn't hide their account.")
-            return
+        elif msg.forward_origin:
+            # forward with privacy enabled — try forward_origin (PTB v21+)
+            origin = msg.forward_origin
+            if hasattr(origin, "sender_user") and origin.sender_user:
+                uid = str(origin.sender_user.id)
+                name = origin.sender_user.full_name
+            else:
+                await msg.reply_text(
+                    "⚠️ This person has privacy enabled, can't get their ID.\nSend their user ID directly instead.",
+                    reply_markup=back_btn
+                )
+                return
         elif msg.text and msg.text.strip().startswith("@"):
             try:
                 chat = await ctx.bot.get_chat(msg.text.strip())
                 uid = str(chat.id)
-                name = getattr(chat, "full_name", None) or getattr(chat, "title", uid)
+                name = getattr(chat, "full_name", None) or getattr(chat, "title", None) or msg.text.strip()
             except Exception:
-                await msg.reply_text("⚠️ Couldn't find this username.")
+                await msg.reply_text("⚠️ Couldn't find this username. Make sure it's correct.", reply_markup=back_btn)
                 return
         elif msg.text and msg.text.strip().lstrip("-").isdigit():
             uid = msg.text.strip()
@@ -4857,13 +4869,21 @@ async def top_private_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 name = getattr(chat, "full_name", None) or uid
             except Exception:
                 name = uid
+
         if not uid:
-            await msg.reply_text("⚠️ Forward a message from them, or send @username or user ID.")
+            await msg.reply_text(
+                "⚠️ Forward a message from them, or send their @username or user ID.",
+                reply_markup=back_btn
+            )
             return
+
         sb_save_top_mention(uid, name)
         ctx.user_data.pop("top_state", None)
-        kb = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Mentions", callback_data="topset_mentions")]])
-        await msg.reply_text(f"✅ <b>{name}</b> added to mentions.", parse_mode="HTML", reply_markup=kb)
+        await msg.reply_text(
+            f"✅ <b>{name}</b> added to mentions!",
+            parse_mode="HTML",
+            reply_markup=back_btn
+        )
         return
 
 async def send_daily_top(app):
