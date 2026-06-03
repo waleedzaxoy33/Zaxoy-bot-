@@ -1,7 +1,7 @@
 # bot.py — Zaxoy Bot | Part 1/2
 # Replace YOUR_BOT_TOKEN with your actual token
 # ─────────────────────────────────────────────────────────────
-# Imports 
+# Imports
 # ─────────────────────────────────────────────────────────────
 import os 
 import io
