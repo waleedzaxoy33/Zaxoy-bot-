@@ -1641,7 +1641,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await thinking.edit_text(answer)
 
 # ─── //add ────────────────────────────────────────────────────────────
-VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps"}
+VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/vote"}
 
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     global admin_perms
@@ -1676,6 +1676,12 @@ async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_remove_rps_blacklist(target_id)
         await msg.reply_text(
             f"✅ {target_name} can play /rps again 🇲🇨",
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
+        )
+    elif specific_cmd == "/vote":
+        sb_remove_vote_blacklist(target_id)
+        await msg.reply_text(
+            f"✅ {target_name} can use /vote again 🇲🇨",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd is None or specific_cmd == "":
@@ -1729,6 +1735,12 @@ async def remove_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_add_rps_blacklist(target_id)
         await msg.reply_text(
             f"🚫 {target_name} has been blocked from /rps 🇲🇨",
+            reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
+        )
+    elif specific_cmd == "/vote":
+        sb_add_vote_blacklist(target_id)
+        await msg.reply_text(
+            f"🚫 {target_name} has been blocked from /vote 🇲🇨",
             reply_to_message_id=msg.reply_to_message.message_id if msg.reply_to_message else None
         )
     elif specific_cmd is None or specific_cmd == "":
@@ -4385,6 +4397,210 @@ async def rps_again_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         reply_markup=kb
     )
 
+
+# ============================================================
+# ////////////////// VOTE SYSTEM ////////////////////////////
+# ============================================================
+
+def sb_load_vote_blacklist() -> set:
+    try:
+        res = sb.table("vote_blacklist").select("user_id").execute()
+        return {int(r["user_id"]) for r in res.data} if res.data else set()
+    except Exception as e:
+        logging.error(f"sb_load_vote_blacklist: {e}")
+        return set()
+
+def sb_add_vote_blacklist(user_id: int):
+    try:
+        sb.table("vote_blacklist").upsert({"user_id": str(user_id)}).execute()
+    except Exception as e:
+        logging.error(f"sb_add_vote_blacklist: {e}")
+
+def sb_remove_vote_blacklist(user_id: int):
+    try:
+        sb.table("vote_blacklist").delete().eq("user_id", str(user_id)).execute()
+    except Exception as e:
+        logging.error(f"sb_remove_vote_blacklist: {e}")
+
+def sb_save_poll(poll_id: str, data: dict):
+    try:
+        sb.table("polls").upsert({"poll_id": poll_id, "data": json.dumps(data, ensure_ascii=False)}).execute()
+    except Exception as e:
+        logging.error(f"sb_save_poll: {e}")
+
+def sb_load_poll(poll_id: str) -> dict:
+    try:
+        res = sb.table("polls").select("data").eq("poll_id", poll_id).execute()
+        if res.data:
+            return json.loads(res.data[0]["data"])
+        return {}
+    except Exception as e:
+        logging.error(f"sb_load_poll: {e}")
+        return {}
+
+def sb_delete_poll(poll_id: str):
+    try:
+        sb.table("polls").delete().eq("poll_id", poll_id).execute()
+    except Exception as e:
+        logging.error(f"sb_delete_poll: {e}")
+
+def build_poll_text(poll: dict) -> str:
+    question = poll["question"]
+    options = poll["options"]
+    votes = poll["votes"]
+    closed = poll.get("closed", False)
+    total = sum(len(v) for v in votes.values())
+
+    status = "🔒 <b>Closed</b>" if closed else "🗳 <b>Open</b>"
+    text = f"{status} | 📊 <b>{question}</b>\n\n"
+
+    for i, opt in enumerate(options):
+        voters = votes.get(str(i), [])
+        count = len(voters)
+        pct = int((count / total) * 100) if total > 0 else 0
+        bar = "█" * (pct // 10) + "░" * (10 - pct // 10)
+        names = ", ".join(voters[:3])
+        if len(voters) > 3:
+            names += f" +{len(voters)-3}"
+        text += f"<b>{opt}</b>\n<code>[{bar}]</code> {pct}% ({count})"
+        if names:
+            text += f"\n<i>{names}</i>"
+        text += "\n\n"
+
+    text += f"👥 Total votes: {total}"
+    return text
+
+def build_poll_kb(poll: dict, poll_id: str) -> InlineKeyboardMarkup:
+    options = poll["options"]
+    closed = poll.get("closed", False)
+    creator_id = poll.get("creator_id")
+    rows = []
+
+    if not closed:
+        for i, opt in enumerate(options):
+            rows.append([InlineKeyboardButton(opt, callback_data=f"vote_{poll_id}_{i}")])
+
+    # Owner/creator controls
+    control_row = []
+    if not closed:
+        control_row.append(InlineKeyboardButton("🔒 Close", callback_data=f"vclose_{poll_id}"))
+    control_row.append(InlineKeyboardButton("🗑 Delete", callback_data=f"vdelete_{poll_id}"))
+    rows.append(control_row)
+
+    return InlineKeyboardMarkup(rows)
+
+async def vote_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    user = msg.from_user
+
+    blacklist = sb_load_vote_blacklist()
+    if user.id in blacklist:
+        await msg.reply_text("❌ You are not allowed to use /vote.")
+        return
+
+    # Parse: /vote Question | Option1 | Option2 | Option3
+    text = msg.text.strip()
+    raw = text[len("/vote"):].strip()
+
+    if not raw or "|" not in raw:
+        await msg.reply_text(
+            "📋 Usage:\n<code>/vote Question | Option 1 | Option 2 | Option 3</code>",
+            parse_mode="HTML"
+        )
+        return
+
+    parts = [p.strip() for p in raw.split("|")]
+    if len(parts) < 3:
+        await msg.reply_text("⚠️ Need at least a question and 2 options.\n<code>/vote Question | Option 1 | Option 2</code>", parse_mode="HTML")
+        return
+
+    question = parts[0]
+    options = parts[1:]
+
+    poll_id = f"{msg.chat_id}_{msg.message_id}"
+    poll = {
+        "question": question,
+        "options": options,
+        "votes": {str(i): [] for i in range(len(options))},
+        "closed": False,
+        "creator_id": user.id,
+        "creator_name": user.first_name,
+        "chat_id": msg.chat_id,
+    }
+
+    sb_save_poll(poll_id, poll)
+
+    sent = await msg.reply_text(
+        build_poll_text(poll),
+        parse_mode="HTML",
+        reply_markup=build_poll_kb(poll, poll_id)
+    )
+
+async def vote_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    # ── Vote on option ──
+    if data.startswith("vote_"):
+        parts = data.split("_")
+        poll_id = f"{parts[1]}_{parts[2]}"
+        opt_idx = str(parts[3])
+
+        poll = sb_load_poll(poll_id)
+        if not poll:
+            await query.answer("❌ Poll not found.", show_alert=True)
+            return
+        if poll.get("closed"):
+            await query.answer("🔒 This poll is closed.", show_alert=True)
+            return
+
+        voter_name = query.from_user.first_name
+
+        # Remove previous vote
+        for i in range(len(poll["options"])):
+            if voter_name in poll["votes"].get(str(i), []):
+                poll["votes"][str(i)].remove(voter_name)
+
+        # Add new vote
+        if voter_name not in poll["votes"].get(opt_idx, []):
+            poll["votes"].setdefault(opt_idx, []).append(voter_name)
+            sb_save_poll(poll_id, poll)
+            await query.edit_message_text(
+                build_poll_text(poll),
+                parse_mode="HTML",
+                reply_markup=build_poll_kb(poll, poll_id)
+            )
+
+    # ── Close poll ──
+    elif data.startswith("vclose_"):
+        poll_id = data[7:]
+        poll = sb_load_poll(poll_id)
+        if not poll:
+            return
+        if query.from_user.id != poll.get("creator_id") and query.from_user.id != OWNER_ID:
+            await query.answer("❌ Only the creator can close this poll.", show_alert=True)
+            return
+        poll["closed"] = True
+        sb_save_poll(poll_id, poll)
+        await query.edit_message_text(
+            build_poll_text(poll),
+            parse_mode="HTML",
+            reply_markup=build_poll_kb(poll, poll_id)
+        )
+
+    # ── Delete poll ──
+    elif data.startswith("vdelete_"):
+        poll_id = data[8:]
+        poll = sb_load_poll(poll_id)
+        if not poll:
+            return
+        if query.from_user.id != poll.get("creator_id") and query.from_user.id != OWNER_ID:
+            await query.answer("❌ Only the creator can delete this poll.", show_alert=True)
+            return
+        sb_delete_poll(poll_id)
+        await query.edit_message_text("🗑 Poll deleted.")
+
 def main():
 
     start_keep_alive()
@@ -4414,6 +4630,10 @@ app.add_handler(CommandHandler("gaytest", gaytest_cmd))
 app.add_handler(CommandHandler("rps", rps_cmd))
 app.add_handler(CallbackQueryHandler(rps_callback, pattern=r"^rps_\d+_(rock|paper|scissors)$"))
 app.add_handler(CallbackQueryHandler(rps_again_callback, pattern=r"^rpsagain_\d+$"))
+
+# /vote
+app.add_handler(CommandHandler("vote", vote_cmd))
+app.add_handler(CallbackQueryHandler(vote_callback, pattern=r"^(vote_|vclose_|vdelete_)"))
 
 # //gaytest — private owner setup session (must be before general // router)
 app.add_handler(MessageHandler(
