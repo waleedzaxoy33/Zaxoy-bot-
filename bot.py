@@ -4823,11 +4823,13 @@ async def top_private_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if tz_name != "Asia/Baghdad":
             kurd_h, kurd_m = convert_time_between_zones(h, m, tz_name, "Asia/Baghdad")
         uk_h, uk_m = convert_time_between_zones(kurd_h, kurd_m, "Asia/Baghdad", "Europe/London")
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Settings", callback_data="topset_main")]])
         await msg.reply_text(
             f"✅ <b>Schedule saved!</b>\n\n"
             f"☀️ Kurdistan: <b>{fmt_time(kurd_h, kurd_m)}</b>\n"
             f"🇬🇧 UK: <b>{fmt_time(uk_h, uk_m)}</b>",
-            parse_mode="HTML"
+            parse_mode="HTML",
+            reply_markup=kb
         )
         return
 
@@ -4860,7 +4862,8 @@ async def top_private_input(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
         sb_save_top_mention(uid, name)
         ctx.user_data.pop("top_state", None)
-        await msg.reply_text(f"✅ <b>{name}</b> added to mentions.", parse_mode="HTML")
+        kb = InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Back to Mentions", callback_data="topset_mentions")]])
+        await msg.reply_text(f"✅ <b>{name}</b> added to mentions.", parse_mode="HTML", reply_markup=kb)
         return
 
 async def send_daily_top(app):
