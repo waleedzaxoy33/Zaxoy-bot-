@@ -3716,7 +3716,8 @@ def sb_load_active_groups() -> list:
                 if cid not in seen:
                     seen.add(cid)
                     groups.append({"chat_id": cid, "title": ""})
-        return groups
+        # Only return actual groups (chat_id starts with "-")
+        return [g for g in groups if str(g.get("chat_id", "")).startswith("-")]
     except Exception as e:
         logging.error(f"sb_load_active_groups: {e}")
         return []
@@ -3964,8 +3965,12 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     break
             try:
                 chat = await query.bot.get_chat(int(chat_id))
-                title = chat.title or stored_title
-                sb_track_active_group(chat_id, title)
+                # Only use title if it's actually a group/supergroup
+                if chat.type in ("group", "supergroup") and chat.title:
+                    title = chat.title
+                    sb_track_active_group(chat_id, title)
+                else:
+                    title = stored_title
             except Exception:
                 title = stored_title
             kb = InlineKeyboardMarkup([[
@@ -4396,6 +4401,61 @@ app.add_handler(MessageHandler(
 ), group=2)
 # Load owner facts from Supabase on startup
 AI_INSTRUCTIONS.extend(sb_load_ai_instructions())  # Load from ai_instructions table
+
+# ── PM RELAY ──────────────────────────────────────────────────────────────────
+# Maps message_id of forwarded msg in owner's chat -> original sender user_id
+PM_RELAY_MAP: dict[int, int] = {}
+
+async def pm_relay_incoming(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Forward any private message (non-owner) to owner."""
+    msg = update.effective_message
+    user = update.effective_user
+    if not msg or not user:
+        return
+    if user.id == OWNER_ID:
+        return
+    # Forward to owner
+    try:
+        header = await ctx.bot.send_message(
+            chat_id=OWNER_ID,
+            text=f"📩 <b>{user.full_name}</b> (<code>{user.id}</code>):",
+            parse_mode="HTML"
+        )
+        forwarded = await msg.forward(chat_id=OWNER_ID)
+        # Map forwarded message id -> sender id
+        PM_RELAY_MAP[forwarded.message_id] = user.id
+        PM_RELAY_MAP[header.message_id] = user.id
+    except Exception as e:
+        logging.error(f"pm_relay_incoming: {e}")
+
+async def pm_relay_reply(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Owner replies to a forwarded msg -> send to original sender."""
+    msg = update.effective_message
+    if not msg or not msg.reply_to_message:
+        return
+    replied_id = msg.reply_to_message.message_id
+    target_id = PM_RELAY_MAP.get(replied_id)
+    if not target_id:
+        await msg.reply_text("⚠️ Can't find the original sender.")
+        return
+    try:
+        await ctx.bot.send_message(chat_id=target_id, text=msg.text)
+        await msg.reply_text("✅ Sent.")
+    except Exception as e:
+        await msg.reply_text(f"❌ Failed: {e}")
+
+# Incoming: any private message from non-owner
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE & ~filters.User(OWNER_ID),
+    pm_relay_incoming
+), group=5)
+
+# Outgoing: owner replies in private chat
+app.add_handler(MessageHandler(
+    filters.ChatType.PRIVATE & filters.User(OWNER_ID) & filters.REPLY,
+    pm_relay_reply
+), group=5)
+
 async def post_init(application):
     asyncio.create_task(top_scheduler(application))
 app.post_init = post_init
