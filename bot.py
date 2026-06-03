@@ -4020,9 +4020,7 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             title = g.get("title") or cid
             btns.append([InlineKeyboardButton(f"🗑 {title}", callback_data=f"topdelgroup_{cid}")])
         btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
-        await query.edit_message_text("🗑 <b>Delete a Group</b>
-
-Tap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
+        await query.edit_message_text("🗑 <b>Delete a Group</b>\n\nTap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
         return
     if data.startswith("topdelgroup_"):
         cid = data[12:]
@@ -4043,9 +4041,7 @@ Tap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(
             title = g.get("title") or cid2
             btns.append([InlineKeyboardButton(f"🗑 {title}", callback_data=f"topdelgroup_{cid2}")])
         btns.append([InlineKeyboardButton("◀️ Back", callback_data="topback_main")])
-        await query.edit_message_text("🗑 <b>Delete a Group</b>
-
-Tap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
+        await query.edit_message_text("🗑 <b>Delete a Group</b>\n\nTap to remove from list:", parse_mode="HTML", reply_markup=InlineKeyboardMarkup(btns))
         return
     if data.startswith("topshow_"):
         chat_id = data[8:]
