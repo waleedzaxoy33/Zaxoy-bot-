@@ -2030,7 +2030,11 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await unban_cmd(update, ctx)
     elif text.startswith("//hack"):
         await hack_cmd(update, ctx)
-
+    elif text == "//top":
+        if msg.chat.type == "private" and msg.from_user.id == OWNER_ID:
+            await top_owner_cmd(update, ctx)
+        elif msg.chat.type in ("group", "supergroup") and msg.from_user.id == OWNER_ID:
+            await top_cmd_group(update, ctx)
 
     else:
         await zaxo_defense_handler(update, ctx)
