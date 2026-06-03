@@ -4531,7 +4531,7 @@ def get_top_schedule() -> tuple:
     settings = sb_load_top_settings()
     hour = int(settings.get("hour", 0))
     minute = int(settings.get("minute", 1))
-    tz_name = settings.get("timezone", "Asia/Riyadh")
+    tz_name = settings.get("timezone", "Asia/Baghdad")
     return hour, minute, tz_name
 
 def get_top_mentions() -> list:
@@ -4635,6 +4635,8 @@ async def show_top_main_menu(msg):
     hour, minute, tz_name = get_top_schedule()
     mentions = get_top_mentions()
     mention_display = f"{len(mentions)} person(s)" if mentions else "none"
+    # Get display name for timezone
+    tz_display = next((k.capitalize() for k, v in TIMEZONE_MAP.items() if v == tz_name), tz_name)
     groups = sb_load_active_groups()
     seen = set()
     btns = []
@@ -4645,16 +4647,10 @@ async def show_top_main_menu(msg):
         seen.add(cid)
         title = g.get("title") or cid
         btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{cid}")])
-    btns.append([InlineKeyboardButton(f"🕐 Change Time  ({hour:02d}:{minute:02d})", callback_data="topset_time")])
+    btns.append([InlineKeyboardButton(f"🕐 Change Time  ({hour:02d}:{minute:02d} {tz_display})", callback_data="topset_time")])
     btns.append([InlineKeyboardButton(f"👥 Manage Mentions  ({mention_display})", callback_data="topset_mentions")])
     kb = InlineKeyboardMarkup(btns)
-    await msg.reply_text(
-        f"📋 <b>Top Settings</b>\n\n"
-        f"🕐 Schedule: <code>{hour:02d}:{minute:02d}</code> — <code>{tz_name}</code>\n"
-        f"👥 Mentions: {mention_display}",
-        parse_mode="HTML",
-        reply_markup=kb
-    )
+    await msg.reply_text("📋 <b>Top Menu</b>", parse_mode="HTML", reply_markup=kb)
 
 async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
@@ -4707,6 +4703,7 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         hour, minute, tz_name = get_top_schedule()
         mentions = get_top_mentions()
         mention_display = f"{len(mentions)} person(s)" if mentions else "none"
+        tz_display = next((k.capitalize() for k, v in TIMEZONE_MAP.items() if v == tz_name), tz_name)
         groups = sb_load_active_groups()
         seen = set()
         btns = []
@@ -4717,16 +4714,10 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             seen.add(cid)
             title = g.get("title") or cid
             btns.append([InlineKeyboardButton(f"📢 {title}", callback_data=f"topsel_{cid}")])
-        btns.append([InlineKeyboardButton(f"🕐 Change Time  ({hour:02d}:{minute:02d})", callback_data="topset_time")])
+        btns.append([InlineKeyboardButton(f"🕐 Change Time  ({hour:02d}:{minute:02d} {tz_display})", callback_data="topset_time")])
         btns.append([InlineKeyboardButton(f"👥 Manage Mentions  ({mention_display})", callback_data="topset_mentions")])
         kb = InlineKeyboardMarkup(btns)
-        await query.edit_message_text(
-            f"📋 <b>Top Settings</b>\n\n"
-            f"🕐 Schedule: <code>{hour:02d}:{minute:02d}</code> — <code>{tz_name}</code>\n"
-            f"👥 Mentions: {mention_display}",
-            parse_mode="HTML",
-            reply_markup=kb
-        )
+        await query.edit_message_text("📋 <b>Top Menu</b>", parse_mode="HTML", reply_markup=kb)
 
 async def show_mentions_menu(query):
     mentions = get_top_mentions()
