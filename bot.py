@@ -3797,53 +3797,53 @@ def fmt_time(h: int, m: int) -> str:
 # Rank 0 = #1 (strongest praise), Rank 4 = #5 (weakest/roast)
 DAILY_TITLES = {
     0: [  # Monday
-        ("🥇", "⚡ MONDAY MONARCH — You didn't start the week, you OWNED it. Every message a statement, every word a decree. This chat runs because of you."),
-        ("🥈", "🔥 The Relentless #2 — Hungrier than anyone in this chat. You pushed hard and the throne felt it. Monday isn't over till you say so."),
-        ("🥉", "💬 Bronze on Monday — Most people don't even show up. You did. Third place with more energy than the rest combined."),
-        ("4️⃣", "😑 4th on a Monday — The week just started and you're already falling behind. This is your warning."),
-        ("💩", "🪦 Dead last on MONDAY — The laziest start possible. The week began without you and honestly... it didn't notice."),
+        ("🥇", "⚡ MONDAY MONARCH — You didn't start the week. You owned it."),
+        ("🥈", "🔥 The Hungry #2 — The throne felt you coming. Keep pushing."),
+        ("🥉", "💬 Bronze Monday — Most didn't show up. You did. That counts."),
+        ("4️⃣", "😑 4th on Monday — The week just started. This is your warning."),
+        ("💩", "🪦 Dead last. On a Monday. The week started without you."),
     ],
     1: [  # Tuesday
-        ("🥇", "👑 TUESDAY TITAN — Two days in and already untouchable. While others were warming up, you were already dominating. Bow. Down."),
-        ("🥈", "⚔️ The Silver Blade — Sharp, fast, dangerous. One position away from the crown and everyone knows it. Tuesday isn't done yet."),
-        ("🥉", "🎯 Solid Third — Not flashy, not loud, just consistent. Bronze on Tuesday means you showed up when it mattered."),
-        ("4️⃣", "🌀 Spinning in 4th — You were here but barely present. Tuesday deserved more from you and you know it."),
-        ("💩", "😶 5th on a Tuesday — Two days in and already invisible. At this point the chat has forgotten your name."),
+        ("🥇", "👑 TUESDAY TITAN — Two days in and already untouchable. Bow down."),
+        ("🥈", "⚔️ The Silver Blade — One step from the crown. Tuesday isn't over."),
+        ("🥉", "🎯 Solid Third — Consistent. Quiet. Bronze on Tuesday hits different."),
+        ("4️⃣", "🌀 4th on Tuesday — You were here. Barely. Do better tomorrow."),
+        ("💩", "😶 Two days in and already invisible. The chat forgot your name."),
     ],
     2: [  # Wednesday
-        ("🥇", "🏆 MIDWEEK GOD — Wednesday is where weak people collapse. Not you. You hit the middle of the week like a hammer. GOAT. No debate."),
-        ("🥈", "🚀 The Rocket at #2 — You're not chasing the top, you're haunting it. Wednesday belongs to those who stay hungry — and you're starving."),
-        ("🥉", "🔶 Holding Third — The week is halfway done and you're still standing. That's not nothing. Wednesday bronze is earned, not given."),
-        ("4️⃣", "😐 Fourth at Midweek — You've had two full days to climb and still landed here. Wednesday is judging you silently."),
-        ("💩", "💀 LAST PLACE — WEDNESDAY — The week is literally half over and this is where you are. There are no more excuses left."),
+        ("🥇", "🏆 MIDWEEK GOD — Wednesday breaks most people. Not you. GOAT."),
+        ("🥈", "🚀 The Rocket — Not chasing #1. Haunting it. Stay hungry."),
+        ("🥉", "🔶 Still Standing — Halfway through and holding bronze. Respect."),
+        ("4️⃣", "😐 Midweek 4th — Two full days to climb and you landed here."),
+        ("💩", "💀 Last place. Midweek. No excuses left at this point."),
     ],
     3: [  # Thursday
-        ("🥇", "💎 THURSDAY LEGEND — Four days deep and still absolutely untouchable. This isn't luck. This is dominance. The chat is yours and everyone knows it."),
-        ("🥈", "🔱 The Throne Chaser — You've been breathing down #1's neck all week. Thursday is your last real shot — and the pressure is showing."),
-        ("🥉", "🎙️ Third and Standing Tall — Four days of showing up while others disappeared. Thursday bronze means you outlasted most of this chat."),
-        ("4️⃣", "⚠️ 4th on Thursday — One day from the weekend and still buried. Whatever you're doing, it's not enough. Not even close."),
-        ("💩", "🗑️ Bottom of Thursday — The week is almost over and your only achievement is this spot. Genuinely impressive how little effort this took."),
+        ("🥇", "💎 THURSDAY LEGEND — Four days deep. Still untouchable. This is dominance."),
+        ("🥈", "🔱 The Throne Chaser — Breathing down #1's neck. Thursday is your shot."),
+        ("🥉", "🎙️ Third on Thursday — Four days of showing up. Most quit by now."),
+        ("4️⃣", "⚠️ 4th on Thursday — One day from the weekend. Still not enough."),
+        ("💩", "🗑️ Bottom of Thursday — Almost the weekend. Still last. Impressive."),
     ],
     4: [  # Friday
-        ("🥇", "🌟 FRIDAY KING — You carried this chat all week and closed it in style. While everyone else came and went, you STAYED. Crown on. Lights out."),
-        ("🥈", "🎸 The Friday Rockstar — Second on the last day. You gave everything and came within inches of the top. Legendary effort. Agonizing finish."),
-        ("🥉", "🎉 Bronze Friday — The week ends and you're still here. Most people faded by Wednesday. You made it to the final day standing. Respect."),
-        ("4️⃣", "😬 4th on a Friday — The week is done. This is your final grade. You had five full days and THIS is what you chose to submit."),
-        ("💩", "🚮 DEAD LAST ON FRIDAY — Five days. Five chances. Five failures. The week closed its eyes so it wouldn't have to see this."),
+        ("🥇", "🌟 FRIDAY KING — Carried this chat all week. Crown on. Lights out."),
+        ("🥈", "🎸 Friday Rockstar — Inches from the top. Legendary effort. Painful finish."),
+        ("🥉", "🎉 Bronze Friday — Most faded by Wednesday. You made it to the end."),
+        ("4️⃣", "😬 4th on Friday — Five days. This is your final grade. Noted."),
+        ("💩", "🚮 Dead last on Friday. Five chances. All gone. Goodnight."),
     ],
     5: [  # Saturday
-        ("🥇", "🔱 WEEKEND SUPREME — You don't rest, you conquer. Saturday is when normal people disappear — you showed up and went HARDER. Untouchable."),
-        ("🥈", "🏄 Silver Saturday — The weekend belongs to those who earn it. You fought for #2 on your day off. That hunger is rare. That hunger is dangerous."),
-        ("🥉", "🎮 Third on Saturday — Most people are offline, silent, gone. You showed up on a weekend and took bronze. That alone sets you apart."),
-        ("4️⃣", "😒 4th on a Saturday — You had all day, no work, no excuses, full freedom — and still ended up here. On a WEEKEND. Let that sink in."),
-        ("💩", "🛌 Last Place on Saturday — You had the entire weekend and chose to contribute absolutely nothing. The chat carried on just fine without you."),
+        ("🥇", "🔱 WEEKEND SUPREME — Everyone rested. You conquered. Untouchable."),
+        ("🥈", "🏄 Silver Saturday — Fighting for #2 on your day off. That hunger is rare."),
+        ("🥉", "🎮 Third on Saturday — Most are offline. You showed up. Sets you apart."),
+        ("4️⃣", "😒 4th on a Saturday — No work. No excuses. Full day. Still 4th."),
+        ("💩", "🛌 Last place on a weekend. The chat moved on without a second thought."),
     ],
     6: [  # Sunday
-        ("🥇", "☀️ SUNDAY OVERLORD — The week ends and you stand alone at the top. Seven days of competition and you close it like this — dominant, unmatched, immortal."),
-        ("🥈", "🌤️ The Silver Closer — Second on the final day of the week. All week you fought and Sunday still couldn't give you the crown. Almost legendary."),
-        ("🥉", "🌈 Sunday Bronze — The last day of the week and you're still in the top three. While most people vanished, you finished. That means something."),
-        ("4️⃣", "🛋️ 4th on Sunday — The last day to prove yourself and this is the outcome. The week is officially over and 4th is how you'll be remembered."),
-        ("💩", "🌑 LAST ON SUNDAY — The final day of the week. The final chance. Gone. You ended seven days of opportunity in last place. Remarkable dedication to failure."),
+        ("🥇", "☀️ SUNDAY OVERLORD — Seven days. One winner. That's you. Dominant. Done."),
+        ("🥈", "🌤️ The Silver Closer — Fought all week. Sunday still wouldn't give you the crown."),
+        ("🥉", "🌈 Sunday Bronze — Last day. Still top three. While others vanished, you finished."),
+        ("4️⃣", "🛋️ 4th on Sunday — Last chance. Last day. This is how the week remembers you."),
+        ("💩", "🌑 Last on Sunday. Seven days. Every one of them wasted. Remarkable."),
     ],
 }
 
@@ -3878,50 +3878,65 @@ def _format_active_time(first_msg, last_msg) -> str:
         return ""
 
 def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: bool = False) -> str:
-    header = "🌙 <b>Daily Top 5</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
+    from datetime import datetime
+    now = datetime.now()
+    day_name = now.strftime("%A")
+    date_str = now.strftime("%B %-d")
+    if daily:
+        header = "🌙 <b>Daily Top 5</b>"
+    else:
+        header = "🏆 <b>Top 5 Chatters — Today</b>"
     if chat_title:
-        header += f" — <b>{chat_title}</b>"
-    text = header + "\n" + "─" * 22 + "\n\n"
+        header += f"\n<code>📍 {chat_title}</code>"
+    header += f"\n<code>🗓 {day_name} · {date_str}</code>"
+    text = header + "\n" + "▰" * 20 + "\n\n"
     if not rows:
-        text += "📭 No data yet."
+        text += "📭 <i>No data yet.</i>"
         return text
     titles = get_daily_titles()
     for i, row in enumerate(rows[:5]):
         medal, praise = titles[i]
         uid = row.get("user_id")
+        name = row["name"]
         if uid:
-            name_tag = f'<a href="tg://user?id={uid}">{row["name"]}</a>'
+            name_tag = f'<a href="tg://user?id={uid}"><b>{name}</b></a>'
         else:
-            name_tag = f'<b>{row["name"]}</b>'
+            name_tag = f'<b>{name}</b>'
         count = row["count"]
         time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"))
-        stats = f"   ↳ {count} msgs"
+        line1 = f"{medal} {name_tag}"
+        line2 = f"   📨 {count} messages"
         if time_str:
-            stats += f"  •  🕐 {time_str}"
-        text += f"{medal} {name_tag}\n{stats}\n   {praise}\n\n"
+            line2 += f"  ·  🕐 {time_str}"
+        line3 = f"   <i>{praise}</i>"
+        text += f"{line1}\n{line2}\n{line3}\n\n"
+    text = text.rstrip()
     if test:
-        text += "\n<i>🧪 TEST</i>"
-    return text.strip()
+        text += "\n\n<i>🧪 TEST</i>"
+    return text
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
-    mentions = get_top_mentions()
-    # 1. Send mentions FIRST (before countdown)
-    if mentions:
-        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">'+ (m.get("name") or str(m["user_id"])) + '</a>' for m in mentions])
-    else:
-        mention_text = f'<a href="tg://user?id={OWNER_ID}">​</a>'
-    await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML")
-    # 2. Countdown
-    countdown_msg = await bot.send_message(chat_id=int(chat_id), text="🏆 <b>Top 5 Chatters Today in...</b> 5", parse_mode="HTML")
+    # Suspense countdown — single message, no duplicate mention
+    cid = int(chat_id)
+    msg = await bot.send_message(chat_id=cid, text="👀 <b>someone's watching...</b>", parse_mode="HTML")
+    mid = msg.message_id
+    await asyncio.sleep(2)
+    await bot.edit_message_text("⚡ <b>calculating results...</b>", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await asyncio.sleep(2)
+    await bot.edit_message_text("🔒 <b>unlocking the leaderboard...</b>", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await asyncio.sleep(2)
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 5️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 4️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 3️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 2️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2 • 1 🎉", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 1️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
     await asyncio.sleep(1)
-    # 3. Send result
+    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 🔥", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await asyncio.sleep(1)
+    # Send result
     text = build_top_text(rows, title, daily=daily, test=test)
     result_msg = await bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
     asyncio.create_task(_pin_after_delay(bot, int(chat_id), result_msg.message_id))
@@ -4402,17 +4417,48 @@ async def top_scheduler(app):
                 await asyncio.sleep(wait_mention)
                 groups = sb_load_active_groups()
                 mentions = get_top_mentions()
-                if mentions:
-                    mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">' + (m.get("name") or str(m["user_id"])) + '</a>' for m in mentions])
-                    seen = set()
-                    for g in groups:
-                        if g["chat_id"] in seen:
-                            continue
-                        seen.add(g["chat_id"])
+                mention_text = "".join([f'<a href="tg://user?id={m["user_id"]}">​</a>' for m in mentions]) if mentions else ""
+                DAILY_INTRO = {
+                    0: "⚡ The weekly war starts NOW. Who's on top?",
+                    1: "🔥 Two days in. The real ones are still here.",
+                    2: "🏆 Midweek. The strong survive. The rest fade.",
+                    3: "💎 Thursday. The throne is almost decided.",
+                    4: "🏁 Last day. Final standings incoming.",
+                    5: "🔱 Weekend. No excuses. Just results.",
+                    6: "☀️ Week's over. Time to face the results.",
+                }
+                intro = DAILY_INTRO[datetime.now(tz).weekday()]
+                seen = set()
+                for g in groups:
+                    if g["chat_id"] in seen:
+                        continue
+                    seen.add(g["chat_id"])
+                    try:
+                        cid = int(g["chat_id"])
+                        tw_msg = await app.bot.send_message(chat_id=cid, text="▌", parse_mode="HTML")
+                        mid = tw_msg.message_id
+                        current = ""
+                        for char in intro:
+                            current += char
+                            try:
+                                await app.bot.edit_message_text(current + " ▌", chat_id=cid, message_id=mid, parse_mode="HTML")
+                            except Exception:
+                                pass
+                            await asyncio.sleep(0.05)
+                        base = current + (f"\n{mention_text}" if mention_text else "")
                         try:
-                            await app.bot.send_message(chat_id=int(g["chat_id"]), text=f"👀 {mention_text}", parse_mode="HTML")
+                            await app.bot.edit_message_text(base, chat_id=cid, message_id=mid, parse_mode="HTML")
                         except Exception:
                             pass
+                        await asyncio.sleep(0.5)
+                        for num in ["5️⃣", "4️⃣", "3️⃣", "2️⃣", "1️⃣"]:
+                            try:
+                                await app.bot.edit_message_text(base + f"\n\n{num}", chat_id=cid, message_id=mid, parse_mode="HTML")
+                            except Exception:
+                                pass
+                            await asyncio.sleep(1)
+                    except Exception as e:
+                        logging.error(f"typewriter error {g['chat_id']}: {e}")
                 now = datetime.now(tz)
                 wait_run = (next_run - now).total_seconds()
                 if wait_run > 0:
