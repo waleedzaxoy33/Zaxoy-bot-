@@ -5359,6 +5359,10 @@ async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         miss_line = _random.choice(pool).format(name=shooter_name)
 
         await _duel_send_turn(q.message, duel, chat_id, header=miss_line)
+        
+        # If next turn is AI, trigger AI logic
+        if duel["turn"] == 0:
+            asyncio.create_task(ai_duel_logic_task(chat_id, ctx))
 
 
 def main():
