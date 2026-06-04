@@ -963,6 +963,48 @@ async def xo_move(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         del xo_games[chat_id]
     else:
         game["turn"] = 2 if turn == 1 else 1
+        
+        # ── AI Auto-Move ──
+        if game["turn"] == 2 and game["p2"] == 0:
+            # AI (p2) is a bot
+            empty_cells = [i for i, v in enumerate(game["board"]) if v == 0]
+            if empty_cells:
+                await asyncio.sleep(_random.uniform(1, 2))
+                # Strategy: Win if possible, else block, else random
+                move = None
+                # 1. Try to win
+                for cell_idx in empty_cells:
+                    temp_board = list(game["board"])
+                    temp_board[cell_idx] = 2
+                    if check_winner(temp_board) == 2:
+                        move = cell_idx
+                        break
+                # 2. Try to block p1
+                if move is None:
+                    for cell_idx in empty_cells:
+                        temp_board = list(game["board"])
+                        temp_board[cell_idx] = 1
+                        if check_winner(temp_board) == 1:
+                            move = cell_idx
+                            break
+                # 3. Random
+                if move is None:
+                    move = _random.choice(empty_cells)
+                
+                # Simulate a callback query for xo_move
+                class FakeQuery:
+                    def __init__(self, chat_id, cell):
+                        self.from_user = type('User', (), {'id': 0})()
+                        self.message = type('Msg', (), {'chat_id': chat_id})()
+                        self.data = f"xo_{chat_id}_{cell}"
+                    async def answer(self, *args, **kwargs): pass
+                    async def edit_message_text(self, *args, **kwargs):
+                        return await query.edit_message_text(*args, **kwargs)
+                
+                fake_q = FakeQuery(chat_id, move)
+                update_fake = Update(0, callback_query=fake_q)
+                return await xo_move(update_fake, ctx)
+
         next_name = (
             game["p1_name"]
             if game["turn"] == 1
@@ -1240,6 +1282,92 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             "🤖 Ask me anything!\nUsage: //ask [your question]"
         )
         return
+    # ── AI Auto-Play for Games ──
+    if msg.reply_to_message:
+        reply_msg = msg.reply_to_message
+        chat_id_str = str(msg.chat_id)
+        
+        # 1. Duel System (//kill)
+        duel = DUEL_ACTIVE.get(chat_id_str)
+        if duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"]:
+            if msg.from_user.id == duel["p1"]:
+                await msg.reply_text("🤦 You started this duel, wait for them to respond!")
+                return
+            # AI takes over for p2
+            duel["status"] = "coin"
+            p1m = _dm(duel["p1"], duel["p1_name"])
+            p2m = _dm(duel["p2"], duel["p2_name"])
+            coin_text = _random.choice(_DUEL_COIN)
+            await reply_msg.edit_text(
+                f"⚔️ <b>DUEL ACCEPTED BY AI</b> — {p1m} vs {p2m}\n\n{coin_text}",
+                parse_mode="HTML"
+            )
+            await asyncio.sleep(2)
+            
+            goes_first = _random.choice(["p1", "p2"])
+            first_id   = duel["p1"] if goes_first == "p1" else duel["p2"]
+            first_name = duel["p1_name"] if goes_first == "p1" else duel["p2_name"]
+            duel["turn"] = first_id
+            duel["status"] = "active"
+            duel["last_action"] = asyncio.get_event_loop().time()
+            
+            coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
+            await asyncio.sleep(1)
+            await _duel_send_turn(reply_msg, duel, chat_id_str, header=coin_result)
+            
+            # Start AI turn logic if it's AI's turn
+            async def ai_duel_logic():
+                while chat_id_str in DUEL_ACTIVE:
+                    d = DUEL_ACTIVE.get(chat_id_str)
+                    if not d or d["status"] != "active": break
+                    if d["turn"] != d["p2"]: break # Only move if it's AI (p2) turn
+                    
+                    await asyncio.sleep(_random.uniform(2, 4))
+                    # AI strategy: 80% shoot enemy, 20% shoot self (for fun/savage)
+                    target_type = "enemy" if _random.random() < 0.8 else "self"
+                    
+                    # Simulate a callback query for duel_fire_cb
+                    class FakeQuery:
+                        def __init__(self, duel, target_type, chat_id):
+                            self.from_user = type('User', (), {'id': duel["p2"]})()
+                            self.message = type('Msg', (), {'message_id': duel["msg_id"], 'chat_id': int(chat_id)})()
+                            self.data = f"duel_fire_{chat_id}_{target_type}"
+                        async def answer(self, text=None, show_alert=False): pass
+                        async def edit_message_text(self, *args, **kwargs):
+                            return await ctx.bot.edit_message_text(chat_id=self.message.chat_id, message_id=self.message.message_id, *args, **kwargs)
+                    
+                    fake_q = FakeQuery(d, target_type, chat_id_str)
+                    update_fake = Update(0, callback_query=fake_q)
+                    await duel_fire_cb(update_fake, ctx)
+                    if chat_id_str not in DUEL_ACTIVE: break
+                    if DUEL_ACTIVE[chat_id_str].get("status") != "active": break
+
+            asyncio.create_task(ai_duel_logic())
+            return
+
+        # 2. XO Game
+        chat_id_int = msg.chat_id
+        game = xo_games.get(chat_id_int)
+        if game and game["p2"] is None:
+            # AI joins as p2
+            game["p2"] = 0 # 0 for AI
+            game["p2_name"] = "Zaxoy Bot 🇲🇨"
+            game["p2_emoji"] = "🤖"
+            
+            board_str = make_xo_board(game)
+            text = (
+                f"🎮 **{game['p1_name']}** {game['p1_emoji']} VS "
+                f"**{game['p2_name']}** {game['p2_emoji']}\n"
+                f"{board_str}\n"
+                f"Turn: **{game['p1_name']}** {game['p1_emoji']}"
+            )
+            await reply_msg.edit_text(
+                text,
+                parse_mode="Markdown",
+                reply_markup=make_xo_keyboard(game)
+            )
+            return
+
     thinking = await msg.reply_text("🤔 Thinking...")
     try:
         async with httpx.AsyncClient(timeout=30) as client:
