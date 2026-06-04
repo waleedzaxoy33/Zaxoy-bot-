@@ -1327,134 +1327,27 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
         
         # 1. Duel System (//kill)
         duel = DUEL_ACTIVE.get(chat_id_str)
-        if duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"]:
-            if msg.from_user.id == duel["p1"]:
-                pass  # p1 used //ask — AI will play as p2, continue below
+        if duel and duel["status"] in ("waiting", "waiting_for_player") and reply_msg.message_id == duel["msg_id"]:
             # AI takes over for p2
+            duel["p2"] = 0 # AI ID
+            duel["p2_name"] = "Zaxoy Bot 🇲🇨"
             duel["status"] = "coin"
-            p1m = _dm(duel["p1"], duel["p1_name"])
-            p2m = _dm(0, "Zaxoy Bot 🇲🇨") # AI always plays as Zaxoy Bot
-            coin_text = _random.choice(_DUEL_COIN)
-            await reply_msg.edit_text(
-                f"⚔️ <b>DUEL ACCEPTED BY AI</b> — {p1m} vs {p2m}\n\n{coin_text}",
-                parse_mode="HTML"
-            )
-            await asyncio.sleep(2)
-            
-            goes_first = _random.choice(["p1", "p2"])
-            first_id   = duel["p1"] if goes_first == "p1" else 0 # 0 for AI
-            first_name = duel["p1_name"] if goes_first == "p1" else "Zaxoy Bot 🇲🇨"
-            duel["turn"] = first_id
-            duel["status"] = "active"
             duel["last_action"] = asyncio.get_event_loop().time()
             
-            coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
-            await asyncio.sleep(1)
-            await _duel_send_turn(reply_msg, duel, chat_id_str, header=coin_result)
-            
-            # Start AI turn logic if it's AI's turn
-            async def ai_duel_logic():
-                while chat_id_str in DUEL_ACTIVE:
-                    d = DUEL_ACTIVE.get(chat_id_str)
-                    if not d or d["status"] != "active": break
-                    if d["turn"] != 0: break # Only move if it's AI (p2) turn
-                    
-                    await asyncio.sleep(_random.uniform(2, 4))
-                    # AI strategy: 80% shoot enemy, 20% shoot self (for fun/savage)
-                    target_type = "enemy" if _random.random() < 0.8 else "self"
-                    
-                    # Simulate a callback query for duel_fire_cb
-                    class FakeQuery:
-                        def __init__(self, duel, target_type, chat_id):
-                            self.from_user = type("User", (), {"id": 0})() # AI user ID is 0
-                            self.message = type("Msg", (), {"message_id": duel["msg_id"], "chat_id": int(chat_id)})()
-                            self.data = f"duel_fire_{chat_id}_{target_type}"
-                        async def answer(self, text=None, show_alert=False): pass
-                        async def edit_message_text(self, *args, **kwargs):
-                            return await ctx.bot.edit_message_text(chat_id=self.message.chat_id, message_id=self.message.message_id, *args, **kwargs)
-                    
-                    fake_q = FakeQuery(d, target_type, chat_id_str)
-                    update_fake = Update(0, callback_query=fake_q)
-                    await duel_fire_cb(update_fake, ctx)
-                    if chat_id_str not in DUEL_ACTIVE: break
-                    if DUEL_ACTIVE[chat_id_str].get("status") != "active": break
-
-            asyncio.create_task(ai_duel_logic())
-            return
-        elif duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"] and msg.from_user.id == duel["p1"]:
-            pass  # p1 used //ask — AI will play as p2
-        # If //ask is used to reply to a duel challenge, and the challenger is the bot, it should be accepted by the AI
-        elif duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"] and duel["p2"] == 0: # If AI is p2 and waiting
-            # Simulate AI accepting the duel
-            class FakeQuery:
-                def __init__(self, chat_id, p2_id):
-                    self.from_user = type("User", (), {"id": p2_id})()
-                    self.message = type("Msg", (), {"message_id": duel["msg_id"], "chat_id": int(chat_id)})()
-                    self.data = f"duel_accept_{chat_id}"
-                async def answer(self, text=None, show_alert=False): pass
-                async def edit_message_text(self, *args, **kwargs):
-                    return await ctx.bot.edit_message_text(chat_id=self.message.chat_id, message_id=self.message.message_id, *args, **kwargs)
-            
-            fake_q = FakeQuery(chat_id_str, 0)
-            update_fake = Update(0, callback_query=fake_q)
-            await duel_accept_cb(update_fake, ctx)
-            return
-
-        # 2. XO Game
-            # [MODIFIED] Allow even p1 to trigger AI takeover if they want to play against the bot
-            # if msg.from_user.id == duel["p1"]:
-            #     await msg.reply_text("🤦 You started this duel, wait for them to respond!")
-            #     return
-            # AI takes over for p2
-            duel["status"] = "coin"
             p1m = _dm(duel["p1"], duel["p1_name"])
-            p2m = _dm(duel["p2"], duel["p2_name"])
-            coin_text = _random.choice(_DUEL_COIN)
+            p2m = _dm(0, "Zaxoy Bot 🇲🇨")
+            
+            coin_kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🪙 Heads", callback_data=f"duel_coin_{chat_id_str}_heads"),
+                InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id_str}_tails"),
+            ]])
+            
             await reply_msg.edit_text(
-                f"⚔️ <b>DUEL ACCEPTED BY AI</b> — {p1m} vs {p2m}\n\n{coin_text}",
-                parse_mode="HTML"
+                f"⚔️ <b>DUEL ACCEPTED BY AI</b> — {p1m} vs {p2m}\n\n"
+                f"🪙 <b>{duel['p1_name']}</b>, choose your side!",
+                parse_mode="HTML",
+                reply_markup=coin_kb
             )
-            await asyncio.sleep(2)
-            
-            goes_first = _random.choice(["p1", "p2"])
-            first_id   = duel["p1"] if goes_first == "p1" else duel["p2"]
-            first_name = duel["p1_name"] if goes_first == "p1" else duel["p2_name"]
-            duel["turn"] = first_id
-            duel["status"] = "active"
-            duel["last_action"] = asyncio.get_event_loop().time()
-            
-            coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
-            await asyncio.sleep(1)
-            await _duel_send_turn(reply_msg, duel, chat_id_str, header=coin_result)
-            
-            # Start AI turn logic if it's AI's turn
-            async def ai_duel_logic():
-                while chat_id_str in DUEL_ACTIVE:
-                    d = DUEL_ACTIVE.get(chat_id_str)
-                    if not d or d["status"] != "active": break
-                    if d["turn"] != d["p2"]: break # Only move if it's AI (p2) turn
-                    
-                    await asyncio.sleep(_random.uniform(2, 4))
-                    # AI strategy: 80% shoot enemy, 20% shoot self (for fun/savage)
-                    target_type = "enemy" if _random.random() < 0.8 else "self"
-                    
-                    # Simulate a callback query for duel_fire_cb
-                    class FakeQuery:
-                        def __init__(self, duel, target_type, chat_id):
-                            self.from_user = type('User', (), {'id': duel["p2"]})()
-                            self.message = type('Msg', (), {'message_id': duel["msg_id"], 'chat_id': int(chat_id)})()
-                            self.data = f"duel_fire_{chat_id}_{target_type}"
-                        async def answer(self, text=None, show_alert=False): pass
-                        async def edit_message_text(self, *args, **kwargs):
-                            return await ctx.bot.edit_message_text(chat_id=self.message.chat_id, message_id=self.message.message_id, *args, **kwargs)
-                    
-                    fake_q = FakeQuery(d, target_type, chat_id_str)
-                    update_fake = Update(0, callback_query=fake_q)
-                    await duel_fire_cb(update_fake, ctx)
-                    if chat_id_str not in DUEL_ACTIVE: break
-                    if DUEL_ACTIVE[chat_id_str].get("status") != "active": break
-
-            asyncio.create_task(ai_duel_logic())
             return
 
         # 2. XO Game
@@ -5109,23 +5002,18 @@ async def duel_kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
             p1m = _dm(existing["p1"], existing["p1_name"])
             p2m = _dm(existing["p2"], existing["p2_name"])
-            coin_text = _random.choice(_DUEL_COIN)
+            
+            coin_kb = InlineKeyboardMarkup([[
+                InlineKeyboardButton("🪙 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
+                InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id}_tails"),
+            ]])
+            
             await msg.reply_to_message.edit_text(
-                f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n{coin_text}",
-                parse_mode="HTML"
+                f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n"
+                f"🪙 <b>{existing['p1_name']}</b>, choose your side!",
+                parse_mode="HTML",
+                reply_markup=coin_kb
             )
-            await asyncio.sleep(2)
-            
-            goes_first = _random.choice(["p1", "p2"])
-            first_id   = existing["p1"] if goes_first == "p1" else existing["p2"]
-            first_name = existing["p1_name"] if goes_first == "p1" else existing["p2_name"]
-            existing["turn"] = first_id
-            existing["status"] = "active"
-            existing["last_action"] = asyncio.get_event_loop().time()
-            
-            coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
-            await asyncio.sleep(1)
-            await _duel_send_turn(msg.reply_to_message, existing, chat_id, header=coin_result)
             return
 
     # Original reply-to-user logic
@@ -5279,34 +5167,99 @@ async def duel_accept_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await q.edit_message_text(refused, parse_mode="HTML")
         return
 
-    # Accepted — coin flip
+    # Accepted — show coin choice for P1
     duel["status"] = "coin"
-    coin_text = _random.choice(_DUEL_COIN)
     p1m = _dm(duel["p1"], duel["p1_name"])
-    p2m = _dm(duel["p2"], duel["p2_name"])
-    if duel["p2"] == 0:
-        p2m = _dm(0, "Zaxoy Bot 🇲🇨")
+    p2_display_name = duel["p2_name"] if duel["p2"] != 0 else "Zaxoy Bot 🇲🇨"
+    p2m = _dm(duel["p2"], p2_display_name)
+    
+    coin_kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🪙 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
+        InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id}_tails"),
+    ]])
+    
     await q.edit_message_text(
-        f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n{coin_text}",
-        parse_mode="HTML"
+        f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n"
+        f"🪙 <b>{duel['p1_name']}</b>, choose your side!",
+        parse_mode="HTML",
+        reply_markup=coin_kb
     )
-    await asyncio.sleep(2)
-
-    # p1 always wins the flip (challenger chose to challenge, they pick side)
-    # — per requirement: the one who started the challenge flips
-    goes_first = _random.choice(["p1", "p2"])
-    first_id   = duel["p1"] if goes_first == "p1" else duel["p2"]
-    first_name = duel["p1_name"] if goes_first == "p1" else duel["p2_name"]
-    duel["turn"] = first_id
-    duel["status"] = "active"
-    duel["last_action"] = asyncio.get_event_loop().time()
-
-    coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
-    await asyncio.sleep(1)
-    await _duel_send_turn(q.message, duel, chat_id, header=coin_result)
 
 
 # ── Fire button ───────────────────────────────────────────────
+async def duel_coin_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    parts = q.data.split("_") # duel_coin_{chat_id}_{heads|tails}
+    chat_id = parts[2]
+    choice = parts[3]
+    
+    duel = DUEL_ACTIVE.get(chat_id)
+    if not duel or duel["status"] != "coin":
+        await q.answer("No active coin flip.", show_alert=True)
+        return
+    
+    if q.from_user.id != duel["p1"]:
+        await q.answer("Only the challenger can choose!", show_alert=True)
+        return
+        
+    await q.answer()
+    
+    # Logic: 50/50 flip
+    result = _random.choice(["heads", "tails"])
+    won = (choice == result)
+    
+    # Deciding who goes first
+    if won:
+        first_id = duel["p1"]
+        first_name = duel["p1_name"]
+    else:
+        first_id = duel["p2"]
+        first_name = duel["p2_name"] if duel["p2"] != 0 else "Zaxoy Bot 🇲🇨"
+        
+    duel["turn"] = first_id
+    duel["status"] = "active"
+    duel["last_action"] = asyncio.get_event_loop().time()
+    
+    coin_text = _random.choice(_DUEL_COIN)
+    res_text = f"The coin shows <b>{result.upper()}</b>!"
+    coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
+    
+    await q.edit_message_text(
+        f"{coin_text}\n\n"
+        f"✨ {res_text}\n"
+        f"{coin_result}",
+        parse_mode="HTML"
+    )
+    await asyncio.sleep(2)
+    await _duel_send_turn(q.message, duel, chat_id)
+
+    # If AI turn, trigger AI logic
+    if duel["turn"] == 0:
+        asyncio.create_task(ai_duel_logic_task(chat_id, ctx))
+
+async def ai_duel_logic_task(chat_id_str, ctx):
+    while chat_id_str in DUEL_ACTIVE:
+        d = DUEL_ACTIVE.get(chat_id_str)
+        if not d or d["status"] != "active": break
+        if d["turn"] != 0: break 
+        
+        await asyncio.sleep(_random.uniform(2, 4))
+        target_type = "enemy" if _random.random() < 0.8 else "self"
+        
+        class FakeQuery:
+            def __init__(self, duel, target_type, chat_id):
+                self.from_user = type("User", (), {"id": 0})() 
+                self.message = type("Msg", (), {"message_id": duel["msg_id"], "chat_id": int(chat_id)})()
+                self.data = f"duel_fire_{chat_id}_{target_type}"
+            async def answer(self, text=None, show_alert=False): pass
+            async def edit_message_text(self, *args, **kwargs):
+                return await ctx.bot.edit_message_text(chat_id=self.message.chat_id, message_id=self.message.message_id, *args, **kwargs)
+        
+        fake_q = FakeQuery(d, target_type, chat_id_str)
+        update_fake = Update(0, callback_query=fake_q)
+        await duel_fire_cb(update_fake, ctx)
+        if chat_id_str not in DUEL_ACTIVE: break
+
 async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
     parts = q.data.split("_")   # duel_fire_{chat_id}_{enemy|self}
@@ -5434,6 +5387,7 @@ app.add_handler(MessageHandler(
     duel_kill_cmd
 ))
 app.add_handler(CallbackQueryHandler(duel_accept_cb, pattern=r"^duel_(accept|refuse)_"))
+app.add_handler(CallbackQueryHandler(duel_coin_cb,   pattern=r"^duel_coin_"))
 app.add_handler(CallbackQueryHandler(duel_fire_cb,   pattern=r"^duel_fire_"))
 # /rps
 app.add_handler(CommandHandler("rps", rps_cmd))
