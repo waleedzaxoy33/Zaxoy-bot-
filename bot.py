@@ -1285,7 +1285,79 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         # 1. Duel System (//kill)
         duel = DUEL_ACTIVE.get(chat_id_str)
-        if duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"]:
+        if duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"] and msg.from_user.id != duel["p1"]:
+            # AI takes over for p2
+            duel["status"] = "coin"
+            p1m = _dm(duel["p1"], duel["p1_name"])
+            p2m = _dm(0, "Zaxoy Bot 🇲🇨") # AI always plays as Zaxoy Bot
+            coin_text = _random.choice(_DUEL_COIN)
+            await reply_msg.edit_text(
+                f"⚔️ <b>DUEL ACCEPTED BY AI</b> — {p1m} vs {p2m}\n\n{coin_text}",
+                parse_mode="HTML"
+            )
+            await asyncio.sleep(2)
+            
+            goes_first = _random.choice(["p1", "p2"])
+            first_id   = duel["p1"] if goes_first == "p1" else 0 # 0 for AI
+            first_name = duel["p1_name"] if goes_first == "p1" else "Zaxoy Bot 🇲🇨"
+            duel["turn"] = first_id
+            duel["status"] = "active"
+            duel["last_action"] = asyncio.get_event_loop().time()
+            
+            coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
+            await asyncio.sleep(1)
+            await _duel_send_turn(reply_msg, duel, chat_id_str, header=coin_result)
+            
+            # Start AI turn logic if it's AI's turn
+            async def ai_duel_logic():
+                while chat_id_str in DUEL_ACTIVE:
+                    d = DUEL_ACTIVE.get(chat_id_str)
+                    if not d or d["status"] != "active": break
+                    if d["turn"] != 0: break # Only move if it's AI (p2) turn
+                    
+                    await asyncio.sleep(_random.uniform(2, 4))
+                    # AI strategy: 80% shoot enemy, 20% shoot self (for fun/savage)
+                    target_type = "enemy" if _random.random() < 0.8 else "self"
+                    
+                    # Simulate a callback query for duel_fire_cb
+                    class FakeQuery:
+                        def __init__(self, duel, target_type, chat_id):
+                            self.from_user = type("User", (), {"id": 0})() # AI user ID is 0
+                            self.message = type("Msg", (), {"message_id": duel["msg_id"], "chat_id": int(chat_id)})()
+                            self.data = f"duel_fire_{chat_id}_{target_type}"
+                        async def answer(self, text=None, show_alert=False): pass
+                        async def edit_message_text(self, *args, **kwargs):
+                            return await ctx.bot.edit_message_text(chat_id=self.message.chat_id, message_id=self.message.message_id, *args, **kwargs)
+                    
+                    fake_q = FakeQuery(d, target_type, chat_id_str)
+                    update_fake = Update(0, callback_query=fake_q)
+                    await duel_fire_cb(update_fake, ctx)
+                    if chat_id_str not in DUEL_ACTIVE: break
+                    if DUEL_ACTIVE[chat_id_str].get("status") != "active": break
+
+            asyncio.create_task(ai_duel_logic())
+            return
+        elif duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"] and msg.from_user.id == duel["p1"]:
+            await msg.reply_text("🤦 You started this duel, wait for them to respond!")
+            return
+        # If //ask is used to reply to a duel challenge, and the challenger is the bot, it should be accepted by the AI
+        elif duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"] and duel["p2"] == 0: # If AI is p2 and waiting
+            # Simulate AI accepting the duel
+            class FakeQuery:
+                def __init__(self, chat_id, p2_id):
+                    self.from_user = type("User", (), {"id": p2_id})()
+                    self.message = type("Msg", (), {"message_id": duel["msg_id"], "chat_id": int(chat_id)})()
+                    self.data = f"duel_accept_{chat_id}"
+                async def answer(self, text=None, show_alert=False): pass
+                async def edit_message_text(self, *args, **kwargs):
+                    return await ctx.bot.edit_message_text(chat_id=self.message.chat_id, message_id=self.message.message_id, *args, **kwargs)
+            
+            fake_q = FakeQuery(chat_id_str, 0)
+            update_fake = Update(0, callback_query=fake_q)
+            await duel_accept_cb(update_fake, ctx)
+            return
+
+        # 2. XO Game
             # [MODIFIED] Allow even p1 to trigger AI takeover if they want to play against the bot
             # if msg.from_user.id == duel["p1"]:
             #     await msg.reply_text("🤦 You started this duel, wait for them to respond!")
@@ -1859,6 +1931,19 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ask_reset_cmd(update, ctx)
     elif text.startswith("//ask"):
         await ask_cmd(update, ctx)
+    # Handle replies to bot for continuous AI conversation
+    elif msg.reply_to_message and msg.reply_to_message.from_user and msg.reply_to_message.from_user.id == ctx.bot.id:
+        # If the reply is to the bot, treat it as an //ask command without the prefix
+        # The ask_cmd function already handles context from reply_to_message
+        # We need to ensure the 'question' parameter is correctly passed if there's no //ask prefix
+        # For now, we'll just call ask_cmd and let its internal logic handle the reply context.
+        # The ask_cmd expects text to be parsed for 'question', so we'll simulate that.
+        # If the original message was just a reply without //ask, the question will be the message text.
+        # If it was a reply *with* //ask, the existing //ask handler above will catch it.
+        # This ensures that simple replies to the bot also trigger AI.
+        update.message.text = f"//ask {text}" # Temporarily prepend //ask to let ask_cmd parse it
+        await ask_cmd(update, ctx)
+        return
     elif text.startswith("//zaxo"):
         await zaxo_msg(update, ctx)
     elif text.startswith("//add"):
@@ -4895,7 +4980,10 @@ async def _duel_send_turn(msg, duel: dict, chat_id: str, header: str = ""):
     turn_uid  = duel["turn"]
     turn_name = duel["p1_name"] if turn_uid == duel["p1"] else duel["p2_name"]
     p1m = _dm(duel["p1"], duel["p1_name"])
-    p2m = _dm(duel["p2"], duel["p2_name"])
+    p2_display_name = duel["p2_name"]
+    if duel["p2"] == 0:
+        p2_display_name = "Zaxoy Bot 🇲🇨"
+    p2m = _dm(duel["p2"], p2_display_name)
     mbar = _miss_bar(duel)
     turn_line = _random.choice(_DUEL_TURN).format(name=turn_name)
     text = (
@@ -4924,7 +5012,85 @@ async def duel_kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     chat_id = str(msg.chat_id)
     challenger = msg.from_user
 
-    # Must reply to start a duel
+    # Allow //kill without reply to initiate a challenge waiting for a player
+    if not msg.reply_to_message:
+        # Check if there's an existing duel waiting in this chat
+        existing = DUEL_ACTIVE.get(chat_id)
+        if existing and existing["status"] == "waiting":
+            await msg.reply_text("⏳ A duel challenge is already waiting in this chat. Reply to it with //kill to join!")
+            return
+
+        # Create a duel where the challenger is waiting for an opponent
+        duel = {
+            "p1": challenger.id,
+            "p1_name": challenger.full_name,
+            "p2": None, # No opponent yet
+            "p2_name": None,
+            "turn": None,
+            "msg_id": None,
+            "round": 1,
+            "status": "waiting_for_player", # New status
+            "p1_misses": 0,
+            "p2_misses": 0,
+            "last_action": asyncio.get_event_loop().time(),
+        }
+        DUEL_ACTIVE[chat_id] = duel
+
+        text = f"⚔️ <b>{challenger.full_name}</b> is looking for a duel opponent!\n\nReply to this message with <code>//kill</code> to accept the challenge!"
+        sent = await msg.reply_text(text, parse_mode="HTML")
+        duel["msg_id"] = sent.message_id
+
+        # Auto-cancel after 60s if no one joins
+        async def _auto_cancel_waiting():
+            await asyncio.sleep(60)
+            d = DUEL_ACTIVE.get(chat_id)
+            if d and d["status"] == "waiting_for_player" and d["msg_id"] == sent.message_id:
+                DUEL_ACTIVE.pop(chat_id, None)
+                await ctx.bot.edit_message_text(
+                    chat_id=msg.chat_id,
+                    message_id=sent.message_id,
+                    text=f"⏳ <b>{challenger.full_name}</b>'s duel challenge timed out. No one dared to face them.",
+                    parse_mode="HTML"
+                )
+        asyncio.create_task(_auto_cancel_waiting())
+        return
+
+    # If it's a reply, check if it's to a 'waiting_for_player' message
+    if msg.reply_to_message and msg.reply_to_message.from_user and msg.reply_to_message.from_user.id == ctx.bot.id:
+        existing = DUEL_ACTIVE.get(chat_id)
+        if existing and existing["status"] == "waiting_for_player" and msg.reply_to_message.message_id == existing["msg_id"]:
+            # A player is accepting the challenge
+            if challenger.id == existing["p1"]:
+                await msg.reply_text("🤦 You started this challenge, you can't accept your own.")
+                return
+            
+            existing["p2"] = challenger.id
+            existing["p2_name"] = challenger.full_name
+            existing["status"] = "coin"
+            existing["last_action"] = asyncio.get_event_loop().time()
+
+            p1m = _dm(existing["p1"], existing["p1_name"])
+            p2m = _dm(existing["p2"], existing["p2_name"])
+            coin_text = _random.choice(_DUEL_COIN)
+            await msg.reply_to_message.edit_text(
+                f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n{coin_text}",
+                parse_mode="HTML"
+            )
+            await asyncio.sleep(2)
+            
+            goes_first = _random.choice(["p1", "p2"])
+            first_id   = existing["p1"] if goes_first == "p1" else existing["p2"]
+            first_name = existing["p1_name"] if goes_first == "p1" else existing["p2_name"]
+            existing["turn"] = first_id
+            existing["status"] = "active"
+            existing["last_action"] = asyncio.get_event_loop().time()
+            
+            coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
+            await asyncio.sleep(1)
+            await _duel_send_turn(msg.reply_to_message, existing, chat_id, header=coin_result)
+            return
+
+    # Original reply-to-user logic
     if not msg.reply_to_message or not msg.reply_to_message.from_user:
         await msg.reply_text(
             "🔫 Reply to someone to challenge them to a duel.\n"
@@ -4932,6 +5098,8 @@ async def duel_kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
         return
+
+    target = msg.reply_to_message.from_user
 
     target = msg.reply_to_message.from_user
 
@@ -5059,7 +5227,7 @@ async def duel_accept_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     user = q.from_user
 
     # Only p2 can accept/refuse
-    if user.id != duel["p2"]:
+    if user.id != duel["p2"] and duel["p2"] != 0: # Allow AI (p2=0) to be accepted by AI logic in ask_cmd
         await q.answer("This duel isn't for you.", show_alert=True)
         return
 
@@ -5077,9 +5245,11 @@ async def duel_accept_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     duel["status"] = "coin"
     coin_text = _random.choice(_DUEL_COIN)
     p1m = _dm(duel["p1"], duel["p1_name"])
-    p2m = _dm(duel["p2"], duel["p2_name"])
-    await q.edit_message_text(
-        f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n{coin_text}",
+            p2m = _dm(duel["p2"], duel["p2_name"])
+            if duel["p2"] == 0:
+                p2m = _dm(0, "Zaxoy Bot 🇲🇨") # Ensure AI name is correct
+            await q.edit_message_text(
+                f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n{coin_text}",
         parse_mode="HTML"
     )
     await asyncio.sleep(2)
