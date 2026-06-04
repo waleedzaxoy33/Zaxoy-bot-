@@ -1274,6 +1274,8 @@ async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
 # ─── AI Chat Threads — tracks active //ask conversations ───────────────
 # key: chat_id (str) → set of bot message_ids that are active threads
 AI_CHAT_THREADS: dict[str, set] = {}
+# Conversation history per chat: chat_id → list of {role, content}
+AI_HISTORY: dict[str, list] = {}
 
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_question: str = None):
@@ -1473,27 +1475,24 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
         ]
 
         user_input = question or ""
-        
+
+        # If replying to someone else (not the bot), add context
         if msg.reply_to_message:
             reply_to = msg.reply_to_message
-            # If replying to the bot itself (conversation mode)
-            if reply_to.from_user and reply_to.from_user.id == ctx.bot.id:
-                # Add the bot's previous message as context
-                messages.append({"role": "assistant", "content": reply_to.text or ""})
-            else:
-                # If replying to someone else, provide context about who and what they said
+            if not (reply_to.from_user and reply_to.from_user.id == ctx.bot.id):
                 target_name = reply_to.from_user.full_name if reply_to.from_user else "someone"
                 target_text = reply_to.text or reply_to.caption or "[Media/Sticker]"
-                # Instruct AI to respond to this specific context
-                context_instruction = f"[Context: You are responding to {target_name} who said: \"{target_text}\". "
-                if not user_input:
-                    context_instruction += "Analyze their message and give a fitting response.]"
-                else:
-                    context_instruction += f"The user also said: \"{user_input}\". Combine both to respond.]"
+                context_instruction = f"[Context: replying to {target_name} who said: \"{target_text}\". {user_input}]"
                 user_input = context_instruction
 
+        # Add conversation history (last 10 messages)
+        chat_key = str(msg.chat_id)
+        history = AI_HISTORY.get(chat_key, [])
+        for h in history[-10:]:
+            messages.append(h)
+
         final_prompt = (
-            f"[This message is from your owner Waleed — call him boss naturally in your reply if it fits] {user_input}"
+            f"[This message is from your owner Waleed — call him boss naturally if it fits] {user_input}"
             if msg.from_user.id == OWNER_ID else user_input
         )
         messages.append({"role": "user", "content": final_prompt})
@@ -1518,9 +1517,17 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
             answer = str(data)
     except Exception as e:
         answer = f"⚠️ Error: {str(e)}"
-    bot_reply = await ctx.bot.send_message(chat_id=msg.chat_id, text=answer)
-    # Register bot reply message_id as active AI thread
+    bot_reply = await msg.reply_text(answer)
+    # Save to conversation history
     chat_key = str(msg.chat_id)
+    if chat_key not in AI_HISTORY:
+        AI_HISTORY[chat_key] = []
+    AI_HISTORY[chat_key].append({"role": "user", "content": question or msg.text or ""})
+    AI_HISTORY[chat_key].append({"role": "assistant", "content": answer})
+    # Keep history max 20 messages
+    if len(AI_HISTORY[chat_key]) > 20:
+        AI_HISTORY[chat_key] = AI_HISTORY[chat_key][-20:]
+    # Register bot reply message_id as active AI thread
     if chat_key not in AI_CHAT_THREADS:
         AI_CHAT_THREADS[chat_key] = set()
     AI_CHAT_THREADS[chat_key].add(bot_reply.message_id)
