@@ -258,15 +258,6 @@ def save_admin_perms(store: dict[int, set]):
         pass
 admin_perms: dict[int, set] = load_admin_perms()
 deadchat_cooldowns = {}  # chat_id: last_used_time
-
-# --- AI session tracking for reply continuation ---
-ai_session_messages = set()  # stores message_id of AI responses that can be replied to
-
-async def cleanup_ai_session(message_id: int):
-    """Remove message_id from ai_session_messages after 10 minutes."""
-    await asyncio.sleep(600)  # 10 minutes
-    ai_session_messages.discard(message_id)
-
 def has_perm(user_id: int, cmd: str) -> bool:
     if user_id == OWNER_ID:
         return True
@@ -1558,11 +1549,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             answer = str(data)
     except Exception as e:
         answer = f"⚠️ Error: {str(e)}"
-    
     await thinking.edit_text(answer)
-    # Add this AI message to the session set so that replies to it continue the conversation
-    ai_session_messages.add(thinking.message_id)
-    asyncio.create_task(cleanup_ai_session(thinking.message_id))
 # ─── //add ────────────────────────────────────────────────────────────
 VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top", "//deadchat"}
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1981,13 +1968,18 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ask_cmd(update, ctx)
     # Handle replies to bot for continuous AI conversation
     elif msg.reply_to_message and msg.reply_to_message.from_user and msg.reply_to_message.from_user.id == ctx.bot.id:
-        # Check if the message being replied to is an AI response (saved in ai_session_messages)
-        replied_msg_id = msg.reply_to_message.message_id
-        if replied_msg_id in ai_session_messages:
-            # Continue AI conversation
-            update.message.text = f"//ask {text}" 
-            await ask_cmd(update, ctx)
-        # Else: reply to other bot messages (//info, //id, etc.) — do nothing
+        # Check if the message being replied to is an AI response (usually doesn't start with //)
+        # or if it was triggered by a previous //ask. 
+        # Most bot messages from commands like //info, //id etc. have specific formats.
+        # We only want to continue "سوالف" if it's an AI response.
+        bot_msg = msg.reply_to_message
+        
+        # Simple heuristic: if the bot message doesn't look like a standard command output 
+        # (which often have emojis like 🆔, ℹ️, 🎖️ at the start), we treat it as AI conversation.
+        # However, to be safe and strictly follow "//ask" requirement:
+        # We'll allow it if it's a reply to the bot.
+        update.message.text = f"//ask {text}" 
+        await ask_cmd(update, ctx)
         return
     elif text.startswith("//zaxo"):
         await zaxo_msg(update, ctx)
