@@ -1519,8 +1519,12 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     except Exception as e:
         answer = f"⚠️ Error: {str(e)}"
     await thinking.edit_text(answer)
-    # Register this bot message as an active AI thread
-    AI_CHAT_THREADS[(str(msg.chat_id), thinking.message_id)] = True
+    # Register ALL bot messages in this chat as active AI thread
+    chat_key = str(msg.chat_id)
+    AI_CHAT_THREADS[(chat_key, thinking.message_id)] = True
+    # Also keep the replied-to message registered so chain continues
+    if msg.reply_to_message:
+        AI_CHAT_THREADS[(chat_key, msg.reply_to_message.message_id)] = True
 # ─── //add ────────────────────────────────────────────────────────────
 VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top", "//deadchat"}
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
