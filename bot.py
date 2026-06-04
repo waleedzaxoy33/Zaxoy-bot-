@@ -1277,6 +1277,33 @@ AI_CHAT_THREADS: dict[str, set] = {}
 # Conversation history per chat: chat_id → list of {role, content}
 AI_HISTORY: dict[str, list] = {}
 
+def sb_add_ai_thread(chat_id: str, message_id: int):
+    try:
+        sb.table("ai_threads").upsert({"chat_id": chat_id, "message_id": message_id}).execute()
+    except Exception as e:
+        logging.error(f"sb_add_ai_thread: {e}")
+    # Also update in-memory
+    if chat_id not in AI_CHAT_THREADS:
+        AI_CHAT_THREADS[chat_id] = set()
+    AI_CHAT_THREADS[chat_id].add(message_id)
+
+def sb_is_ai_thread(chat_id: str, message_id: int) -> bool:
+    # Check in-memory first (fast)
+    if message_id in AI_CHAT_THREADS.get(chat_id, set()):
+        return True
+    # Fallback to Supabase (after restart)
+    try:
+        res = sb.table("ai_threads").select("message_id").eq("chat_id", chat_id).eq("message_id", message_id).execute()
+        if res.data:
+            # Cache it
+            if chat_id not in AI_CHAT_THREADS:
+                AI_CHAT_THREADS[chat_id] = set()
+            AI_CHAT_THREADS[chat_id].add(message_id)
+            return True
+    except Exception as e:
+        logging.error(f"sb_is_ai_thread: {e}")
+    return False
+
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_question: str = None):
     msg = update.message
@@ -1300,7 +1327,9 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
         
         # 1. Duel System (//kill)
         duel = DUEL_ACTIVE.get(chat_id_str)
-        if duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"] and msg.from_user.id != duel["p1"]:
+        if duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"]:
+            if msg.from_user.id == duel["p1"]:
+                pass  # p1 used //ask — AI will play as p2, continue below
             # AI takes over for p2
             duel["status"] = "coin"
             p1m = _dm(duel["p1"], duel["p1_name"])
@@ -1353,8 +1382,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
             asyncio.create_task(ai_duel_logic())
             return
         elif duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"] and msg.from_user.id == duel["p1"]:
-            await msg.reply_text("🤦 You started this duel, wait for them to respond!")
-            return
+            pass  # p1 used //ask — AI will play as p2
         # If //ask is used to reply to a duel challenge, and the challenger is the bot, it should be accepted by the AI
         elif duel and duel["status"] == "waiting" and reply_msg.message_id == duel["msg_id"] and duel["p2"] == 0: # If AI is p2 and waiting
             # Simulate AI accepting the duel
@@ -1535,10 +1563,8 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
     # Keep history max 20 messages
     if len(AI_HISTORY[chat_key]) > 20:
         AI_HISTORY[chat_key] = AI_HISTORY[chat_key][-20:]
-    # Register bot reply message_id as active AI thread
-    if chat_key not in AI_CHAT_THREADS:
-        AI_CHAT_THREADS[chat_key] = set()
-    AI_CHAT_THREADS[chat_key].add(bot_reply.message_id)
+    # Register bot reply message_id as active AI thread (persisted)
+    sb_add_ai_thread(chat_key, bot_reply.message_id)
 # ─── //add ────────────────────────────────────────────────────────────
 VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top", "//deadchat"}
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -5550,7 +5576,7 @@ async def ai_thread_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
     # Only reply if this bot message is a registered AI thread
     chat_key = str(msg.chat_id)
     replied_mid = replied.message_id
-    if replied_mid not in AI_CHAT_THREADS.get(chat_key, set()):
+    if not sb_is_ai_thread(chat_key, replied_mid):
         return
     await ask_cmd(update, ctx, _override_question=original_text)
     raise ApplicationHandlerStop
