@@ -1271,8 +1271,8 @@ async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
     elif data == "aiireset_cancel":
         await query.edit_message_text("❌ Cancelled.")
 # ─── AI Chat Threads — tracks active //ask conversations ───────────────
-# key: (chat_id, bot_message_id) → True
-AI_CHAT_THREADS: dict[tuple, bool] = {}
+# key: chat_id (str) → set of bot message_ids that are active threads
+AI_CHAT_THREADS: dict[str, set] = {}
 
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1447,7 +1447,6 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    thinking = await msg.reply_text("🤔 Thinking...")
     try:
         # Build context for the AI
         messages = [
@@ -1518,13 +1517,12 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             answer = str(data)
     except Exception as e:
         answer = f"⚠️ Error: {str(e)}"
-    await thinking.edit_text(answer)
-    # Register ALL bot messages in this chat as active AI thread
+    bot_reply = await msg.reply_text(answer)
+    # Register bot reply message_id as active AI thread
     chat_key = str(msg.chat_id)
-    AI_CHAT_THREADS[(chat_key, thinking.message_id)] = True
-    # Also keep the replied-to message registered so chain continues
-    if msg.reply_to_message:
-        AI_CHAT_THREADS[(chat_key, msg.reply_to_message.message_id)] = True
+    if chat_key not in AI_CHAT_THREADS:
+        AI_CHAT_THREADS[chat_key] = set()
+    AI_CHAT_THREADS[chat_key].add(bot_reply.message_id)
 # ─── //add ────────────────────────────────────────────────────────────
 VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top", "//deadchat"}
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -5525,7 +5523,7 @@ async def ai_thread_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
         return
     replied_mid = msg.reply_to_message.message_id
     chat_key = str(msg.chat_id)
-    if not AI_CHAT_THREADS.get((chat_key, replied_mid)):
+    if replied_mid not in AI_CHAT_THREADS.get(chat_key, set()):
         return
     # It's an active AI thread — route to ask_cmd
     update.message.text = f"//ask {msg.text.strip()}"
