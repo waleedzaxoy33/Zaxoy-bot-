@@ -1517,7 +1517,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             answer = str(data)
     except Exception as e:
         answer = f"⚠️ Error: {str(e)}"
-    bot_reply = await msg.reply_text(answer)
+    bot_reply = await ctx.bot.send_message(chat_id=msg.chat_id, text=answer)
     # Register bot reply message_id as active AI thread
     chat_key = str(msg.chat_id)
     if chat_key not in AI_CHAT_THREADS:
