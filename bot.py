@@ -5519,13 +5519,9 @@ async def ai_thread_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
         return
     if not msg.reply_to_message.from_user:
         return
+    # Any reply to any bot message triggers AI
     if msg.reply_to_message.from_user.id != ctx.bot.id:
         return
-    replied_mid = msg.reply_to_message.message_id
-    chat_key = str(msg.chat_id)
-    if replied_mid not in AI_CHAT_THREADS.get(chat_key, set()):
-        return
-    # It's an active AI thread — route to ask_cmd
     update.message.text = f"//ask {msg.text.strip()}"
     await ask_cmd(update, ctx)
 
