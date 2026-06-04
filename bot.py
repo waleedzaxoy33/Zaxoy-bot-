@@ -39,6 +39,7 @@ from telegram.ext import (
     filters,
     ContextTypes
 )
+from telegram.ext import ApplicationHandlerStop
 # ─────────────────────────────────────────────────────────────
 # Config
 # ─────────────────────────────────────────────────────────────
@@ -5522,8 +5523,10 @@ async def ai_thread_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
     # Any reply to any bot message triggers AI
     if msg.reply_to_message.from_user.id != ctx.bot.id:
         return
-    update.message.text = f"//ask {msg.text.strip()}"
+    original_text = msg.text.strip()
+    update.message.text = f"//ask {original_text}"
     await ask_cmd(update, ctx)
+    raise ApplicationHandlerStop  # Stop other handlers from processing this
 
 app.add_handler(MessageHandler(
     filters.TEXT & filters.REPLY,
