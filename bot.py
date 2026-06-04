@@ -4697,6 +4697,11 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await asyncio.sleep(2)
     # 4 survived = 5th is guaranteed kill
     if hits >= 4:
+        await aim_msg.edit_text(
+            f"💥 {shooter_mention} shoots {target_mention}...",
+            parse_mode="HTML"
+        )
+        await asyncio.sleep(2)
         death_line = _random.choice(KILL_DEATH_LINES).format(target=target_mention)
         await aim_msg.edit_text(
             f"{KILL_FINAL_LINE}\n\n{death_line}",
@@ -4709,6 +4714,11 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     hit_chances = {0: 0.25, 1: 0.40, 2: 0.60, 3: 0.80}
     fired = _random.random() < hit_chances.get(hits, 0.25)
     if fired:
+        await aim_msg.edit_text(
+            f"💥 {shooter_mention} shoots {target_mention}...",
+            parse_mode="HTML"
+        )
+        await asyncio.sleep(2)
         hit_line = _random.choice(KILL_HIT_LINES)
         death_line = _random.choice(KILL_DEATH_LINES).format(target=target_mention)
         await aim_msg.edit_text(
@@ -4717,6 +4727,11 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         sb_reset_kill_hits(chat_id, target_id)
     else:
+        await aim_msg.edit_text(
+            f"💨 {shooter_mention} shoots at {target_mention}...",
+            parse_mode="HTML"
+        )
+        await asyncio.sleep(2)
         new_hits = hits + 1
         sb_set_kill_hits(chat_id, target_id, new_hits)
         miss_pool = KILL_MISS_BY_COUNT.get(new_hits, KILL_MISS_BY_COUNT[4])
@@ -5225,14 +5240,17 @@ async def duel_coin_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     
     # Animation/Wait effect with Mention
     p1_mention = _dm(duel["p1"], duel["p1_name"])
-    await q.edit_message_text(
-        f"{coin_text}\n\n"
-        f"🌀 {p1_mention} picked <b>{choice.upper()}</b>\n"
-        f"🪙 <b>The coin is spinning in the air...</b>\n"
-        f"✨ <i>Fate is being decided...</i>",
-        parse_mode="HTML"
-    )
-    await asyncio.sleep(3)
+    p2_mention_coin = _dm(duel["p2"], duel["p2_name"] if duel["p2"] != 0 else "Zaxoy Bot 🇲🇨")
+    coin_frames = ["🪙", "🟡", "🪙", "🟡", "🪙"]
+    for frame in coin_frames:
+        await q.edit_message_text(
+            f"{coin_text}\n\n"
+            f"{frame} {p1_mention} picked <b>{choice.upper()}</b>\n"
+            f"<b>The coin is in the air...</b>\n"
+            f"<i>{p1_mention} vs {p2_mention_coin}</i>",
+            parse_mode="HTML"
+        )
+        await asyncio.sleep(0.6)
     
     res_text = f"The coin shows <b>{result.upper()}</b>!"
     first_mention = _dm(first_id, first_name)
@@ -5332,11 +5350,11 @@ async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # Dramatic shooting effect
     shooter_mention = _dm(shooter_id, shooter_name)
-    target_name_display = "themselves" if target_type == "self" else opp_name
+    target_mention_fire = _dm(shooter_id, shooter_name) if target_type == "self" else _dm(opp_id, opp_name)
     
     await q.edit_message_text(
         f"⚔️ <b>DUEL</b> — Round {round_no}\n\n"
-        f"🔫 {shooter_mention} pulls the trigger on <b>{target_name_display}</b>...\n"
+        f"🔫 {shooter_mention} pulls the trigger on {target_mention_fire}...\n"
         f"<b>BOOM...</b> ⏳",
         parse_mode="HTML"
     )
