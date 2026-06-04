@@ -3878,10 +3878,10 @@ def _format_active_time(first_msg, last_msg) -> str:
         return ""
 
 def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: bool = False) -> str:
-    header = "🌙 <b>Daily Top 5 Chatters</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
+    header = "🌙 <b>Daily Top 5</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
     if chat_title:
-        header += f"\n📍 <b>{chat_title}</b>"
-    text = header + "\n" + "━" * 24 + "\n\n"
+        header += f" — <b>{chat_title}</b>"
+    text = header + "\n" + "─" * 22 + "\n\n"
     if not rows:
         text += "📭 No data yet."
         return text
@@ -3890,17 +3890,17 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: 
         medal, praise = titles[i]
         uid = row.get("user_id")
         if uid:
-            name_tag = f'<a href="tg://user?id={uid}"><b>{row["name"]}</b></a>'
+            name_tag = f'<a href="tg://user?id={uid}">{row["name"]}</a>'
         else:
             name_tag = f'<b>{row["name"]}</b>'
         count = row["count"]
         time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"))
-        stats = f"📨 {count} messages"
+        stats = f"   ↳ {count} msgs"
         if time_str:
             stats += f"  •  🕐 {time_str}"
-        text += f"{medal} {name_tag}\n{stats}\n{praise}\n\n"
+        text += f"{medal} {name_tag}\n{stats}\n   {praise}\n\n"
     if test:
-        text += "<i>🧪 TEST</i>"
+        text += "\n<i>🧪 TEST</i>"
     return text.strip()
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
     mentions = get_top_mentions()
