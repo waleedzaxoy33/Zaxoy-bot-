@@ -5574,6 +5574,10 @@ async def pm_relay_reply(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     replied_id = msg.reply_to_message.message_id
     target_id = PM_RELAY_MAP.get(replied_id)
     if not target_id:
+        # If it's a private chat with the owner and they reply to the bot, 
+        # it might be an AI conversation, so we just return and let message_router handle it.
+        if msg.chat.type == "private" and msg.reply_to_message.from_user.id == ctx.bot.id:
+            return
         await msg.reply_text("⚠️ Can't find the original sender.")
         return
     try:
