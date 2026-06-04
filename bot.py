@@ -3702,18 +3702,12 @@ def sb_reset_top_counts(chat_id: str):
         sb.table("top_counts").delete().eq("chat_id", chat_id).execute()
     except Exception as e:
         logging.error(f"sb_reset_top_counts: {e}")
-def sb_track_active_group(chat_id: str, title: str = ""):
+def sb_is_group_banned(chat_id: str) -> bool:
     try:
-        if sb_is_group_banned(chat_id):
-            return
-        sb.table("active_groups").upsert({"chat_id": chat_id, "title": title}).execute()
-    except Exception as e:
-        logging.error(f"sb_track_active_group: {e}")
-def sb_delete_active_group(chat_id: str):
-    try:
-        sb.table("active_groups").delete().eq("chat_id", chat_id).execute()
-    except Exception as e:
-        logging.error(f"sb_delete_active_group: {e}")
+        res = sb.table("banned_groups").select("chat_id").eq("chat_id", chat_id).execute()
+        return bool(res.data)
+    except Exception:
+        return False
 
 def sb_ban_group(chat_id: str):
     try:
@@ -3722,12 +3716,19 @@ def sb_ban_group(chat_id: str):
     except Exception as e:
         logging.error(f"sb_ban_group: {e}")
 
-def sb_is_group_banned(chat_id: str) -> bool:
+def sb_track_active_group(chat_id: str, title: str = ""):
     try:
-        res = sb.table("banned_groups").select("chat_id").eq("chat_id", chat_id).execute()
-        return bool(res.data)
-    except Exception:
-        return False
+        if sb_is_group_banned(chat_id):
+            return
+        sb.table("active_groups").upsert({"chat_id": chat_id, "title": title}).execute()
+    except Exception as e:
+        logging.error(f"sb_track_active_group: {e}")
+
+def sb_delete_active_group(chat_id: str):
+    try:
+        sb.table("active_groups").delete().eq("chat_id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"sb_delete_active_group: {e}")
 
 def sb_load_active_groups() -> list:
     try:
@@ -3866,6 +3867,9 @@ def _format_active_time(first_msg, last_msg) -> str:
         if not f or not l:
             return ""
         diff = int((l - f).total_seconds())
+        # Cap at 24h — anything more is likely stale data
+        if diff > 86400:
+            return ""
         if diff < 60:
             return f"{diff}s active"
         elif diff < 3600:
