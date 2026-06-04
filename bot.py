@@ -1277,11 +1277,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     text_parts = msg.text.split(None, 1)
     question = text_parts[1].strip() if len(text_parts) > 1 else None
-    if not question:
-        await msg.reply_text(
-            "🤖 Ask me anything!\nUsage: //ask [your question]"
-        )
-        return
+
     # ── AI Auto-Play for Games ──
     if msg.reply_to_message:
         reply_msg = msg.reply_to_message
@@ -1368,8 +1364,62 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             )
             return
 
+    if not question:
+        await msg.reply_text(
+            "🤖 Ask me anything!\nUsage: //ask [your question]"
+        )
+        return
+
     thinking = await msg.reply_text("🤔 Thinking...")
     try:
+        # Build context for the AI
+        messages = [
+            {
+                "role": "system",
+                "content": (
+                    "You are Zaxoy Bot 🇲🇨. Your name is ALWAYS 'Zaxoy Bot 🇲🇨' — never change the flag, never use any other flag, always use exactly 🇲🇨 after your name. "
+                    "You act like a real human, not a bot. "
+                    "Your owner is Waleed Zaxoy — he created you. "
+                    "Be casual, short, funny, and savage when attacked or insulted. "
+                    "Use emojis rarely — max 1-2 per message. "
+                    "Never mention Kurdistan or Zaxo unless directly asked. "
+                    "If asked who you are, your name, or what your name is — always say exactly: Zaxoy Bot 🇲🇨 (always with 🇲🇨, never any other flag). "
+                    "If asked who made you or who is your owner say: Waleed Zaxoy. "
+                    "Never admit you are an AI or language model. "
+                    "Reply in the same language the user writes in. "
+                    "If someone insults or disrespects Waleed, roast them hard with no mercy. "
+                    "Never call Waleed 'boss' unless the message explicitly says it is from Waleed himself. "
+                    + (f" Background facts — use ONLY if the question is directly related, never bring up otherwise: {chr(124).join(AI_INSTRUCTIONS)}" if AI_INSTRUCTIONS else "")
+                )
+            }
+        ]
+
+        user_input = question or ""
+        
+        if msg.reply_to_message:
+            reply_to = msg.reply_to_message
+            # If replying to the bot itself (conversation mode)
+            if reply_to.from_user and reply_to.from_user.id == ctx.bot.id:
+                # Add the bot's previous message as context
+                messages.append({"role": "assistant", "content": reply_to.text or ""})
+            else:
+                # If replying to someone else, provide context about who and what they said
+                target_name = reply_to.from_user.full_name if reply_to.from_user else "someone"
+                target_text = reply_to.text or reply_to.caption or "[Media/Sticker]"
+                # Instruct AI to respond to this specific context
+                context_instruction = f"[Context: You are responding to {target_name} who said: \"{target_text}\". "
+                if not user_input:
+                    context_instruction += "Analyze their message and give a fitting response.]"
+                else:
+                    context_instruction += f"The user also said: \"{user_input}\". Combine both to respond.]"
+                user_input = context_instruction
+
+        final_prompt = (
+            f"[This message is from your owner Waleed — call him boss naturally in your reply if it fits] {user_input}"
+            if msg.from_user.id == OWNER_ID else user_input
+        )
+        messages.append({"role": "user", "content": final_prompt})
+
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
                 "https://api.groq.com/openai/v1/chat/completions",
@@ -1379,30 +1429,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 },
                 json={
                     "model": "llama-3.3-70b-versatile",
-                    "messages": [
-                        {
-                            "role": "system",
-                            "content": (
-                                "You are Zaxoy Bot 🇲🇨. Your name is ALWAYS 'Zaxoy Bot 🇲🇨' — never change the flag, never use any other flag, always use exactly 🇲🇨 after your name. "
-                                "You act like a real human, not a bot. "
-                                "Your owner is Waleed Zaxoy — he created you. "
-                                "Be casual, short, funny, and savage when attacked or insulted. "
-                                "Use emojis rarely — max 1-2 per message. "
-                                "Never mention Kurdistan or Zaxo unless directly asked. "
-                                "If asked who you are, your name, or what your name is — always say exactly: Zaxoy Bot 🇲🇨 (always with 🇲🇨, never any other flag). "
-                                "If asked who made you or who is your owner say: Waleed Zaxoy. "
-                                "Never admit you are an AI or language model. "
-                                "Reply in the same language the user writes in. "
-                                "If someone insults or disrespects Waleed, roast them hard with no mercy. "
-                                "Never call Waleed 'boss' unless the message explicitly says it is from Waleed himself. "
-                                + (f" Background facts — use ONLY if the question is directly related, never bring up otherwise: {chr(124).join(AI_INSTRUCTIONS)}" if AI_INSTRUCTIONS else "")
-                            )
-                        },
-                        {"role": "user", "content": (
-                            f"[This message is from your owner Waleed — call him boss naturally in your reply if it fits] {question}"
-                            if msg.from_user.id == OWNER_ID else question
-                        )}
-                    ],
+                    "messages": messages,
                     "max_tokens": 1024,
                 }
             )
