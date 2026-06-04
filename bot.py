@@ -5528,7 +5528,7 @@ async def ai_thread_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
 app.add_handler(MessageHandler(
     filters.TEXT & filters.REPLY,
     ai_thread_reply_handler
-))
+), group=-1)
 app.add_handler(MessageHandler(
     filters.TEXT & ~filters.COMMAND,
     message_router
