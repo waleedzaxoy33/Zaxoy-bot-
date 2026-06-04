@@ -4563,6 +4563,488 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML"
         )
 
+# ─────────────────────────────────────────────────────────────
+#  //kill — Duel System
+# ─────────────────────────────────────────────────────────────
+
+# active_duels: chat_id (str) -> duel dict
+# duel = {
+#   "p1": int, "p1_name": str,
+#   "p2": int, "p2_name": str,
+#   "turn": int,          # whose turn
+#   "msg_id": int,        # main duel message id
+#   "round": int,
+#   "status": "waiting"|"coin"|"active"|"done",
+#   "p1_misses": int, "p2_misses": int,
+#   "last_action": float  # timestamp for timeout
+# }
+DUEL_ACTIVE: dict[str, dict] = {}
+
+# ── Supabase helpers ──────────────────────────────────────────
+def duel_sb_get(chat_id: str, uid1: str, uid2: str) -> dict:
+    key = f"{min(uid1,uid2)}_{max(uid1,uid2)}"
+    try:
+        res = sb.table("duel_records").select("*")\
+            .eq("chat_id", chat_id).eq("pair_key", key).execute()
+        return res.data[0] if res.data else {}
+    except:
+        return {}
+
+def duel_sb_record_win(chat_id: str, winner_id: str, loser_id: str):
+    key = f"{min(winner_id,loser_id)}_{max(winner_id,loser_id)}"
+    try:
+        res = sb.table("duel_records").select("*")\
+            .eq("chat_id", chat_id).eq("pair_key", key).execute()
+        if res.data:
+            wins = res.data[0].get("wins", {})
+            wins[winner_id] = wins.get(winner_id, 0) + 1
+            sb.table("duel_records").update({"wins": wins})\
+                .eq("chat_id", chat_id).eq("pair_key", key).execute()
+        else:
+            sb.table("duel_records").insert({
+                "chat_id": chat_id,
+                "pair_key": key,
+                "wins": {winner_id: 1}
+            }).execute()
+    except Exception as e:
+        logging.error(f"duel_sb_record_win: {e}")
+
+# ── Text lines ────────────────────────────────────────────────
+_DUEL_CHALLENGE = [
+    "⚔️ <b>{p1}</b> has challenged <b>{p2}</b> to a duel!\n\n"
+    "🎯 <b>{p2}</b> — do you accept?",
+    "🔫 <b>{p1}</b> points a gun at <b>{p2}</b>.\n\n"
+    "💀 <b>{p2}</b> — will you face them?",
+    "🩸 <b>{p1}</b> steps into the arena and calls out <b>{p2}</b>.\n\n"
+    "⚡ <b>{p2}</b> — accept or run?",
+]
+_DUEL_REFUSED = [
+    "🏳️ <b>{p2}</b> ran away. Coward.",
+    "😐 <b>{p2}</b> ignored the challenge. Duel cancelled.",
+    "💨 No response from <b>{p2}</b>. <b>{p1}</b> wins by default.",
+]
+_DUEL_TIMEOUT = [
+    "⏱️ Time's up. <b>{p1}</b> vs <b>{p2}</b> — declared a draw. Both walk away.",
+    "⌛ Five minutes passed. The duel ends in a draw.",
+    "🕐 No action. The duel between <b>{p1}</b> and <b>{p2}</b> is called off — draw.",
+]
+_DUEL_COIN = [
+    "🪙 Flipping the coin to decide who shoots first...",
+    "🪙 A coin spins in the air — fate decides...",
+    "🪙 Let the coin choose who pulls the trigger first...",
+]
+_DUEL_COIN_WIN = [
+    "🟡 <b>{name}</b> wins the toss. They go first.",
+    "🟡 The coin lands on <b>{name}</b>. First move is theirs.",
+    "🟡 <b>{name}</b> called it right. They shoot first.",
+]
+_DUEL_TURN = [
+    "🎯 <b>{name}</b>'s turn. Choose wisely.",
+    "🔫 <b>{name}</b> grips the gun. What's it gonna be?",
+    "💭 <b>{name}</b> stares down the barrel. The room holds its breath.",
+    "⚡ <b>{name}</b>'s move. Everyone's watching.",
+]
+_DUEL_MISS_SELF = {
+    1: [
+        "😮‍💨 <b>{name}</b> pressed the barrel to their own head... *click* — empty. Brave. Or insane.",
+        "💨 <b>{name}</b> turned the gun on themselves. The chamber was empty. Lucky.",
+        "🫀 <b>{name}</b> pulled the trigger on themselves. The bullet had other plans.",
+    ],
+    2: [
+        "😤 <b>{name}</b> did it again — gun to their own head. Empty. The crowd is nervous.",
+        "💨 Twice aimed at themselves. Twice survived. Unsettling.",
+        "🪬 <b>{name}</b> is either protected by something... or just running out of luck.",
+    ],
+    3: [
+        "🤯 THREE times <b>{name}</b> shot at themselves. THREE empty chambers. Unreal.",
+        "💨 The gun refuses to end <b>{name}</b>. Something is very wrong here.",
+        "☠️ <b>{name}</b> is flirting with death and death keeps saying no.",
+    ],
+}
+_DUEL_MISS_ENEMY = {
+    1: [
+        "💨 <b>{name}</b> fires at their opponent — the shot goes wide.",
+        "😬 <b>{name}</b> pulls the trigger. Click. Missed.",
+        "🌬️ The shot misses. <b>{name}</b> exhales. This isn't over.",
+    ],
+    2: [
+        "💨 Miss. Again. <b>{name}</b> is losing their edge.",
+        "😤 Second miss for <b>{name}</b>. The opponent is still standing.",
+        "🌀 <b>{name}</b> fired twice. Both wasted.",
+    ],
+    3: [
+        "💀 Third miss. <b>{name}</b> is running on borrowed time.",
+        "💨 Three shots. Three misses. Something is very off.",
+        "🩸 <b>{name}</b> is shaking. Three misses.",
+    ],
+}
+_DUEL_HIT_SELF = [
+    "💥 <b>{name}</b> aimed at themselves... and the gun wasn't empty this time.",
+    "🔴 <b>{name}</b> pulled the trigger on themselves. The bullet answered.",
+    "💀 <b>{name}</b> chose to gamble with their own life — and lost.",
+    "🩸 The gun went off. <b>{name}</b> took the shot. No one saw that coming.",
+    "☠️ <b>{name}</b> turned the barrel inward. That was the last mistake.",
+]
+_DUEL_HIT_ENEMY = [
+    "💥 BANG. <b>{name}</b> lands the shot clean.",
+    "🔫 <b>{name}</b> fires true — no escape.",
+    "🩸 Direct hit. <b>{name}</b> didn't hesitate.",
+    "💀 One shot. One kill. <b>{name}</b> is ice cold.",
+    "🔥 <b>{name}</b> unloads. The opponent never had a chance.",
+]
+_DUEL_DEATH = [
+    "💀 <b>{loser}</b> drops. <b>{winner}</b> walks away clean.",
+    "⚰️ <b>{loser}</b> is done. <b>{winner}</b> reloads for the next one.",
+    "🪦 RIP <b>{loser}</b>. <b>{winner}</b> wasn't playing.",
+    "☠️ <b>{loser}</b> — ELIMINATED. <b>{winner}</b> stands alone.",
+    "🩸 <b>{loser}</b> flatlines. <b>{winner}</b> doesn't even blink.",
+]
+
+# Hit probability per round
+_HIT_ENEMY = {1: 0.20, 2: 0.35, 3: 0.55, 4: 0.75, 5: 1.0}
+_HIT_SELF  = {1: 0.25, 2: 0.40, 3: 0.60, 4: 0.80, 5: 1.0}
+
+# ── Helpers ───────────────────────────────────────────────────
+def _dm(uid: int, name: str) -> str:
+    return f'<a href="tg://user?id={uid}">{name}</a>'
+
+def _duel_scoreboard(record: dict, p1_id: str, p2_id: str, p1_name: str, p2_name: str) -> str:
+    if not record:
+        return ""
+    wins = record.get("wins", {})
+    w1 = wins.get(p1_id, 0)
+    w2 = wins.get(p2_id, 0)
+    total = w1 + w2
+    if total == 0:
+        return ""
+    bar1 = "🟥" * w1
+    bar2 = "🟦" * w2
+    return (
+        f"\n\n📊 <b>Head-to-head record:</b>\n"
+        f"{bar1} <b>{p1_name}</b> {w1}W\n"
+        f"{bar2} <b>{p2_name}</b> {w2}W\n"
+        f"<i>{total} duels fought</i>"
+    )
+
+def _miss_bar(duel: dict) -> str:
+    p1m = duel.get("p1_misses", 0)
+    p2m = duel.get("p2_misses", 0)
+    return (
+        f"\n💠 {duel['p1_name']}: {'🔴'*p1m}{'⚫'*(5-p1m)}\n"
+        f"💠 {duel['p2_name']}: {'🔴'*p2m}{'⚫'*(5-p2m)}"
+    )
+
+async def _duel_send_turn(msg, duel: dict, chat_id: str, header: str = ""):
+    turn_uid  = duel["turn"]
+    turn_name = duel["p1_name"] if turn_uid == duel["p1"] else duel["p2_name"]
+    p1m = _dm(duel["p1"], duel["p1_name"])
+    p2m = _dm(duel["p2"], duel["p2_name"])
+    mbar = _miss_bar(duel)
+    turn_line = _random.choice(_DUEL_TURN).format(name=turn_name)
+    text = (
+        f"⚔️ <b>DUEL</b> — {p1m} vs {p2m}\n"
+        f"🔄 Round {duel['round']}{mbar}\n\n"
+        + (f"{header}\n\n" if header else "")
+        + turn_line
+    )
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("🎯 Shoot at him",          callback_data=f"duel_fire_{chat_id}_enemy"),
+        InlineKeyboardButton("💀 Turn gun on yourself",  callback_data=f"duel_fire_{chat_id}_self"),
+    ]])
+    duel["last_action"] = asyncio.get_event_loop().time()
+    try:
+        await msg.edit_text(text, parse_mode="HTML", reply_markup=kb)
+        duel["msg_id"] = msg.message_id
+    except:
+        pass
+
+# ── //kill command ────────────────────────────────────────────
+async def duel_kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg:
+        return
+
+    chat_id = str(msg.chat_id)
+    challenger = msg.from_user
+
+    # Must reply to start a duel
+    if not msg.reply_to_message or not msg.reply_to_message.from_user:
+        await msg.reply_text(
+            "🔫 Reply to someone to challenge them to a duel.\n"
+            "<i>Example: reply to a message and send //kill</i>",
+            parse_mode="HTML"
+        )
+        return
+
+    target = msg.reply_to_message.from_user
+
+    if target.id == challenger.id:
+        await msg.reply_text("🤦 You can't duel yourself.")
+        return
+    if getattr(target, "is_bot", False):
+        await msg.reply_text("🤖 Bots don't duel.")
+        return
+
+    existing = DUEL_ACTIVE.get(chat_id)
+
+    # If challenger or target already in an active duel
+    if existing and existing["status"] in ("waiting", "coin", "active"):
+        if challenger.id in (existing["p1"], existing["p2"]):
+            await msg.reply_text(
+                "🔫 You're already in a duel. Finish it first.",
+                parse_mode="HTML"
+            )
+            return
+        if target.id in (existing["p1"], existing["p2"]):
+            # Tell challenger to wait
+            p1n = existing["p1_name"]
+            p2n = existing["p2_name"]
+            await msg.reply_text(
+                f"⏳ <b>{target.full_name}</b> is already in a duel ({p1n} vs {p2n}).\n"
+                f"Wait for them to finish.",
+                parse_mode="HTML"
+            )
+            return
+        # Another pair is dueling — tell them to wait
+        p1n = existing["p1_name"]
+        p2n = existing["p2_name"]
+        await msg.reply_text(
+            f"⏳ A duel is already in progress: <b>{p1n}</b> vs <b>{p2n}</b>.\n"
+            f"Wait for it to finish, then challenge away.",
+            parse_mode="HTML"
+        )
+        return
+
+    # Create duel record
+    duel = {
+        "p1": challenger.id,
+        "p1_name": challenger.full_name,
+        "p2": target.id,
+        "p2_name": target.full_name,
+        "turn": None,
+        "msg_id": None,
+        "round": 1,
+        "status": "waiting",
+        "p1_misses": 0,
+        "p2_misses": 0,
+        "last_action": asyncio.get_event_loop().time(),
+    }
+    DUEL_ACTIVE[chat_id] = duel
+
+    text = _random.choice(_DUEL_CHALLENGE).format(
+        p1=challenger.full_name,
+        p2=target.full_name
+    )
+    kb = InlineKeyboardMarkup([[
+        InlineKeyboardButton("⚔️ Accept",    callback_data=f"duel_accept_{chat_id}"),
+        InlineKeyboardButton("🏳️ Run away", callback_data=f"duel_refuse_{chat_id}"),
+    ]])
+    # Reply directly to the target (who was replied to originally)
+    sent = await msg.reply_to_message.reply_text(text, parse_mode="HTML", reply_markup=kb)
+    duel["msg_id"] = sent.message_id
+
+    # Auto-cancel after 40s if still waiting
+    async def _auto_cancel():
+        await asyncio.sleep(40)
+        d = DUEL_ACTIVE.get(chat_id)
+        if d and d["status"] == "waiting" and d["msg_id"] == sent.message_id:
+            DUEL_ACTIVE.pop(chat_id, None)
+            refused = _random.choice(_DUEL_REFUSED).format(
+                p1=challenger.full_name, p2=target.full_name
+            )
+            try:
+                await ctx.bot.edit_message_text(
+                    chat_id=msg.chat_id,
+                    message_id=sent.message_id,
+                    text=refused,
+                    parse_mode="HTML"
+                )
+            except:
+                pass
+    asyncio.create_task(_auto_cancel())
+
+    # 5-minute inactivity timeout (draw)
+    async def _inactivity_timeout():
+        await asyncio.sleep(300)
+        d = DUEL_ACTIVE.get(chat_id)
+        if not d or d["status"] not in ("active", "coin"):
+            return
+        # Check if last action was recent (reset clock if they fired)
+        elapsed = asyncio.get_event_loop().time() - d.get("last_action", 0)
+        if elapsed < 295:
+            return
+        DUEL_ACTIVE.pop(chat_id, None)
+        timeout_line = _random.choice(_DUEL_TIMEOUT).format(
+            p1=d["p1_name"], p2=d["p2_name"]
+        )
+        try:
+            await ctx.bot.edit_message_text(
+                chat_id=msg.chat_id,
+                message_id=d["msg_id"],
+                text=timeout_line,
+                parse_mode="HTML"
+            )
+        except:
+            pass
+    asyncio.create_task(_inactivity_timeout())
+
+
+# ── Accept / Refuse ───────────────────────────────────────────
+async def duel_accept_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    parts = q.data.split("_")   # duel_accept_{chat_id} or duel_refuse_{chat_id}
+    action  = parts[1]          # accept / refuse
+    chat_id = parts[2]
+
+    duel = DUEL_ACTIVE.get(chat_id)
+    if not duel or duel["status"] != "waiting":
+        await q.answer("This duel is no longer active.", show_alert=True)
+        return
+
+    user = q.from_user
+
+    # Only p2 can accept/refuse
+    if user.id != duel["p2"]:
+        await q.answer("This duel isn't for you.", show_alert=True)
+        return
+
+    await q.answer()
+
+    if action == "refuse":
+        DUEL_ACTIVE.pop(chat_id, None)
+        refused = _random.choice(_DUEL_REFUSED).format(
+            p1=duel["p1_name"], p2=duel["p2_name"]
+        )
+        await q.edit_message_text(refused, parse_mode="HTML")
+        return
+
+    # Accepted — coin flip
+    duel["status"] = "coin"
+    coin_text = _random.choice(_DUEL_COIN)
+    p1m = _dm(duel["p1"], duel["p1_name"])
+    p2m = _dm(duel["p2"], duel["p2_name"])
+    await q.edit_message_text(
+        f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n{coin_text}",
+        parse_mode="HTML"
+    )
+    await asyncio.sleep(2)
+
+    # p1 always wins the flip (challenger chose to challenge, they pick side)
+    # — per requirement: the one who started the challenge flips
+    goes_first = _random.choice(["p1", "p2"])
+    first_id   = duel["p1"] if goes_first == "p1" else duel["p2"]
+    first_name = duel["p1_name"] if goes_first == "p1" else duel["p2_name"]
+    duel["turn"] = first_id
+    duel["status"] = "active"
+    duel["last_action"] = asyncio.get_event_loop().time()
+
+    coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
+    await asyncio.sleep(1)
+    await _duel_send_turn(q.message, duel, chat_id, header=coin_result)
+
+
+# ── Fire button ───────────────────────────────────────────────
+async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    q = update.callback_query
+    parts = q.data.split("_")   # duel_fire_{chat_id}_{enemy|self}
+    chat_id     = parts[2]
+    target_type = parts[3]      # "enemy" or "self"
+
+    duel = DUEL_ACTIVE.get(chat_id)
+    if not duel or duel["status"] != "active":
+        await q.answer("No active duel here.", show_alert=True)
+        return
+
+    user = q.from_user
+
+    # Block outsiders
+    if user.id not in (duel["p1"], duel["p2"]):
+        await q.answer("Stay out — this isn't your fight. 🚫", show_alert=True)
+        return
+
+    # Block wrong turn
+    if user.id != duel["turn"]:
+        await q.answer("⏳ It's not your turn. Wait.", show_alert=True)
+        return
+
+    await q.answer()
+
+    shooter_id   = user.id
+    shooter_name = duel["p1_name"] if shooter_id == duel["p1"] else duel["p2_name"]
+    opp_id       = duel["p2"]      if shooter_id == duel["p1"] else duel["p1"]
+    opp_name     = duel["p2_name"] if shooter_id == duel["p1"] else duel["p1_name"]
+    round_no     = duel["round"]
+
+    if target_type == "self":
+        victim_id   = shooter_id
+        victim_name = shooter_name
+        killer_id   = opp_id
+        killer_name = opp_name
+        chance      = _HIT_SELF.get(round_no, 1.0)
+        miss_lines  = _DUEL_MISS_SELF
+        hit_lines   = _DUEL_HIT_SELF
+    else:
+        victim_id   = opp_id
+        victim_name = opp_name
+        killer_id   = shooter_id
+        killer_name = shooter_name
+        chance      = _HIT_ENEMY.get(round_no, 1.0)
+        miss_lines  = _DUEL_MISS_ENEMY
+        hit_lines   = _DUEL_HIT_ENEMY
+
+    fired = _random.random() < chance
+    duel["last_action"] = asyncio.get_event_loop().time()
+
+    if fired:
+        # ── HIT → end duel ────────────────────────────────────
+        duel["status"] = "done"
+        DUEL_ACTIVE.pop(chat_id, None)
+
+        hit_line   = _random.choice(hit_lines).format(name=shooter_name)
+        death_line = _random.choice(_DUEL_DEATH).format(
+            winner=_dm(killer_id, killer_name),
+            loser=_dm(victim_id, victim_name)
+        )
+
+        duel_sb_record_win(chat_id, str(killer_id), str(victim_id))
+        record = duel_sb_get(chat_id, str(duel["p1"]), str(duel["p2"]))
+        scoreboard = _duel_scoreboard(
+            record,
+            str(duel["p1"]), str(duel["p2"]),
+            duel["p1_name"], duel["p2_name"]
+        )
+
+        p1m  = _dm(duel["p1"], duel["p1_name"])
+        p2m  = _dm(duel["p2"], duel["p2_name"])
+        mbar = _miss_bar(duel)
+
+        final = (
+            f"⚔️ <b>DUEL OVER</b> — {p1m} vs {p2m}\n"
+            f"🔄 Round {round_no}{mbar}\n\n"
+            f"{hit_line}\n\n{death_line}"
+            f"{scoreboard}"
+        )
+        try:
+            await q.edit_message_text(final, parse_mode="HTML")
+        except:
+            pass
+
+    else:
+        # ── MISS → next turn ──────────────────────────────────
+        if shooter_id == duel["p1"]:
+            duel["p1_misses"] = duel.get("p1_misses", 0) + 1
+        else:
+            duel["p2_misses"] = duel.get("p2_misses", 0) + 1
+
+        duel["round"] += 1
+        duel["turn"] = opp_id
+
+        pool      = miss_lines.get(min(round_no, 3), miss_lines[3])
+        miss_line = _random.choice(pool).format(name=shooter_name)
+
+        await _duel_send_turn(q.message, duel, chat_id, header=miss_line)
+
+
 def main():
     start_keep_alive()
 app = Application.builder().token(BOT_TOKEN).build()
@@ -4583,6 +5065,13 @@ app.add_handler(MessageHandler(
 app.add_handler(CommandHandler("gaytest", gaytest_cmd))
 # /kill
 app.add_handler(CommandHandler("kill", kill_cmd))
+# //kill — duel system
+app.add_handler(MessageHandler(
+    filters.TEXT & filters.Regex(r"^//kill\b"),
+    duel_kill_cmd
+))
+app.add_handler(CallbackQueryHandler(duel_accept_cb, pattern=r"^duel_(accept|refuse)_"))
+app.add_handler(CallbackQueryHandler(duel_fire_cb,   pattern=r"^duel_fire_"))
 # /rps
 app.add_handler(CommandHandler("rps", rps_cmd))
 app.add_handler(CallbackQueryHandler(rps_callback, pattern=r"^rps_\d+_(rock|paper|scissors)$"))
