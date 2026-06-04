@@ -1437,7 +1437,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             )
             return
 
-    if not question:
+    if not question and not msg.reply_to_message:
         await msg.reply_text(
             "🤖 Ask me anything!\nUsage: //ask [your question]"
         )
@@ -5575,8 +5575,7 @@ async def pm_relay_reply(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     replied_id = msg.reply_to_message.message_id
     target_id = PM_RELAY_MAP.get(replied_id)
     if not target_id:
-        await msg.reply_text("⚠️ Can't find the original sender.")
-        return
+        return  # Not a relayed message, ignore silently
     try:
         await ctx.bot.send_message(chat_id=target_id, text=msg.text)
         await msg.reply_text("✅ Sent.")
