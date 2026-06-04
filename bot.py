@@ -3878,27 +3878,13 @@ def _format_active_time(first_msg, last_msg) -> str:
         return ""
 
 def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: bool = False) -> str:
-    from datetime import datetime
-    day_names = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]
-    day = datetime.now().weekday()
-    day_name = day_names[day]
-
-    if daily:
-        header = f"🌙 <b>Daily Top 5 — {day_name}</b>"
-    else:
-        header = f"🏆 <b>Top 5 — {day_name}</b>"
-
+    header = "🌙 <b>Daily Top 5 Chatters</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
     if chat_title:
-        header += f"\n╔═══════════════════════╗\n      📍 <b>{chat_title}</b>\n╚═══════════════════════╝"
-    else:
-        header += "\n" + "▬" * 22
-
-    text = header + "\n\n"
-
+        header += f"\n📍 <b>{chat_title}</b>"
+    text = header + "\n" + "━" * 24 + "\n\n"
     if not rows:
         text += "📭 No data yet."
         return text
-
     titles = get_daily_titles()
     for i, row in enumerate(rows[:5]):
         medal, praise = titles[i]
@@ -3909,19 +3895,12 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: 
             name_tag = f'<b>{row["name"]}</b>'
         count = row["count"]
         time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"))
-
-        stats = f"<code>  💬 {count} msgs"
+        stats = f"📨 {count} messages"
         if time_str:
-            stats += f"   🕐 {time_str}"
-        stats += "</code>"
-
-        text += f"{medal} {name_tag}\n{stats}\n<i>{praise}</i>\n"
-        if i < 4:
-            text += "┄" * 22 + "\n"
-
-    text += "\n▬" * 22
+            stats += f"  •  🕐 {time_str}"
+        text += f"{medal} {name_tag}\n{stats}\n{praise}\n\n"
     if test:
-        text += "\n<i>🧪 TEST</i>"
+        text += "<i>🧪 TEST</i>"
     return text.strip()
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
     # Suspense countdown — single message edited each step
