@@ -5221,11 +5221,21 @@ async def duel_coin_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     duel["last_action"] = asyncio.get_event_loop().time()
     
     coin_text = _random.choice(_DUEL_COIN)
+    p1_mention = _dm(duel["p1"], duel["p1_name"])
+    
+    # Animation/Wait effect
+    await q.edit_message_text(
+        f"{coin_text}\n\n"
+        f"⏳ <b>{duel['p1_name']}</b> picked <b>{choice.upper()}</b>...\n"
+        f"Spinning... 🪙✨",
+        parse_mode="HTML"
+    )
+    await asyncio.sleep(3)
+    
     res_text = f"The coin shows <b>{result.upper()}</b>!"
     coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
     
     await q.edit_message_text(
-        f"{coin_text}\n\n"
         f"✨ {res_text}\n"
         f"{coin_result}",
         parse_mode="HTML"
@@ -5235,30 +5245,39 @@ async def duel_coin_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     # If AI turn, trigger AI logic
     if duel["turn"] == 0:
-        asyncio.create_task(ai_duel_logic_task(chat_id, ctx))
+        asyncio.create_task(ai_duel_logic_task(chat_id, ctx, q.message))
 
-async def ai_duel_logic_task(chat_id_str, ctx):
+async def ai_duel_logic_task(chat_id_str, ctx, message_obj):
+    # Wait a bit before AI moves
+    await asyncio.sleep(_random.uniform(2, 4))
+    
     while chat_id_str in DUEL_ACTIVE:
         d = DUEL_ACTIVE.get(chat_id_str)
         if not d or d["status"] != "active": break
         if d["turn"] != 0: break 
         
-        await asyncio.sleep(_random.uniform(2, 4))
+        # AI strategy: 80% shoot enemy, 20% shoot self
         target_type = "enemy" if _random.random() < 0.8 else "self"
         
+        # Create a fake update/callback to reuse duel_fire_cb logic
         class FakeQuery:
-            def __init__(self, duel, target_type, chat_id):
+            def __init__(self, duel, target_type, chat_id, msg):
                 self.from_user = type("User", (), {"id": 0})() 
-                self.message = type("Msg", (), {"message_id": duel["msg_id"], "chat_id": int(chat_id)})()
+                self.message = msg
                 self.data = f"duel_fire_{chat_id}_{target_type}"
             async def answer(self, text=None, show_alert=False): pass
             async def edit_message_text(self, *args, **kwargs):
                 return await ctx.bot.edit_message_text(chat_id=self.message.chat_id, message_id=self.message.message_id, *args, **kwargs)
         
-        fake_q = FakeQuery(d, target_type, chat_id_str)
+        fake_q = FakeQuery(d, target_type, chat_id_str, message_obj)
         update_fake = Update(0, callback_query=fake_q)
         await duel_fire_cb(update_fake, ctx)
-        if chat_id_str not in DUEL_ACTIVE: break
+        
+        # Check if duel still active and still AI turn (in case of miss)
+        d_after = DUEL_ACTIVE.get(chat_id_str)
+        if not d_after or d_after["status"] != "active" or d_after["turn"] != 0:
+            break
+        await asyncio.sleep(_random.uniform(2, 4))
 
 async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     q = update.callback_query
@@ -5362,7 +5381,7 @@ async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         # If next turn is AI, trigger AI logic
         if duel["turn"] == 0:
-            asyncio.create_task(ai_duel_logic_task(chat_id, ctx))
+            asyncio.create_task(ai_duel_logic_task(chat_id, ctx, q.message))
 
 
 def main():
