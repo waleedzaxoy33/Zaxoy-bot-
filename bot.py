@@ -1937,15 +1937,7 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ask_reset_cmd(update, ctx)
     elif text.startswith("//ask"):
         await ask_cmd(update, ctx)
-    # Handle replies to bot for continuous AI conversation
-    elif msg.reply_to_message and msg.reply_to_message.from_user and msg.reply_to_message.from_user.id == ctx.bot.id:
-        # Only auto-reply if this is an active AI thread (started with //ask)
-        replied_mid = msg.reply_to_message.message_id
-        chat_key = str(msg.chat_id)
-        if AI_CHAT_THREADS.get((chat_key, replied_mid)):
-            update.message.text = f"//ask {text}"
-            await ask_cmd(update, ctx)
-            return
+    # (AI thread replies are handled by ai_thread_reply_handler)
     elif text.startswith("//zaxo"):
         await zaxo_msg(update, ctx)
     elif text.startswith("//add"):
@@ -5517,6 +5509,27 @@ app.add_handler(MessageHandler(
 app.add_handler(MessageHandler(
     filters.Regex(r"^//"),
     message_router
+))
+# AI thread auto-reply — any text reply to bot message in active thread
+async def ai_thread_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg or not msg.text or not msg.reply_to_message:
+        return
+    if not msg.reply_to_message.from_user:
+        return
+    if msg.reply_to_message.from_user.id != ctx.bot.id:
+        return
+    replied_mid = msg.reply_to_message.message_id
+    chat_key = str(msg.chat_id)
+    if not AI_CHAT_THREADS.get((chat_key, replied_mid)):
+        return
+    # It's an active AI thread — route to ask_cmd
+    update.message.text = f"//ask {msg.text.strip()}"
+    await ask_cmd(update, ctx)
+
+app.add_handler(MessageHandler(
+    filters.TEXT & filters.REPLY,
+    ai_thread_reply_handler
 ))
 app.add_handler(MessageHandler(
     filters.TEXT & ~filters.COMMAND,
