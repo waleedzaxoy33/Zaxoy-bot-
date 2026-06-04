@@ -1270,6 +1270,10 @@ async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
         await query.edit_message_text("✅ Done. All AI instructions deleted.")
     elif data == "aiireset_cancel":
         await query.edit_message_text("❌ Cancelled.")
+# ─── AI Chat Threads — tracks active //ask conversations ───────────────
+# key: (chat_id, bot_message_id) → True
+AI_CHAT_THREADS: dict[tuple, bool] = {}
+
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
@@ -1517,10 +1521,6 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await thinking.edit_text(answer)
     # Register this bot message as an active AI thread
     AI_CHAT_THREADS[(str(msg.chat_id), thinking.message_id)] = True
-# ─── AI Chat Threads — tracks active //ask conversations ───────────────
-# key: (chat_id, bot_message_id) → True
-AI_CHAT_THREADS: dict[tuple, bool] = {}
-
 # ─── //add ────────────────────────────────────────────────────────────
 VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top", "//deadchat"}
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -1941,7 +1941,8 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif msg.reply_to_message and msg.reply_to_message.from_user and msg.reply_to_message.from_user.id == ctx.bot.id:
         # Only auto-reply if this is an active AI thread (started with //ask)
         replied_mid = msg.reply_to_message.message_id
-        if AI_CHAT_THREADS.get((str(msg.chat_id), replied_mid)):
+        chat_key = str(msg.chat_id)
+        if AI_CHAT_THREADS.get((chat_key, replied_mid)):
             update.message.text = f"//ask {text}"
             await ask_cmd(update, ctx)
             return
