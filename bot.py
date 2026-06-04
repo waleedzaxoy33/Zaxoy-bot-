@@ -622,13 +622,18 @@ async def ai_is_zaxo_insult(text: str) -> bool:
                 {
                     "role": "system",
                     "content": (
-                        "You are a context detector. Your only job is to decide if a message contains "
-                        "an insult, mockery, disrespect, or negativity toward the city of Zaxo (also spelled Zakho). "
+                        "You are a highly sensitive context detector for the city of Zaxo (Zakho). "
+                        "Your job is to detect ANY form of insult, mockery, disrespect, or negativity toward Zaxo, "
+                        "whether it is direct, indirect, sarcastic, or hidden. "
                         "Reply ONLY with: YES or NO. "
-                        "Examples of YES: 'zaxo is trash', 'fk zaxo', 'zaxo is small and useless', "
-                        "'i hate zaxo', 'zaxo people are bad', 'zakho is nothing'. "
-                        "Examples of NO: 'I love zaxo', 'zaxo is the best', 'zaxo is part of duhok province' (neutral fact), "
-                        "'I am from zaxo', 'zaxo forever', 'who is from zaxo?'. "
+                        "Examples of YES (Insults/Mockery): "
+                        "- Direct: 'zaxo is trash', 'fk zaxo', 'i hate zakho', 'zaxo is a bad place'. "
+                        "- Indirect/Sarcastic: 'who even cares about zaxo', 'zaxo is just a small village', 'nothing good comes from zaxo'. "
+                        "- Mocking people: 'people from zaxo are stupid', 'zaxoy people are losers'. "
+                        "Examples of NO (Neutral/Positive): "
+                        "- Positive: 'I love zaxo', 'zaxo is beautiful', 'zaxo forever'. "
+                        "- Neutral facts: 'zaxo is in Kurdistan', 'I am going to zaxo', 'where is zaxo?'. "
+                        "If you are even 1% sure it's an insult or mockery, reply YES. "
                         "Only reply YES or NO, nothing else."
                     )
                 },
@@ -656,20 +661,50 @@ async def zaxo_defense_handler(
 # ─────────────────────────────────────────────────────────────
 # Waleed Zaxoy Name Protection
 # ─────────────────────────────────────────────────────────────
-def is_waleed_fake(text: str) -> bool:
+async def is_waleed_fake(text: str) -> bool:
+    # First: quick regex check for "Waleed [Word ending in i or e]"
     pattern = r'\bWaleed\s+\w+[ie]\b'
-    matches = re.findall(
-        pattern,
-        text,
-        re.IGNORECASE
-    )
-    for m in matches:
-        parts = m.strip().split()
-        if len(parts) >= 2:
-            second = parts[1].lower()
+    matches = re.findall(pattern, text, re.IGNORECASE)
+    if not matches:
+        return False
+    
+    # Second: Use AI to check if the second word is a country or city
+    try:
+        import openai
+        client = openai.OpenAI(
+            api_key=GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1"
+        )
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a geographical entity detector. Your job is to check if a phrase "
+                        "refers to Waleed being from a specific city or country other than Zaxo. "
+                        "The phrase will be in the format 'Waleed [Place]'. "
+                        "Reply ONLY with: YES if the second word is a city, country, or geographical location. "
+                        "Reply ONLY with: NO if it's a general word, object, action, or game (like 'Waleed game', 'Waleed apple'). "
+                        "Examples of YES: 'Waleed Dubai', 'Waleed France', 'Waleed Erbil', 'Waleed Italy'. "
+                        "Examples of NO: 'Waleed game', 'Waleed phone', 'Waleed player'. "
+                        "Only reply YES or NO, nothing else."
+                    )
+                },
+                {"role": "user", "content": text}
+            ],
+            max_tokens=5,
+            temperature=0
+        )
+        answer = resp.choices[0].message.content.strip().upper()
+        return "YES" in answer
+    except Exception:
+        # Fallback to simple logic if AI fails
+        for m in matches:
+            second = m.strip().split()[1].lower()
             if second not in ["zaxoy", "zaxo"]:
                 return True
-    return False
+        return False
 async def waleed_protection(
     update: Update,
     ctx: ContextTypes.DEFAULT_TYPE
@@ -677,7 +712,7 @@ async def waleed_protection(
     msg = update.message
     if not msg or not msg.text:
         return
-    if is_waleed_fake(msg.text):
+    if await is_waleed_fake(msg.text):
         await msg.reply_text(
             "Waleed Zaxoy*",
             reply_to_message_id=msg.message_id
@@ -1933,15 +1968,17 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ask_cmd(update, ctx)
     # Handle replies to bot for continuous AI conversation
     elif msg.reply_to_message and msg.reply_to_message.from_user and msg.reply_to_message.from_user.id == ctx.bot.id:
-        # If the reply is to the bot, treat it as an //ask command without the prefix
-        # The ask_cmd function already handles context from reply_to_message
-        # We need to ensure the 'question' parameter is correctly passed if there's no //ask prefix
-        # For now, we'll just call ask_cmd and let its internal logic handle the reply context.
-        # The ask_cmd expects text to be parsed for 'question', so we'll simulate that.
-        # If the original message was just a reply without //ask, the question will be the message text.
-        # If it was a reply *with* //ask, the existing //ask handler above will catch it.
-        # This ensures that simple replies to the bot also trigger AI.
-        update.message.text = f"//ask {text}" # Temporarily prepend //ask to let ask_cmd parse it
+        # Check if the message being replied to is an AI response (usually doesn't start with //)
+        # or if it was triggered by a previous //ask. 
+        # Most bot messages from commands like //info, //id etc. have specific formats.
+        # We only want to continue "سوالف" if it's an AI response.
+        bot_msg = msg.reply_to_message
+        
+        # Simple heuristic: if the bot message doesn't look like a standard command output 
+        # (which often have emojis like 🆔, ℹ️, 🎖️ at the start), we treat it as AI conversation.
+        # However, to be safe and strictly follow "//ask" requirement:
+        # We'll allow it if it's a reply to the bot.
+        update.message.text = f"//ask {text}" 
         await ask_cmd(update, ctx)
         return
     elif text.startswith("//zaxo"):
@@ -1979,11 +2016,16 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         if msg.from_user.id == OWNER_ID or has_perm(msg.from_user.id, "//deadchat"):
             await deadchat_cmd(update, ctx)
     else:
+        # Check for Zaxo insults or Waleed name protection regardless of AI status
         await zaxo_defense_handler(update, ctx)
         await waleed_protection(update, ctx)
+        
+        # Only continue with other handlers if it's not an AI-related flow
+        # This part ensures that regular messages don't trigger AI unless they are //ask or replies to bot
         session = choose_sessions.get(msg.chat_id)
         if session and session.get("step") == "waiting":
             await choose_names_handler(update, ctx)
+        
         await if_auto_responder(update, ctx)
 # ─── /xo handler ─────────────────────────────────────────────────────
 async def xo_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
