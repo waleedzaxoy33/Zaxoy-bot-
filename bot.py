@@ -5245,11 +5245,11 @@ async def duel_accept_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     duel["status"] = "coin"
     coin_text = _random.choice(_DUEL_COIN)
     p1m = _dm(duel["p1"], duel["p1_name"])
-            p2m = _dm(duel["p2"], duel["p2_name"])
-            if duel["p2"] == 0:
-                p2m = _dm(0, "Zaxoy Bot 🇲🇨") # Ensure AI name is correct
-            await q.edit_message_text(
-                f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n{coin_text}",
+    p2m = _dm(duel["p2"], duel["p2_name"])
+    if duel["p2"] == 0:
+        p2m = _dm(0, "Zaxoy Bot 🇲🇨") # Ensure AI name is correct
+    await q.edit_message_text(
+        f"⚔️ <b>DUEL ACCEPTED</b> — {p1m} vs {p2m}\n\n{coin_text}",
         parse_mode="HTML"
     )
     await asyncio.sleep(2)
