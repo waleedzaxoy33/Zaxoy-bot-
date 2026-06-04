@@ -3903,26 +3903,23 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: 
         text += "<i>🧪 TEST</i>"
     return text.strip()
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
-    # Suspense countdown — single message edited each step
-    cid = int(chat_id)
-    msg = await bot.send_message(chat_id=cid, text="👀 <b>someone's watching...</b>", parse_mode="HTML")
-    mid = msg.message_id
-    await asyncio.sleep(2)
-    await bot.edit_message_text("⚡ <b>calculating results...</b>", chat_id=cid, message_id=mid, parse_mode="HTML")
-    await asyncio.sleep(2)
-    await bot.edit_message_text("🔒 <b>unlocking the leaderboard...</b>", chat_id=cid, message_id=mid, parse_mode="HTML")
-    await asyncio.sleep(2)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 5️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    mentions = get_top_mentions()
+    # 1. Send mentions FIRST (before countdown)
+    if mentions:
+        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">'+ (m.get("name") or str(m["user_id"])) + '</a>' for m in mentions])
+    else:
+        mention_text = f'<a href="tg://user?id={OWNER_ID}">​</a>'
+    await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML")
+    # 2. Countdown
+    countdown_msg = await bot.send_message(chat_id=int(chat_id), text="🏆 <b>Top 5 Chatters Today in...</b> 5", parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 4️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 3️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 2️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 1️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
-    await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 🔥", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2 • 1 🎉", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
     # 3. Send result
     text = build_top_text(rows, title, daily=daily, test=test)
