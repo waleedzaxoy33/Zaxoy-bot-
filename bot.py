@@ -4691,19 +4691,23 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     hits = sb_get_kill_hits(chat_id, target_id)
     # Aiming message
     aim_msg = await msg.reply_text(
-        f"{shooter_mention} is aiming at {target_mention} 🔫",
+        f"{shooter_mention} locked on {target_mention} 🎯",
         parse_mode="HTML"
     )
-    await asyncio.sleep(2)
-    await aim_msg.edit_text(
-        f"{shooter_mention} is aiming at {target_mention} BOOM ....... 🔫",
-        parse_mode="HTML"
-    )
-    await asyncio.sleep(2)
+    await asyncio.sleep(1)
+    # Growing dots animation
+    dot_frames = ["..", "...", ".....", "........."]
+    for dots in dot_frames:
+        await aim_msg.edit_text(
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫 {dots} {target_mention}",
+            parse_mode="HTML"
+        )
+        await asyncio.sleep(0.7)
+    await asyncio.sleep(1)
     # 4 survived = 5th is guaranteed kill
     if hits >= 4:
         await aim_msg.edit_text(
-            f"{shooter_mention} is aiming at {target_mention} 💥",
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫 ......... 💥",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
@@ -4720,7 +4724,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fired = _random.random() < hit_chances.get(hits, 0.25)
     if fired:
         await aim_msg.edit_text(
-            f"{shooter_mention} is aiming at {target_mention} 💥",
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫 ......... 💥",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
@@ -4733,7 +4737,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_reset_kill_hits(chat_id, target_id)
     else:
         await aim_msg.edit_text(
-            f"{shooter_mention} is aiming at {target_mention} 💨",
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫 ......... 💨",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
