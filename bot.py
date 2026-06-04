@@ -1285,6 +1285,14 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
     text_parts = msg.text.split(None, 1)
     question = _override_question if _override_question is not None else (text_parts[1].strip() if len(text_parts) > 1 else None)
 
+    # ── If called from ai_thread_reply_handler, still check duel/game first ──
+    if _override_question is not None and msg.reply_to_message:
+        chat_id_str = str(msg.chat_id)
+        duel = DUEL_ACTIVE.get(chat_id_str)
+        if duel and duel["status"] == "waiting" and msg.reply_to_message.message_id == duel["msg_id"]:
+            # Let duel handle it — don't use AI chat
+            return
+
     # ── AI Auto-Play for Games ──
     if msg.reply_to_message:
         reply_msg = msg.reply_to_message
@@ -5528,20 +5536,22 @@ async def ai_thread_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
     replied = msg.reply_to_message
     if not replied.from_user:
         return
-    # Check if replied message is from the bot using is_bot flag
-    if not replied.from_user.is_bot:
-        return
-    # Make sure it's OUR bot not another bot
+    # Must be a reply to our bot
     try:
         bot_id = ctx.bot.id
         if replied.from_user.id != bot_id:
             return
     except Exception:
         return
+    # Let // commands pass through normally
     original_text = msg.text.strip()
     if original_text.startswith("//"):
-        return  # Let normal handlers handle // commands
-    logging.info(f"AI_THREAD_REPLY: from {msg.from_user.id} text={original_text!r}")
+        return
+    # Only reply if this bot message is a registered AI thread
+    chat_key = str(msg.chat_id)
+    replied_mid = replied.message_id
+    if replied_mid not in AI_CHAT_THREADS.get(chat_key, set()):
+        return
     await ask_cmd(update, ctx, _override_question=original_text)
     raise ApplicationHandlerStop
 
