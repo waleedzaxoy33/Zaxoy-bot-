@@ -1276,12 +1276,12 @@ async def ask_instructions_callback(update: Update, ctx: ContextTypes.DEFAULT_TY
 AI_CHAT_THREADS: dict[str, set] = {}
 
 # ─── //ask — AI via OpenRouter ─────────────────────────────
-async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_question: str = None):
     msg = update.message
     if not msg or not msg.text:
         return
     text_parts = msg.text.split(None, 1)
-    question = text_parts[1].strip() if len(text_parts) > 1 else None
+    question = _override_question if _override_question is not None else (text_parts[1].strip() if len(text_parts) > 1 else None)
 
     # ── AI Auto-Play for Games ──
     if msg.reply_to_message:
@@ -5518,15 +5518,25 @@ async def ai_thread_reply_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE
     msg = update.message
     if not msg or not msg.text or not msg.reply_to_message:
         return
-    if not msg.reply_to_message.from_user:
+    replied = msg.reply_to_message
+    if not replied.from_user:
         return
-    # Any reply to any bot message triggers AI
-    if msg.reply_to_message.from_user.id != ctx.bot.id:
+    # Check if replied message is from the bot using is_bot flag
+    if not replied.from_user.is_bot:
+        return
+    # Make sure it's OUR bot not another bot
+    try:
+        bot_id = ctx.bot.id
+        if replied.from_user.id != bot_id:
+            return
+    except Exception:
         return
     original_text = msg.text.strip()
-    update.message.text = f"//ask {original_text}"
-    await ask_cmd(update, ctx)
-    raise ApplicationHandlerStop  # Stop other handlers from processing this
+    if original_text.startswith("//"):
+        return  # Let normal handlers handle // commands
+    logging.info(f"AI_THREAD_REPLY: from {msg.from_user.id} text={original_text!r}")
+    await ask_cmd(update, ctx, _override_question=original_text)
+    raise ApplicationHandlerStop
 
 app.add_handler(MessageHandler(
     filters.TEXT & filters.REPLY,
