@@ -3680,41 +3680,14 @@ def sb_remove_top_blacklist(user_id: int):
 def sb_increment_top_count(chat_id: str, user_id: str, name: str):
     try:
         from datetime import datetime, timezone
-        now_dt = datetime.now(timezone.utc)
-        now = now_dt.isoformat()
-        res = sb.table("top_counts").select("count, first_msg, last_msg, active_seconds").eq("chat_id", chat_id).eq("user_id", user_id).execute()
+        now = datetime.now(timezone.utc).isoformat()
+        res = sb.table("top_counts").select("count, first_msg").eq("chat_id", chat_id).eq("user_id", user_id).execute()
         if res.data:
-            row = res.data[0]
-            new_count = row["count"] + 1
-            first = row.get("first_msg") or now
-            prev_last = row.get("last_msg")
-            active_secs = row.get("active_seconds") or 0
-            # Add time since last message only if < 30 minutes (user was active)
-            if prev_last:
-                try:
-                    prev_dt = datetime.fromisoformat(prev_last)
-                    diff = (now_dt - prev_dt).total_seconds()
-                    if 0 < diff < 1800:
-                        active_secs += int(diff)
-                except Exception:
-                    pass
-            sb.table("top_counts").update({
-                "count": new_count,
-                "name": name,
-                "first_msg": first,
-                "last_msg": now,
-                "active_seconds": active_secs
-            }).eq("chat_id", chat_id).eq("user_id", user_id).execute()
+            new_count = res.data[0]["count"] + 1
+            first = res.data[0].get("first_msg") or now
+            sb.table("top_counts").update({"count": new_count, "name": name, "first_msg": first, "last_msg": now}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
         else:
-            sb.table("top_counts").insert({
-                "chat_id": chat_id,
-                "user_id": user_id,
-                "name": name,
-                "count": 1,
-                "first_msg": now,
-                "last_msg": now,
-                "active_seconds": 0
-            }).execute()
+            sb.table("top_counts").insert({"chat_id": chat_id, "user_id": user_id, "name": name, "count": 1, "first_msg": now, "last_msg": now}).execute()
     except Exception as e:
         logging.error(f"sb_increment_top_count: {e}")
 def sb_load_top_counts(chat_id: str) -> list:
@@ -3729,12 +3702,18 @@ def sb_reset_top_counts(chat_id: str):
         sb.table("top_counts").delete().eq("chat_id", chat_id).execute()
     except Exception as e:
         logging.error(f"sb_reset_top_counts: {e}")
-def sb_is_group_banned(chat_id: str) -> bool:
+def sb_track_active_group(chat_id: str, title: str = ""):
     try:
-        res = sb.table("banned_groups").select("chat_id").eq("chat_id", chat_id).execute()
-        return bool(res.data)
-    except Exception:
-        return False
+        if sb_is_group_banned(chat_id):
+            return
+        sb.table("active_groups").upsert({"chat_id": chat_id, "title": title}).execute()
+    except Exception as e:
+        logging.error(f"sb_track_active_group: {e}")
+def sb_delete_active_group(chat_id: str):
+    try:
+        sb.table("active_groups").delete().eq("chat_id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"sb_delete_active_group: {e}")
 
 def sb_ban_group(chat_id: str):
     try:
@@ -3743,19 +3722,12 @@ def sb_ban_group(chat_id: str):
     except Exception as e:
         logging.error(f"sb_ban_group: {e}")
 
-def sb_track_active_group(chat_id: str, title: str = ""):
+def sb_is_group_banned(chat_id: str) -> bool:
     try:
-        if sb_is_group_banned(chat_id):
-            return
-        sb.table("active_groups").upsert({"chat_id": chat_id, "title": title}).execute()
-    except Exception as e:
-        logging.error(f"sb_track_active_group: {e}")
-
-def sb_delete_active_group(chat_id: str):
-    try:
-        sb.table("active_groups").delete().eq("chat_id", chat_id).execute()
-    except Exception as e:
-        logging.error(f"sb_delete_active_group: {e}")
+        res = sb.table("banned_groups").select("chat_id").eq("chat_id", chat_id).execute()
+        return bool(res.data)
+    except Exception:
+        return False
 
 def sb_load_active_groups() -> list:
     try:
@@ -3825,53 +3797,53 @@ def fmt_time(h: int, m: int) -> str:
 # Rank 0 = #1 (strongest praise), Rank 4 = #5 (weakest/roast)
 DAILY_TITLES = {
     0: [  # Monday
-        ("🥇", "⚡ MONDAY MONARCH — You didn't start the week. You owned it."),
-        ("🥈", "🔥 The Hungry #2 — The throne felt you coming. Keep pushing."),
-        ("🥉", "💬 Bronze Monday — Most didn't show up. You did. That counts."),
-        ("4️⃣", "😑 4th on Monday — The week just started. This is your warning."),
-        ("💩", "🪦 Dead last. On a Monday. The week started without you."),
+        ("🥇", "⚡ MONDAY MONARCH — The week starts with you on top. Untouchable."),
+        ("🥈", "🔥 Relentless #2 — Pushed hard. The throne felt it."),
+        ("🥉", "💬 Bronze Monday — Most didn't show up. You did."),
+        ("4️⃣", "😑 4th on Monday — Week just started. Already behind."),
+        ("💩", "🪦 Last on Monday — The week began. You didn't."),
     ],
     1: [  # Tuesday
-        ("🥇", "👑 TUESDAY TITAN — Two days in and already untouchable. Bow down."),
-        ("🥈", "⚔️ The Silver Blade — One step from the crown. Tuesday isn't over."),
-        ("🥉", "🎯 Solid Third — Consistent. Quiet. Bronze on Tuesday hits different."),
-        ("4️⃣", "🌀 4th on Tuesday — You were here. Barely. Do better tomorrow."),
-        ("💩", "😶 Two days in and already invisible. The chat forgot your name."),
+        ("🥇", "👑 TUESDAY TITAN — Two days in, already untouchable. Bow down."),
+        ("🥈", "⚔️ Silver Blade — One step from the crown. Everyone knows it."),
+        ("🥉", "🎯 Solid Third — Consistent. Bronze Tuesday is earned."),
+        ("4️⃣", "🌀 4th on Tuesday — Barely here. The chat noticed."),
+        ("💩", "😶 Ghost on Tuesday — Two days in. Already forgotten."),
     ],
     2: [  # Wednesday
-        ("🥇", "🏆 MIDWEEK GOD — Wednesday breaks most people. Not you. GOAT."),
-        ("🥈", "🚀 The Rocket — Not chasing #1. Haunting it. Stay hungry."),
-        ("🥉", "🔶 Still Standing — Halfway through and holding bronze. Respect."),
-        ("4️⃣", "😐 Midweek 4th — Two full days to climb and you landed here."),
-        ("💩", "💀 Last place. Midweek. No excuses left at this point."),
+        ("🥇", "🏆 MIDWEEK GOD — Weak people collapse here. Not you. GOAT."),
+        ("🥈", "🚀 The Rocket — Not chasing #1. Haunting it."),
+        ("🥉", "🔶 Holding Third — Halfway through. Still standing."),
+        ("4️⃣", "😐 4th at Midweek — Two days to climb. Still here."),
+        ("💩", "💀 Last — Wednesday — Half the week gone. No excuses left."),
     ],
     3: [  # Thursday
-        ("🥇", "💎 THURSDAY LEGEND — Four days deep. Still untouchable. This is dominance."),
-        ("🥈", "🔱 The Throne Chaser — Breathing down #1's neck. Thursday is your shot."),
-        ("🥉", "🎙️ Third on Thursday — Four days of showing up. Most quit by now."),
-        ("4️⃣", "⚠️ 4th on Thursday — One day from the weekend. Still not enough."),
-        ("💩", "🗑️ Bottom of Thursday — Almost the weekend. Still last. Impressive."),
+        ("🥇", "💎 THURSDAY LEGEND — Four days deep. Still untouchable. Dominant."),
+        ("🥈", "🔱 Throne Chaser — Breathing down #1's neck. Last real shot."),
+        ("🥉", "🎙️ Third & Tall — Others disappeared. You outlasted them all."),
+        ("4️⃣", "⚠️ 4th on Thursday — One day left. It's not enough."),
+        ("💩", "🗑️ Bottom of Thursday — Almost over. This is your achievement."),
     ],
     4: [  # Friday
-        ("🥇", "🌟 FRIDAY KING — Carried this chat all week. Crown on. Lights out."),
-        ("🥈", "🎸 Friday Rockstar — Inches from the top. Legendary effort. Painful finish."),
-        ("🥉", "🎉 Bronze Friday — Most faded by Wednesday. You made it to the end."),
-        ("4️⃣", "😬 4th on Friday — Five days. This is your final grade. Noted."),
-        ("💩", "🚮 Dead last on Friday. Five chances. All gone. Goodnight."),
+        ("🥇", "🌟 FRIDAY KING — Carried the week. Closed it in style. Crown on."),
+        ("🥈", "🎸 Friday Rockstar — Inches from the top. Legendary effort."),
+        ("🥉", "🎉 Bronze Friday — Most faded. You made it to the end."),
+        ("4️⃣", "😬 4th on Friday — Five days. This is your final grade."),
+        ("💩", "🚮 Last on Friday — Five days. Five chances. All wasted."),
     ],
     5: [  # Saturday
-        ("🥇", "🔱 WEEKEND SUPREME — Everyone rested. You conquered. Untouchable."),
-        ("🥈", "🏄 Silver Saturday — Fighting for #2 on your day off. That hunger is rare."),
-        ("🥉", "🎮 Third on Saturday — Most are offline. You showed up. Sets you apart."),
-        ("4️⃣", "😒 4th on a Saturday — No work. No excuses. Full day. Still 4th."),
-        ("💩", "🛌 Last place on a weekend. The chat moved on without a second thought."),
+        ("🥇", "🔱 WEEKEND SUPREME — Others rest. You conquer. Untouchable."),
+        ("🥈", "🏄 Silver Saturday — Fought for #2 on your day off. Dangerous."),
+        ("🥉", "🎮 Third on Saturday — Weekend, offline world. You showed up."),
+        ("4️⃣", "😒 4th on Saturday — Free day. No excuses. Still here."),
+        ("💩", "🛌 Last on Saturday — Full weekend. Chose to do nothing."),
     ],
     6: [  # Sunday
-        ("🥇", "☀️ SUNDAY OVERLORD — Seven days. One winner. That's you. Dominant. Done."),
-        ("🥈", "🌤️ The Silver Closer — Fought all week. Sunday still wouldn't give you the crown."),
-        ("🥉", "🌈 Sunday Bronze — Last day. Still top three. While others vanished, you finished."),
-        ("4️⃣", "🛋️ 4th on Sunday — Last chance. Last day. This is how the week remembers you."),
-        ("💩", "🌑 Last on Sunday. Seven days. Every one of them wasted. Remarkable."),
+        ("🥇", "☀️ SUNDAY OVERLORD — Week ends. You stand alone. Immortal."),
+        ("🥈", "🌤️ Silver Closer — Fought all week. Crown still out of reach."),
+        ("🥉", "🌈 Sunday Bronze — Last day. Still top three. That means something."),
+        ("4️⃣", "🛋️ 4th on Sunday — Week's over. 4th is how you'll be remembered."),
+        ("💩", "🌑 Last on Sunday — Seven days. Every chance gone. Remarkable."),
     ],
 }
 
@@ -3880,12 +3852,20 @@ def get_daily_titles():
     day = datetime.now().weekday()  # 0=Monday, 6=Sunday
     return DAILY_TITLES[day]
 
-def _format_active_time(first_msg=None, last_msg=None, active_seconds=None) -> str:
+def _format_active_time(first_msg, last_msg) -> str:
     try:
-        if active_seconds is not None and active_seconds > 0:
-            diff = int(active_seconds)
-        else:
+        from datetime import datetime, timezone
+        fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
+        def parse(s):
+            try:
+                return datetime.fromisoformat(s)
+            except Exception:
+                return None
+        f = parse(first_msg)
+        l = parse(last_msg)
+        if not f or not l:
             return ""
+        diff = int((l - f).total_seconds())
         if diff < 60:
             return f"{diff}s active"
         elif diff < 3600:
@@ -3898,65 +3878,50 @@ def _format_active_time(first_msg=None, last_msg=None, active_seconds=None) -> s
         return ""
 
 def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: bool = False) -> str:
-    from datetime import datetime
-    now = datetime.now()
-    day_name = now.strftime("%A")
-    date_str = now.strftime("%B %-d")
-    if daily:
-        header = "🌙 <b>Daily Top 5</b>"
-    else:
-        header = "🏆 <b>Top 5 Chatters — Today</b>"
+    header = "🌙 <b>Daily Top 5</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
     if chat_title:
-        header += f"\n<code>📍 {chat_title}</code>"
-    header += f"\n<code>🗓 {day_name} · {date_str}</code>"
-    text = header + "\n" + "▰" * 20 + "\n\n"
+        header += f" — <b>{chat_title}</b>"
+    text = header + "\n" + "─" * 22 + "\n\n"
     if not rows:
-        text += "📭 <i>No data yet.</i>"
+        text += "📭 No data yet."
         return text
     titles = get_daily_titles()
     for i, row in enumerate(rows[:5]):
         medal, praise = titles[i]
         uid = row.get("user_id")
-        name = row["name"]
         if uid:
-            name_tag = f'<a href="tg://user?id={uid}"><b>{name}</b></a>'
+            name_tag = f'<a href="tg://user?id={uid}">{row["name"]}</a>'
         else:
-            name_tag = f'<b>{name}</b>'
+            name_tag = f'<b>{row["name"]}</b>'
         count = row["count"]
-        time_str = _format_active_time(active_seconds=row.get("active_seconds"))
-        line1 = f"{medal} {name_tag}"
-        line2 = f"   📨 {count} messages"
+        time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"))
+        stats = f"   ↳ {count} msgs"
         if time_str:
-            line2 += f"  ·  🕐 {time_str}"
-        line3 = f"   <i>{praise}</i>"
-        text += f"{line1}\n{line2}\n{line3}\n\n"
-    text = text.rstrip()
+            stats += f"  •  🕐 {time_str}"
+        text += f"{medal} {name_tag}\n{stats}\n   {praise}\n\n"
     if test:
-        text += "\n\n<i>🧪 TEST</i>"
-    return text
+        text += "\n<i>🧪 TEST</i>"
+    return text.strip()
 async def send_top_to_group(bot, chat_id: str, title: str, rows: list, daily: bool = False, test: bool = False):
-    # Suspense countdown — single message, no duplicate mention
-    cid = int(chat_id)
-    msg = await bot.send_message(chat_id=cid, text="👀 <b>someone's watching...</b>", parse_mode="HTML")
-    mid = msg.message_id
-    await asyncio.sleep(2)
-    await bot.edit_message_text("⚡ <b>calculating results...</b>", chat_id=cid, message_id=mid, parse_mode="HTML")
-    await asyncio.sleep(2)
-    await bot.edit_message_text("🔒 <b>unlocking the leaderboard...</b>", chat_id=cid, message_id=mid, parse_mode="HTML")
-    await asyncio.sleep(2)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 5️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    mentions = get_top_mentions()
+    # 1. Send mentions FIRST (before countdown)
+    if mentions:
+        mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">'+ (m.get("name") or str(m["user_id"])) + '</a>' for m in mentions])
+    else:
+        mention_text = f'<a href="tg://user?id={OWNER_ID}">​</a>'
+    await bot.send_message(chat_id=int(chat_id), text=f"👀 {mention_text}", parse_mode="HTML")
+    # 2. Countdown
+    countdown_msg = await bot.send_message(chat_id=int(chat_id), text="🏆 <b>Top 5 Chatters Today in...</b> 5", parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 4️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 3️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 2️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 1️⃣", chat_id=cid, message_id=mid, parse_mode="HTML")
+    await bot.edit_message_text("🏆 <b>Top 5 Chatters Today in...</b> 5 • 4 • 3 • 2 • 1 🎉", chat_id=int(chat_id), message_id=countdown_msg.message_id, parse_mode="HTML")
     await asyncio.sleep(1)
-    await bot.edit_message_text("🏆 <b>HERE WE GO!</b> 🔥", chat_id=cid, message_id=mid, parse_mode="HTML")
-    await asyncio.sleep(1)
-    # Send result
+    # 3. Send result
     text = build_top_text(rows, title, daily=daily, test=test)
     result_msg = await bot.send_message(chat_id=int(chat_id), text=text, parse_mode="HTML")
     asyncio.create_task(_pin_after_delay(bot, int(chat_id), result_msg.message_id))
@@ -4437,48 +4402,17 @@ async def top_scheduler(app):
                 await asyncio.sleep(wait_mention)
                 groups = sb_load_active_groups()
                 mentions = get_top_mentions()
-                mention_text = "".join([f'<a href="tg://user?id={m["user_id"]}">​</a>' for m in mentions]) if mentions else ""
-                DAILY_INTRO = {
-                    0: "⚡ The weekly war starts NOW. Who's on top?",
-                    1: "🔥 Two days in. The real ones are still here.",
-                    2: "🏆 Midweek. The strong survive. The rest fade.",
-                    3: "💎 Thursday. The throne is almost decided.",
-                    4: "🏁 Last day. Final standings incoming.",
-                    5: "🔱 Weekend. No excuses. Just results.",
-                    6: "☀️ Week's over. Time to face the results.",
-                }
-                intro = DAILY_INTRO[datetime.now(tz).weekday()]
-                seen = set()
-                for g in groups:
-                    if g["chat_id"] in seen:
-                        continue
-                    seen.add(g["chat_id"])
-                    try:
-                        cid = int(g["chat_id"])
-                        tw_msg = await app.bot.send_message(chat_id=cid, text="▌", parse_mode="HTML")
-                        mid = tw_msg.message_id
-                        current = ""
-                        for char in intro:
-                            current += char
-                            try:
-                                await app.bot.edit_message_text(current + " ▌", chat_id=cid, message_id=mid, parse_mode="HTML")
-                            except Exception:
-                                pass
-                            await asyncio.sleep(0.05)
-                        base = current + (f"\n{mention_text}" if mention_text else "")
+                if mentions:
+                    mention_text = " ".join([f'<a href="tg://user?id={m["user_id"]}">' + (m.get("name") or str(m["user_id"])) + '</a>' for m in mentions])
+                    seen = set()
+                    for g in groups:
+                        if g["chat_id"] in seen:
+                            continue
+                        seen.add(g["chat_id"])
                         try:
-                            await app.bot.edit_message_text(base, chat_id=cid, message_id=mid, parse_mode="HTML")
+                            await app.bot.send_message(chat_id=int(g["chat_id"]), text=f"👀 {mention_text}", parse_mode="HTML")
                         except Exception:
                             pass
-                        await asyncio.sleep(0.5)
-                        for num in ["5️⃣", "4️⃣", "3️⃣", "2️⃣", "1️⃣"]:
-                            try:
-                                await app.bot.edit_message_text(base + f"\n\n{num}", chat_id=cid, message_id=mid, parse_mode="HTML")
-                            except Exception:
-                                pass
-                            await asyncio.sleep(1)
-                    except Exception as e:
-                        logging.error(f"typewriter error {g['chat_id']}: {e}")
                 now = datetime.now(tz)
                 wait_run = (next_run - now).total_seconds()
                 if wait_run > 0:
@@ -4491,6 +4425,142 @@ async def top_scheduler(app):
         except Exception as e:
             logging.error(f"top_scheduler error: {e}")
             await asyncio.sleep(60)
+# ─────────────────────────────────────────
+#  /kill  — Russian Roulette system
+# ─────────────────────────────────────────
+import random as _random
+
+# miss lines per survival count (1st, 2nd, 3rd, 4th escape)
+KILL_MISS_BY_COUNT = {
+    1: [
+        "💨 *click* — Empty chamber. First warning.",
+        "💨 Missed. The bullet went on vacation.",
+        "💨 *click* — Nothing. First time's free.",
+        "💨 The gun blinked. So did you.",
+    ],
+    2: [
+        "💨 Still alive? Impressive. Don't get comfortable.",
+        "💨 Twice now. The odds are getting ugly.",
+        "💨 *click* — Lucky again. But luck runs out.",
+        "💨 Two misses. The bullet is embarrassed.",
+    ],
+    3: [
+        "💨 THREE times?! Someone up there likes you.",
+        "💨 *click* — Unbelievable. Three lives down.",
+        "💨 You should buy a lottery ticket. Seriously.",
+        "💨 Third miss. The reaper is taking notes.",
+    ],
+    4: [
+        "💨 FOUR misses. This is your LAST warning.",
+        "💨 *click* — Four times. The next one has your name tattooed on it.",
+        "💨 Four escapes. The fifth bullet is already loaded.",
+        "💨 You've survived four shots. Nobody survives five.",
+    ],
+}
+
+KILL_HIT_LINES = [
+    "💥 BANG. Clean shot. No debate.",
+    "🔥 Direct hit. They never saw it coming.",
+    "💀 One bullet. One body. Lights out.",
+    "🩸 Brutal. Efficient. Deadly.",
+    "☠️ FIRED. The chat goes silent.",
+]
+
+KILL_DEATH_LINES = [
+    "💀 {target} is gone. Moment of silence... nah.",
+    "⚰️ {target} has left the chat permanently.",
+    "🪦 RIP {target}. It was almost a fair fight.",
+    "💀 {target} — ELIMINATED. No last words.",
+    "☠️ {target} flatlined. The chat moves on.",
+]
+
+KILL_FINAL_LINE = "⚰️ Four warnings ignored. The fifth doesn't miss."
+
+def sb_get_kill_hits(chat_id: str, user_id: str) -> int:
+    try:
+        res = sb.table("kill_hits").select("hits").eq("chat_id", chat_id).eq("user_id", user_id).execute()
+        if res.data:
+            return res.data[0]["hits"]
+        return 0
+    except:
+        return 0
+
+def sb_set_kill_hits(chat_id: str, user_id: str, hits: int):
+    try:
+        sb.table("kill_hits").upsert({"chat_id": chat_id, "user_id": user_id, "hits": hits}).execute()
+    except:
+        pass
+
+def sb_reset_kill_hits(chat_id: str, user_id: str):
+    try:
+        sb.table("kill_hits").delete().eq("chat_id", chat_id).eq("user_id", user_id).execute()
+    except:
+        pass
+
+async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if not msg or not msg.reply_to_message:
+        await msg.reply_text("🔫 Reply to someone to shoot them.")
+        return
+    shooter = msg.from_user
+    target = msg.reply_to_message.from_user
+    if target.id == shooter.id:
+        await msg.reply_text("🤦 You can't shoot yourself. Touch grass.")
+        return
+    if target.is_bot:
+        await msg.reply_text("💀 Bots don't die. Nice try.")
+        return
+    chat_id = str(msg.chat_id)
+    target_id = str(target.id)
+    target_mention = f'<a href="tg://user?id={target.id}">{target.full_name}</a>'
+    shooter_mention = f'<a href="tg://user?id={shooter.id}">{shooter.full_name}</a>'
+    # Check current hits on target
+    hits = sb_get_kill_hits(chat_id, target_id)
+    # Aiming message
+    aim_msg = await msg.reply_text(
+        f"🔫 {shooter_mention} is aiming at {target_mention}...",
+        parse_mode="HTML"
+    )
+    await asyncio.sleep(2)
+    # 4 survived = 5th is guaranteed kill
+    if hits >= 4:
+        death_line = _random.choice(KILL_DEATH_LINES).format(target=target_mention)
+        await aim_msg.edit_text(
+            f"{KILL_FINAL_LINE}\n\n{death_line}",
+            parse_mode="HTML"
+        )
+        sb_reset_kill_hits(chat_id, target_id)
+        return
+    # Random: ~40% chance of hit
+    fired = _random.random() < 0.4
+    if fired:
+        hit_line = _random.choice(KILL_HIT_LINES)
+        death_line = _random.choice(KILL_DEATH_LINES).format(target=target_mention)
+        await aim_msg.edit_text(
+            f"{hit_line}\n\n{death_line}",
+            parse_mode="HTML"
+        )
+        sb_reset_kill_hits(chat_id, target_id)
+    else:
+        new_hits = hits + 1
+        sb_set_kill_hits(chat_id, target_id, new_hits)
+        miss_pool = KILL_MISS_BY_COUNT.get(new_hits, KILL_MISS_BY_COUNT[4])
+        line = _random.choice(miss_pool)
+        # bullet counter bar
+        filled = "🔴" * new_hits
+        empty = "⚫" * (5 - new_hits)
+        counter = f"{filled}{empty}  <b>{new_hits}/5</b>"
+        if new_hits >= 4:
+            footer = f"\n\n{counter}\n☠️ <b>{target_mention} — No way out. The next one ends it.</b>"
+        elif new_hits == 3:
+            footer = f"\n\n{counter}\n⚠️ <i>{target_mention} is running out of luck.</i>"
+        else:
+            footer = f"\n\n{counter}"
+        await aim_msg.edit_text(
+            f"{line}{footer}",
+            parse_mode="HTML"
+        )
+
 def main():
     start_keep_alive()
 app = Application.builder().token(BOT_TOKEN).build()
@@ -4509,6 +4579,8 @@ app.add_handler(MessageHandler(
 ))
 # /gaytest — group command
 app.add_handler(CommandHandler("gaytest", gaytest_cmd))
+# /kill
+app.add_handler(CommandHandler("kill", kill_cmd))
 # /rps
 app.add_handler(CommandHandler("rps", rps_cmd))
 app.add_handler(CallbackQueryHandler(rps_callback, pattern=r"^rps_\d+_(rock|paper|scissors)$"))
