@@ -4873,9 +4873,9 @@ _DUEL_DEATH = [
     "🩸 <b>{loser}</b> flatlines. <b>{winner}</b> doesn't even blink.",
 ]
 
-# Hit probability per round
-_HIT_ENEMY = {1: 0.20, 2: 0.35, 3: 0.55, 4: 0.75, 5: 1.0}
-_HIT_SELF  = {1: 0.25, 2: 0.40, 3: 0.60, 4: 0.80, 5: 1.0}
+# Hit probability per round (Updated for longer, more exciting games)
+_HIT_ENEMY = {1: 0.05, 2: 0.15, 3: 0.40, 4: 0.70, 5: 1.0}
+_HIT_SELF  = {1: 0.08, 2: 0.20, 3: 0.45, 4: 0.75, 5: 1.0}
 
 # ── Helpers ───────────────────────────────────────────────────
 def _dm(uid: int, name: str) -> str:
@@ -5223,17 +5223,20 @@ async def duel_coin_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     coin_text = _random.choice(_DUEL_COIN)
     p1_mention = _dm(duel["p1"], duel["p1_name"])
     
-    # Animation/Wait effect
+    # Animation/Wait effect with Mention
+    p1_mention = _dm(duel["p1"], duel["p1_name"])
     await q.edit_message_text(
         f"{coin_text}\n\n"
-        f"⏳ <b>{duel['p1_name']}</b> picked <b>{choice.upper()}</b>...\n"
-        f"Spinning... 🪙✨",
+        f"🌀 {p1_mention} picked <b>{choice.upper()}</b>\n"
+        f"🪙 <b>The coin is spinning in the air...</b>\n"
+        f"✨ <i>Fate is being decided...</i>",
         parse_mode="HTML"
     )
     await asyncio.sleep(3)
     
     res_text = f"The coin shows <b>{result.upper()}</b>!"
-    coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_name)
+    first_mention = _dm(first_id, first_name)
+    coin_result = _random.choice(_DUEL_COIN_WIN).format(name=first_mention)
     
     await q.edit_message_text(
         f"✨ {res_text}\n"
@@ -5327,6 +5330,18 @@ async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         miss_lines  = _DUEL_MISS_ENEMY
         hit_lines   = _DUEL_HIT_ENEMY
 
+    # Dramatic shooting effect
+    shooter_mention = _dm(shooter_id, shooter_name)
+    target_name_display = "themselves" if target_type == "self" else opp_name
+    
+    await q.edit_message_text(
+        f"⚔️ <b>DUEL</b> — Round {round_no}\n\n"
+        f"🔫 {shooter_mention} pulls the trigger on <b>{target_name_display}</b>...\n"
+        f"<b>BOOM...</b> ⏳",
+        parse_mode="HTML"
+    )
+    await asyncio.sleep(3)
+
     fired = _random.random() < chance
     duel["last_action"] = asyncio.get_event_loop().time()
 
@@ -5335,7 +5350,7 @@ async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         duel["status"] = "done"
         DUEL_ACTIVE.pop(chat_id, None)
 
-        hit_line   = _random.choice(hit_lines).format(name=shooter_name)
+        hit_line   = _random.choice(hit_lines).format(name=shooter_mention)
         death_line = _random.choice(_DUEL_DEATH).format(
             winner=_dm(killer_id, killer_name),
             loser=_dm(victim_id, victim_name)
@@ -5356,6 +5371,7 @@ async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         final = (
             f"⚔️ <b>DUEL OVER</b> — {p1m} vs {p2m}\n"
             f"🔄 Round {round_no}{mbar}\n\n"
+            f"💥 <b>BOOM!</b>\n"
             f"{hit_line}\n\n{death_line}"
             f"{scoreboard}"
         )
@@ -5375,9 +5391,9 @@ async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         duel["turn"] = opp_id
 
         pool      = miss_lines.get(min(round_no, 3), miss_lines[3])
-        miss_line = _random.choice(pool).format(name=shooter_name)
+        miss_line = _random.choice(pool).format(name=shooter_mention)
 
-        await _duel_send_turn(q.message, duel, chat_id, header=miss_line)
+        await _duel_send_turn(q.message, duel, chat_id, header=f"💨 <b>BOOM... click.</b>\n{miss_line}")
         
         # If next turn is AI, trigger AI logic
         if duel["turn"] == 0:
