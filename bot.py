@@ -3680,14 +3680,41 @@ def sb_remove_top_blacklist(user_id: int):
 def sb_increment_top_count(chat_id: str, user_id: str, name: str):
     try:
         from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).isoformat()
-        res = sb.table("top_counts").select("count, first_msg").eq("chat_id", chat_id).eq("user_id", user_id).execute()
+        now_dt = datetime.now(timezone.utc)
+        now = now_dt.isoformat()
+        res = sb.table("top_counts").select("count, first_msg, last_msg, active_seconds").eq("chat_id", chat_id).eq("user_id", user_id).execute()
         if res.data:
-            new_count = res.data[0]["count"] + 1
-            first = res.data[0].get("first_msg") or now
-            sb.table("top_counts").update({"count": new_count, "name": name, "first_msg": first, "last_msg": now}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
+            row = res.data[0]
+            new_count = row["count"] + 1
+            first = row.get("first_msg") or now
+            prev_last = row.get("last_msg")
+            active_secs = row.get("active_seconds") or 0
+            # Add time since last message only if < 30 minutes (user was active)
+            if prev_last:
+                try:
+                    prev_dt = datetime.fromisoformat(prev_last)
+                    diff = (now_dt - prev_dt).total_seconds()
+                    if 0 < diff < 1800:
+                        active_secs += int(diff)
+                except Exception:
+                    pass
+            sb.table("top_counts").update({
+                "count": new_count,
+                "name": name,
+                "first_msg": first,
+                "last_msg": now,
+                "active_seconds": active_secs
+            }).eq("chat_id", chat_id).eq("user_id", user_id).execute()
         else:
-            sb.table("top_counts").insert({"chat_id": chat_id, "user_id": user_id, "name": name, "count": 1, "first_msg": now, "last_msg": now}).execute()
+            sb.table("top_counts").insert({
+                "chat_id": chat_id,
+                "user_id": user_id,
+                "name": name,
+                "count": 1,
+                "first_msg": now,
+                "last_msg": now,
+                "active_seconds": 0
+            }).execute()
     except Exception as e:
         logging.error(f"sb_increment_top_count: {e}")
 def sb_load_top_counts(chat_id: str) -> list:
@@ -3853,22 +3880,11 @@ def get_daily_titles():
     day = datetime.now().weekday()  # 0=Monday, 6=Sunday
     return DAILY_TITLES[day]
 
-def _format_active_time(first_msg, last_msg) -> str:
+def _format_active_time(first_msg=None, last_msg=None, active_seconds=None) -> str:
     try:
-        from datetime import datetime, timezone
-        fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
-        def parse(s):
-            try:
-                return datetime.fromisoformat(s)
-            except Exception:
-                return None
-        f = parse(first_msg)
-        l = parse(last_msg)
-        if not f or not l:
-            return ""
-        diff = int((l - f).total_seconds())
-        # Cap at 24h — anything more is likely stale data
-        if diff > 86400:
+        if active_seconds is not None and active_seconds > 0:
+            diff = int(active_seconds)
+        else:
             return ""
         if diff < 60:
             return f"{diff}s active"
@@ -3907,7 +3923,7 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: 
         else:
             name_tag = f'<b>{name}</b>'
         count = row["count"]
-        time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"))
+        time_str = _format_active_time(active_seconds=row.get("active_seconds"))
         line1 = f"{medal} {name_tag}"
         line2 = f"   📨 {count} messages"
         if time_str:
