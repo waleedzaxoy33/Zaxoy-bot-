@@ -4532,7 +4532,9 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_reset_kill_hits(chat_id, target_id)
         return
     # Random: ~40% chance of hit
-    fired = _random.random() < 0.4
+    # hit chance increases with each survival
+    hit_chances = {0: 0.25, 1: 0.40, 2: 0.60, 3: 0.80}
+    fired = _random.random() < hit_chances.get(hits, 0.25)
     if fired:
         hit_line = _random.choice(KILL_HIT_LINES)
         death_line = _random.choice(KILL_DEATH_LINES).format(target=target_mention)
