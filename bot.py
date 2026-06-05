@@ -657,45 +657,61 @@ async def zaxo_defense_handler(
 # ─────────────────────────────────────────────────────────────
 # Waleed Zaxoy Name Protection
 # ─────────────────────────────────────────────────────────────
-# List of major countries and cities ending with 'e' or 'i'
-# This ensures "Waleed [Place]" triggers the correction, but not "Waleed here"
-PLACES_ENDING_E_I = {
-    # Countries
+# Comprehensive lists for "Waleed [Place]" protection
+COUNTRIES = {
     "france", "greece", "chile", "belize", "singapore", "mexico", "suriname", "ukraine", 
     "zimbabwe", "mozambique", "cote d'ivoire", "ivory coast", "cape verde", "sierra leone",
-    "burundi", "djibouti", "fiji", "haiti", "kiribati", "malawi", "mali", "iraqi", "kuwaiti",
-    # Cities (Global & Regional)
+    "burundi", "djibouti", "fiji", "haiti", "kiribati", "malawi", "mali", "iraq", "kuwait",
+    "poland", "germany", "italy", "turkey", "syria", "lebanon", "jordan", "egypt", "libya",
+    "tunisia", "algeria", "morocco", "sudan", "yemen", "oman", "qatar", "bahrain", "uae",
+    "saudi", "palestine", "iran", "afghanistan", "pakistan", "india", "china", "japan",
+    "russia", "america", "canada", "brazil", "argentina", "australia", "spain", "portugal",
+}
+
+REGIONAL_PLACES = {
+    "duhok", "duhoke", "duhoki", "erbil", "arbile", "hewler", "sulaymaniyah", "slemani", 
+    "kirkuk", "mosul", "basra", "baghdad", "zakho", "zaxo", "akre", "amedi", "semel", 
+    "shekhan", "shingal", "bardarash", "soran", "shaqlawa", "ranya", "kaladize", 
+    "halabja", "chamchamal", "kalar", "darbandikhan", "koysinjaq", "amara", "nasiriyah",
+    "kut", "najaf", "karbala", "hilla", "ramadi", "fallujah", "samarra", "tikrit", "baqubah",
+    "polandi", "kurdi", "iraqi", "surichi", "shami", "masri", "kuwaiti", "saudi", "emirati",
+    "bahraini", "qatari", "omani", "yemeni", "lubnani", "urduni", "falastini", "turki",
+    "amriki", "faransi", "almani", "inglizi", "britani", "rusi", "sini", "yabani", "hindi",
+}
+
+GLOBAL_CITIES = {
     "rome", "venice", "florence", "marseille", "nice", "cologne", "prague", "athens", 
     "seville", "melbourne", "brisbane", "adelaide", "seattle", "baltimore", "providence",
     "anchorage", "dubai", "abu dhabi", "al ain", "muscat", "manama", "doha", "riyadh", 
-    "jeddah", "makkah", "madinah", "erbil", "dohuk", "sulaymaniyah", "kirkuk", "mosul", 
-    "basra", "baghdad", "amara", "nasiriyah", "kut", "najaf", "karbala", "hilla", 
-    "ramadi", "fallujah", "samarra", "tikrit", "baqubah", "zaxo", "zakho", "duhok",
-    "akre", "amedi", "semel", "shekhan", "shingal", "bardarash", "soran", "shaqlawa",
-    "ranya", "kaladize", "halabja", "chamchamal", "kalar", "darbandikhan", "koysinjaq",
-    "taq taq", "derelok", "sheladiz", "bamarni", "kanimasi", "batifa", "begova", "darkar",
-    "mumbai", "karachi", "shanghai", "delhi", "nairobi", "helsinki", "miami", "taipei",
-    "tbilisi", "tripoli", "benghazi", "bari", "brindisi", "cagliari", "napoli", "rimini",
+    "jeddah", "makkah", "madinah", "mumbai", "karachi", "shanghai", "delhi", "nairobi", 
+    "helsinki", "miami", "taipei", "tbilisi", "tripoli", "benghazi", "bari", "brindisi", 
+    "cagliari", "napoli", "rimini",
+}
+
+ALL_VALID_PLACES = COUNTRIES.union(REGIONAL_PLACES).union(GLOBAL_CITIES)
+
+EXCLUDED_WORDS = {
+    "here", "ali", "vali", "the", "be", "me", "he", "she", "we", "are", "fine", 
+    "nice", "like", "time", "more", "some", "make", "take", "come", "give", "life", 
+    "name", "home", "page", "side", "line", "case", "file", "code", "date", "time",
+    "i", "me", "my", "hi", "bye", "see", "be", "we", "the", "ali", "wali", "hadi", "fadi",
+    "sami", "rami", "hani", "zaki", "naji", "shadi", "ghadi", "wadi", "radi", "madi",
+    "hari", "abdi", "hamdi", "mehdi", "fathi", "safi", "bakri", "badri", "shukri", "omri",
 }
 
 def is_waleed_fake(text: str) -> bool:
-    # Pattern to match "Waleed [Word]"
     pattern = r'\bWaleed\s+([a-zA-Z]+)\b'
     matches = re.finditer(pattern, text, re.IGNORECASE)
     
     for match in matches:
-        second_word = match.group(1).lower()
-        
-        # Only trigger if the second word ends with 'e' or 'i'
-        if second_word.endswith(('e', 'i')):
-            # Skip if it's already correct (Zaxoy/Zaxo)
-            if second_word in ["zaxoy", "zaxo"]:
+        word = match.group(1).lower()
+        if word in ALL_VALID_PLACES:
+            if word in ["zaxoy", "zaxo"]:
                 continue
-            
-            # ONLY trigger if the word is a known city or country
-            if second_word in PLACES_ENDING_E_I:
+            return True
+        if word.endswith(('e', 'i')):
+            if word not in EXCLUDED_WORDS and len(word) > 3:
                 return True
-                
     return False
 async def waleed_protection(
     update: Update,
