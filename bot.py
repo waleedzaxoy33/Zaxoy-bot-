@@ -4711,7 +4711,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # 4 survived = 5th is guaranteed kill
     if hits >= 4:
         await aim_msg.edit_text(
-            f"{shooter_mention} locked on {target_mention} 🎯\n💥.....🔫",
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫.....💥",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
@@ -4728,7 +4728,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fired = _random.random() < hit_chances.get(hits, 0.25)
     if fired:
         await aim_msg.edit_text(
-            f"{shooter_mention} locked on {target_mention} 🎯\n💥.....🔫",
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫.....💥",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
@@ -4741,7 +4741,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_reset_kill_hits(chat_id, target_id)
     else:
         await aim_msg.edit_text(
-            f"{shooter_mention} locked on {target_mention} 🎯\n💨.....🔫",
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫.....💨",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
