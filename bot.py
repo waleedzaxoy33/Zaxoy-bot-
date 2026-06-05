@@ -672,13 +672,17 @@ async def ai_is_waleed_wrong(text: str) -> bool:
                 {
                     "role": "system",
                     "content": (
-                        "You are a name checker. Your job: detect if someone wrote 'Waleed' followed by a wrong last name "
-                        "(any last name that ends in 'e' or 'i' or any other name that is NOT 'Zaxoy' or 'Zaxo'). "
-                        "The correct full name is 'Waleed Zaxoy'. "
-                        "Reply YES if the message contains 'Waleed' with a wrong last name. "
-                        "Reply NO if: the last name is Zaxoy or Zaxo, or if Waleed appears alone without a last name, "
-                        "or if Waleed refers to someone else entirely (context makes it clear it's a different person), "
-                        "or if it's a city/country name ending in e/i (like Dubai, Zakho, etc). "
+                        "You are a name checker. The correct full name is 'Waleed Zaxoy'. "
+                        "Reply YES ONLY if the message contains 'Waleed' followed directly by a LAST NAME that is NOT Zaxoy or Zaxo. "
+                        "A last name must look like a proper name (capitalized, a real surname). "
+                        "Reply NO if: "
+                        "- Waleed is followed by a regular word like 'here', 'is', 'was', 'and', 'the', 'from', 'hi', 'bye', etc. "
+                        "- Waleed appears alone with no last name. "
+                        "- The last name is Zaxoy or Zaxo. "
+                        "- Waleed clearly refers to a different person in context. "
+                        "- The word after Waleed is a city, country, or place name. "
+                        "Examples of YES: 'Waleed Hamdi', 'Waleed Ali', 'Waleed Mohammed'. "
+                        "Examples of NO: 'Waleed here', 'Waleed is cool', 'Waleed Zaxoy', 'Waleed'. "
                         "Only reply YES or NO, nothing else."
                     )
                 },
