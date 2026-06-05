@@ -4695,19 +4695,18 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         parse_mode="HTML"
     )
     await asyncio.sleep(1)
-    # Growing dots animation
-    dot_frames = [".", "..."]
-    for dots in dot_frames:
-        await aim_msg.edit_text(
-            f"{shooter_mention} locked on {target_mention} 🎯\n{dots}🔫 {target_mention}",
-            parse_mode="HTML"
-        )
-        await asyncio.sleep(1)
+    # Step 1: gun
     await aim_msg.edit_text(
-        f"{shooter_mention} locked on {target_mention} 🎯\nBOOM.....🔫",
+        f"{shooter_mention} locked on {target_mention} 🎯\n🔫",
         parse_mode="HTML"
     )
-    await asyncio.sleep(1.5)
+    await asyncio.sleep(1)
+    # Step 2: dots then gun
+    await aim_msg.edit_text(
+        f"{shooter_mention} locked on {target_mention} 🎯\n......🔫",
+        parse_mode="HTML"
+    )
+    await asyncio.sleep(1)
     # 4 survived = 5th is guaranteed kill
     if hits >= 4:
         await aim_msg.edit_text(
