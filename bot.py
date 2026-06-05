@@ -259,6 +259,8 @@ def save_admin_perms(store: dict[int, set]):
         pass
 admin_perms: dict[int, set] = load_admin_perms()
 deadchat_cooldowns = {}  # chat_id: last_used_time
+# Active minutes cooldown: (chat_id, user_id) → last counted message timestamp
+ACTIVE_COOLDOWN: dict[tuple, float] = {}
 def has_perm(user_id: int, cmd: str) -> bool:
     if user_id == OWNER_ID:
         return True
@@ -3892,17 +3894,44 @@ def sb_remove_top_blacklist(user_id: int):
         sb.table("top_blacklist").delete().eq("user_id", str(user_id)).execute()
     except Exception as e:
         logging.error(f"sb_remove_top_blacklist: {e}")
+ACTIVE_MINUTES_COOLDOWN = 120  # seconds — 2 minutes between counted messages
+
 def sb_increment_top_count(chat_id: str, user_id: str, name: str):
     try:
+        import time
         from datetime import datetime, timezone
-        now = datetime.now(timezone.utc).isoformat()
-        res = sb.table("top_counts").select("count, first_msg").eq("chat_id", chat_id).eq("user_id", user_id).execute()
+        now_iso = datetime.now(timezone.utc).isoformat()
+        now_ts = time.time()
+        key = (chat_id, user_id)
+        last_ts = ACTIVE_COOLDOWN.get(key, 0)
+        # Always increment message count
+        res = sb.table("top_counts").select("count, first_msg, active_minutes").eq("chat_id", chat_id).eq("user_id", user_id).execute()
         if res.data:
             new_count = res.data[0]["count"] + 1
-            first = res.data[0].get("first_msg") or now
-            sb.table("top_counts").update({"count": new_count, "name": name, "first_msg": first, "last_msg": now}).eq("chat_id", chat_id).eq("user_id", user_id).execute()
+            first = res.data[0].get("first_msg") or now_iso
+            cur_minutes = res.data[0].get("active_minutes") or 0
+            # Only add active minute if cooldown passed
+            if now_ts - last_ts >= ACTIVE_MINUTES_COOLDOWN:
+                cur_minutes += 1
+                ACTIVE_COOLDOWN[key] = now_ts
+            sb.table("top_counts").update({
+                "count": new_count,
+                "name": name,
+                "first_msg": first,
+                "last_msg": now_iso,
+                "active_minutes": cur_minutes
+            }).eq("chat_id", chat_id).eq("user_id", user_id).execute()
         else:
-            sb.table("top_counts").insert({"chat_id": chat_id, "user_id": user_id, "name": name, "count": 1, "first_msg": now, "last_msg": now}).execute()
+            ACTIVE_COOLDOWN[key] = now_ts
+            sb.table("top_counts").insert({
+                "chat_id": chat_id,
+                "user_id": user_id,
+                "name": name,
+                "count": 1,
+                "first_msg": now_iso,
+                "last_msg": now_iso,
+                "active_minutes": 1
+            }).execute()
     except Exception as e:
         logging.error(f"sb_increment_top_count: {e}")
 def sb_load_top_counts(chat_id: str) -> list:
@@ -4067,10 +4096,18 @@ def get_daily_titles():
     day = datetime.now().weekday()  # 0=Monday, 6=Sunday
     return DAILY_TITLES[day]
 
-def _format_active_time(first_msg, last_msg) -> str:
+def _format_active_time(first_msg, last_msg, active_minutes=None) -> str:
     try:
+        if active_minutes is not None and active_minutes > 0:
+            mins = int(active_minutes)
+            if mins < 60:
+                return f"{mins}m active"
+            else:
+                h = mins // 60
+                m = mins % 60
+                return f"{h}h {m}m active" if m else f"{h}h active"
+        # Fallback to first/last for old data
         from datetime import datetime, timezone
-        fmt = "%Y-%m-%dT%H:%M:%S.%f%z"
         def parse(s):
             try:
                 return datetime.fromisoformat(s)
@@ -4093,9 +4130,15 @@ def _format_active_time(first_msg, last_msg) -> str:
         return ""
 
 def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: bool = False) -> str:
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    day_name = now.strftime("%A")
+    date_str = now.strftime("%-m/%-d")
+    day_line = f"{day_name} {date_str}"
     header = "🌙 <b>Daily Top 5</b>" if daily else "🏆 <b>Top 5 Chatters — Today</b>"
     if chat_title:
         header += f" — <b>{chat_title}</b>"
+    header += f"\n📅 {day_line}"
     text = header + "\n" + "─" * 22 + "\n\n"
     if not rows:
         text += "📭 No data yet."
@@ -4109,7 +4152,7 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: 
         else:
             name_tag = f'<b>{row["name"]}</b>'
         count = row["count"]
-        time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"))
+        time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"), row.get("active_minutes"))
         stats = f"   ↳ {count} msgs"
         if time_str:
             stats += f"  •  🕐 {time_str}"
