@@ -657,20 +657,47 @@ async def zaxo_defense_handler(
 # ─────────────────────────────────────────────────────────────
 # Waleed Zaxoy Name Protection
 # ─────────────────────────────────────────────────────────────
-def is_waleed_fake(text: str) -> bool:
-    pattern = r'\bWaleed\s+\w+[ie]\b'
-    matches = re.findall(
-        pattern,
-        text,
-        re.IGNORECASE
-    )
-    for m in matches:
-        parts = m.strip().split()
-        if len(parts) >= 2:
-            second = parts[1].lower()
-            if second not in ["zaxoy", "zaxo"]:
+async def ai_is_waleed_wrong(text: str) -> bool:
+    # Quick skip: if no mention of waleed at all
+    if "waleed" not in text.lower():
+        return False
+    try:
+        client = openai.OpenAI(
+            api_key=GROQ_API_KEY,
+            base_url="https://api.groq.com/openai/v1"
+        )
+        resp = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a name checker. Your job: detect if someone wrote 'Waleed' followed by a wrong last name "
+                        "(any last name that ends in 'e' or 'i' or any other name that is NOT 'Zaxoy' or 'Zaxo'). "
+                        "The correct full name is 'Waleed Zaxoy'. "
+                        "Reply YES if the message contains 'Waleed' with a wrong last name. "
+                        "Reply NO if: the last name is Zaxoy or Zaxo, or if Waleed appears alone without a last name, "
+                        "or if Waleed refers to someone else entirely (context makes it clear it's a different person), "
+                        "or if it's a city/country name ending in e/i (like Dubai, Zakho, etc). "
+                        "Only reply YES or NO, nothing else."
+                    )
+                },
+                {"role": "user", "content": text}
+            ],
+            max_tokens=5,
+            temperature=0
+        )
+        answer = resp.choices[0].message.content.strip().upper()
+        return answer == "YES"
+    except Exception:
+        # Fallback to old regex
+        pattern = r'\bWaleed\s+\w+[ie]\b'
+        matches = re.findall(pattern, text, re.IGNORECASE)
+        for m in matches:
+            parts = m.strip().split()
+            if len(parts) >= 2 and parts[1].lower() not in ["zaxoy", "zaxo"]:
                 return True
-    return False
+        return False
 async def waleed_protection(
     update: Update,
     ctx: ContextTypes.DEFAULT_TYPE
@@ -678,7 +705,7 @@ async def waleed_protection(
     msg = update.message
     if not msg or not msg.text:
         return
-    if is_waleed_fake(msg.text):
+    if await ai_is_waleed_wrong(msg.text):
         await msg.reply_text(
             "Waleed Zaxoy*",
             reply_to_message_id=msg.message_id
@@ -4727,7 +4754,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fired = _random.random() < hit_chances.get(hits, 0.25)
     if fired:
         await aim_msg.edit_text(
-            f"{shooter_mention} locked on {target_mention} 🎯\n💥.....🔫",
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫.....💥",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
@@ -4740,7 +4767,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_reset_kill_hits(chat_id, target_id)
     else:
         await aim_msg.edit_text(
-            f"{shooter_mention} locked on {target_mention} 🎯\n💨.....🔫",
+            f"{shooter_mention} locked on {target_mention} 🎯\n🔫.....💨",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
