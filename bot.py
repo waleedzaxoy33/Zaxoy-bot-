@@ -657,51 +657,46 @@ async def zaxo_defense_handler(
 # ─────────────────────────────────────────────────────────────
 # Waleed Zaxoy Name Protection
 # ─────────────────────────────────────────────────────────────
-async def ai_is_waleed_wrong(text: str) -> bool:
-    # Quick skip: if no mention of waleed at all
-    if "waleed" not in text.lower():
-        return False
-    try:
-        client = openai.OpenAI(
-            api_key=GROQ_API_KEY,
-            base_url="https://api.groq.com/openai/v1"
-        )
-        resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You are a name checker. The correct full name is 'Waleed Zaxoy'. "
-                        "Reply YES ONLY if the message contains 'Waleed' followed directly by a LAST NAME that is NOT Zaxoy or Zaxo. "
-                        "A last name must look like a proper name (capitalized, a real surname). "
-                        "Reply NO if: "
-                        "- Waleed is followed by a regular word like 'here', 'is', 'was', 'and', 'the', 'from', 'hi', 'bye', etc. "
-                        "- Waleed appears alone with no last name. "
-                        "- The last name is Zaxoy or Zaxo. "
-                        "- Waleed clearly refers to a different person in context. "
-                        "- The word after Waleed is a city, country, or place name. "
-                        "Examples of YES: 'Waleed Hamdi', 'Waleed Ali', 'Waleed Mohammed'. "
-                        "Examples of NO: 'Waleed here', 'Waleed is cool', 'Waleed Zaxoy', 'Waleed'. "
-                        "Only reply YES or NO, nothing else."
-                    )
-                },
-                {"role": "user", "content": text}
-            ],
-            max_tokens=5,
-            temperature=0
-        )
-        answer = resp.choices[0].message.content.strip().upper()
-        return answer == "YES"
-    except Exception:
-        # Fallback to old regex
-        pattern = r'\bWaleed\s+\w+[ie]\b'
-        matches = re.findall(pattern, text, re.IGNORECASE)
-        for m in matches:
-            parts = m.strip().split()
-            if len(parts) >= 2 and parts[1].lower() not in ["zaxoy", "zaxo"]:
+# List of major countries and cities ending with 'e' or 'i'
+# This ensures "Waleed [Place]" triggers the correction, but not "Waleed here"
+PLACES_ENDING_E_I = {
+    # Countries
+    "france", "greece", "chile", "belize", "singapore", "mexico", "suriname", "ukraine", 
+    "zimbabwe", "mozambique", "cote d'ivoire", "ivory coast", "cape verde", "sierra leone",
+    "burundi", "djibouti", "fiji", "haiti", "kiribati", "malawi", "mali", "iraqi", "kuwaiti",
+    # Cities (Global & Regional)
+    "rome", "venice", "florence", "marseille", "nice", "cologne", "prague", "athens", 
+    "seville", "melbourne", "brisbane", "adelaide", "seattle", "baltimore", "providence",
+    "anchorage", "dubai", "abu dhabi", "al ain", "muscat", "manama", "doha", "riyadh", 
+    "jeddah", "makkah", "madinah", "erbil", "dohuk", "sulaymaniyah", "kirkuk", "mosul", 
+    "basra", "baghdad", "amara", "nasiriyah", "kut", "najaf", "karbala", "hilla", 
+    "ramadi", "fallujah", "samarra", "tikrit", "baqubah", "zaxo", "zakho", "duhok",
+    "akre", "amedi", "semel", "shekhan", "shingal", "bardarash", "soran", "shaqlawa",
+    "ranya", "kaladize", "halabja", "chamchamal", "kalar", "darbandikhan", "koysinjaq",
+    "taq taq", "derelok", "sheladiz", "bamarni", "kanimasi", "batifa", "begova", "darkar",
+    "mumbai", "karachi", "shanghai", "delhi", "nairobi", "helsinki", "miami", "taipei",
+    "tbilisi", "tripoli", "benghazi", "bari", "brindisi", "cagliari", "napoli", "rimini",
+}
+
+def is_waleed_fake(text: str) -> bool:
+    # Pattern to match "Waleed [Word]"
+    pattern = r'\bWaleed\s+([a-zA-Z]+)\b'
+    matches = re.finditer(pattern, text, re.IGNORECASE)
+    
+    for match in matches:
+        second_word = match.group(1).lower()
+        
+        # Only trigger if the second word ends with 'e' or 'i'
+        if second_word.endswith(('e', 'i')):
+            # Skip if it's already correct (Zaxoy/Zaxo)
+            if second_word in ["zaxoy", "zaxo"]:
+                continue
+            
+            # ONLY trigger if the word is a known city or country
+            if second_word in PLACES_ENDING_E_I:
                 return True
-        return False
+                
+    return False
 async def waleed_protection(
     update: Update,
     ctx: ContextTypes.DEFAULT_TYPE
@@ -709,7 +704,7 @@ async def waleed_protection(
     msg = update.message
     if not msg or not msg.text:
         return
-    if await ai_is_waleed_wrong(msg.text):
+    if is_waleed_fake(msg.text):
         await msg.reply_text(
             "Waleed Zaxoy*",
             reply_to_message_id=msg.message_id
@@ -4758,7 +4753,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     fired = _random.random() < hit_chances.get(hits, 0.25)
     if fired:
         await aim_msg.edit_text(
-            f"{shooter_mention} locked on {target_mention} 🎯\n🔫.....💥",
+            f"{shooter_mention} locked on {target_mention} 🎯\n💥.....🔫",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
@@ -4771,7 +4766,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         sb_reset_kill_hits(chat_id, target_id)
     else:
         await aim_msg.edit_text(
-            f"{shooter_mention} locked on {target_mention} 🎯\n🔫.....💨",
+            f"{shooter_mention} locked on {target_mention} 🎯\n💨.....🔫",
             parse_mode="HTML"
         )
         await asyncio.sleep(2)
