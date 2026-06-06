@@ -4045,49 +4045,49 @@ DAILY_TITLES = {
         ("🥈", "🔥 Relentless #2 — Pushed hard. The throne felt it."),
         ("🥉", "💬 Bronze Monday — Most didn't show up. You did."),
         ("4️⃣", "😑 4th on Monday — Week just started. Already behind."),
-        ("💩", "🪦 Last on Monday — The week began. You didn't."),
+        ("5️⃣", "🪦 Last on Monday — The week began. You didn't."),
     ],
     1: [  # Tuesday
         ("🥇", "👑 TUESDAY TITAN — Two days in, already untouchable. Bow down."),
         ("🥈", "⚔️ Silver Blade — One step from the crown. Everyone knows it."),
         ("🥉", "🎯 Solid Third — Consistent. Bronze Tuesday is earned."),
         ("4️⃣", "🌀 4th on Tuesday — Barely here. The chat noticed."),
-        ("💩", "😶 Ghost on Tuesday — Two days in. Already forgotten."),
+        ("5️⃣", "😶 Ghost on Tuesday — Two days in. Already forgotten."),
     ],
     2: [  # Wednesday
         ("🥇", "🏆 MIDWEEK GOD — Weak people collapse here. Not you. GOAT."),
         ("🥈", "🚀 The Rocket — Not chasing #1. Haunting it."),
         ("🥉", "🔶 Holding Third — Halfway through. Still standing."),
         ("4️⃣", "😐 4th at Midweek — Two days to climb. Still here."),
-        ("💩", "💀 Last — Wednesday — Half the week gone. No excuses left."),
+        ("5️⃣", "💀 Last — Wednesday — Half the week gone. No excuses left."),
     ],
     3: [  # Thursday
         ("🥇", "💎 THURSDAY LEGEND — Four days deep. Still untouchable. Dominant."),
         ("🥈", "🔱 Throne Chaser — Breathing down #1's neck. Last real shot."),
         ("🥉", "🎙️ Third & Tall — Others disappeared. You outlasted them all."),
         ("4️⃣", "⚠️ 4th on Thursday — One day left. It's not enough."),
-        ("💩", "🗑️ Bottom of Thursday — Almost over. This is your achievement."),
+        ("5️⃣", "🗑️ Bottom of Thursday — Almost over. This is your achievement."),
     ],
     4: [  # Friday
         ("🥇", "🌟 FRIDAY KING — Carried the week. Closed it in style. Crown on."),
         ("🥈", "🎸 Friday Rockstar — Inches from the top. Legendary effort."),
         ("🥉", "🎉 Bronze Friday — Most faded. You made it to the end."),
         ("4️⃣", "😬 4th on Friday — Five days. This is your final grade."),
-        ("💩", "🚮 Last on Friday — Five days. Five chances. All wasted."),
+        ("5️⃣", "🚮 Last on Friday — Five days. Five chances. All wasted."),
     ],
     5: [  # Saturday
         ("🥇", "🔱 WEEKEND SUPREME — Others rest. You conquer. Untouchable."),
         ("🥈", "🏄 Silver Saturday — Fought for #2 on your day off. Dangerous."),
         ("🥉", "🎮 Third on Saturday — Weekend, offline world. You showed up."),
         ("4️⃣", "😒 4th on Saturday — Free day. No excuses. Still here."),
-        ("💩", "🛌 Last on Saturday — Full weekend. Chose to do nothing."),
+        ("5️⃣", "🛌 Last on Saturday — Full weekend. Chose to do nothing."),
     ],
     6: [  # Sunday
         ("🥇", "☀️ SUNDAY OVERLORD — Week ends. You stand alone. Immortal."),
         ("🥈", "🌤️ Silver Closer — Fought all week. Crown still out of reach."),
         ("🥉", "🌈 Sunday Bronze — Last day. Still top three. That means something."),
         ("4️⃣", "🛋️ 4th on Sunday — Week's over. 4th is how you'll be remembered."),
-        ("💩", "🌑 Last on Sunday — Seven days. Every chance gone. Remarkable."),
+        ("5️⃣", "🌑 Last on Sunday — Seven days. Every chance gone. Remarkable."),
     ],
 }
 
@@ -4147,10 +4147,11 @@ def build_top_text(rows: list, chat_title: str = "", daily: bool = False, test: 
     for i, row in enumerate(rows[:5]):
         medal, praise = titles[i]
         uid = row.get("user_id")
+        lrm = "\u200e"  # Left-to-right mark forces LTR display
         if uid:
-            name_tag = f'<a href="tg://user?id={uid}">{row["name"]}</a>'
+            name_tag = f'<a href="tg://user?id={uid}">{lrm}{row["name"]}{lrm}</a>'
         else:
-            name_tag = f'<b>{row["name"]}</b>'
+            name_tag = f'<b>{lrm}{row["name"]}{lrm}</b>'
         count = row["count"]
         time_str = _format_active_time(row.get("first_msg"), row.get("last_msg"), row.get("active_minutes"))
         stats = f"   ↳ {count} msgs"
