@@ -4845,7 +4845,7 @@ async def kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         else:
             footer = f"\n\n{counter}"
         await aim_msg.edit_text(
-            f"{line}{footer}",
+            f"{target_mention} — {line}{footer}",
             parse_mode="HTML"
         )
 
