@@ -2639,7 +2639,7 @@ async def show_if_list(msg, ctx):
     )
     for trigger, reply in if_store.items():
         short_trigger = "🎭 Sticker" if len(trigger) > 40 else (trigger[:30] + "..." if len(trigger) > 30 else trigger)
-        short_reply   = "🎭 Sticker" if reply.startswith("STICKER:") else (reply[:30] + "..." if len(reply) > 30 else reply)
+        short_reply   = "🎭 Sticker" if reply.startswith("STICKER:") else ("🎙️ Voice" if reply.startswith("VOICE:") else (reply[:30] + "..." if len(reply) > 30 else reply))
         text = f"🔹 If: `{short_trigger}`\n↩️ Reply: `{short_reply}`"
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton(
@@ -2684,18 +2684,20 @@ async def if_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         session["trigger"] = trigger
         session["step"] = "waiting_reply"
         await msg.reply_text(
-            "✅ Got it!\nNow send me the reply\n(text or sticker file_id)"
+            "✅ Got it!\nNow send me the reply\n(text, sticker, or voice message)"
         )
     # ── Step 2: receive reply ──
     elif step == "waiting_reply":
         reply = None
         if msg.sticker:
             reply = f"STICKER:{msg.sticker.file_id}"
+        elif msg.voice:
+            reply = f"VOICE:{msg.voice.file_id}"
         elif msg.text and not msg.text.startswith("//"):
             reply = msg.text.strip()
         if not reply:
             await msg.reply_text(
-                "⚠️ Send a valid reply (text or sticker)"
+                "⚠️ Send a valid reply (text, sticker, or voice)"
             )
             return
         editing = session.get("editing")
@@ -2805,25 +2807,25 @@ async def if_auto_responder(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not msg:
         return
+    async def send_if_reply(reply, msg):
+        if reply.startswith("STICKER:"):
+            await msg.reply_sticker(reply[8:])
+        elif reply.startswith("VOICE:"):
+            await msg.reply_voice(reply[6:])
+        else:
+            await msg.reply_text(reply)
     # Check text triggers
     if msg.text:
         text = msg.text.strip()
         for trigger, reply in if_store.items():
             if trigger.lower() == text.lower():
-                if reply.startswith("STICKER:"):
-                    await msg.reply_sticker(reply[8:])
-                else:
-                    await msg.reply_text(reply)
+                await send_if_reply(reply, msg)
                 return
     # Check sticker triggers
     if msg.sticker:
         file_id = msg.sticker.file_id
         if file_id in if_store:
-            reply = if_store[file_id]
-            if reply.startswith("STICKER:"):
-                await msg.reply_sticker(reply[8:])
-            else:
-                await msg.reply_text(reply)
+            await send_if_reply(if_store[file_id], msg)
 class _KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
