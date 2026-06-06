@@ -5656,7 +5656,7 @@ app.add_handler(MessageHandler(
 ))
 app.add_handler(MessageHandler(
     filters.ChatType.PRIVATE
-    & (filters.TEXT | filters.Sticker.ALL)
+    & (filters.TEXT | filters.Sticker.ALL | filters.VOICE | filters.AUDIO)
     & filters.User(OWNER_ID)
     & IF_SESSION_ACTIVE,
     if_session_handler
