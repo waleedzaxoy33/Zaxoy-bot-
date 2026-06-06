@@ -2413,6 +2413,11 @@ async def process_video_to_voice(
     video_path = f"temp_video_{chat_id}.mp4"
     audio_path = f"temp_voice_{chat_id}.ogg"
     try:
+        # Check file size — Telegram API limit is 20MB for bots
+        file_size = getattr(video_obj, "file_size", None)
+        if file_size and file_size > 20 * 1024 * 1024:
+            await ctx.bot.send_message(chat_id, "⚠️ File too large. Max 20MB — send a shorter or compressed video.")
+            return
         # get telegram file
         video_file = await ctx.bot.get_file(video_obj.file_id)
         # download video
