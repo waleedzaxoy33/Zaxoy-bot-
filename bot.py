@@ -401,6 +401,10 @@ async def resolve_target_user(msg, ctx, allow_id=False):
     uid, name = await resolve_target_from_mention(msg, ctx)
     reply = msg.reply_to_message if (msg.reply_to_message and msg.reply_to_message.from_user) else None
     return uid, name, reply
+def mention_tag(uid: int, name: str) -> str:
+    """Returns an HTML mention tag for a user."""
+    return f'<a href="tg://user?id={uid}">{name}</a>'
+
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msgs = random.choice(START_MESSAGES)
     text = "\n".join(msgs)
@@ -2038,11 +2042,12 @@ async def auto_unmute_task(chat_id: int, user_id: int, message_id: int, user_nam
         mute_store.pop(user_id, None)
         mute_msg_index_map.pop(message_id, None)
         try:
-            reply_text = UNMUTE_MESSAGES[message_index].format(name=user_name)
+            reply_text = UNMUTE_MESSAGES[message_index].format(name=mention_tag(user_id, user_name))
             await ctx.bot.edit_message_text(
                 chat_id=chat_id,
                 message_id=message_id,
                 text=reply_text,
+                parse_mode="HTML",
                 reply_markup=None
             )
         except Exception:
@@ -2091,6 +2096,7 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
         warn_store[uid] = warn_store.get(uid, 0) + 1
         count = warn_store[uid]
+        tag = mention_tag(uid, target_name_str)
         if count >= 3:
             until_date = datetime.now(timezone.utc) + timedelta(seconds=3600)
             await ctx.bot.restrict_chat_member(
@@ -2100,11 +2106,12 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                 until_date=until_date
             )
             warn_store[uid] = 0
-            await _reply(f"🔨 {target_name_str} received 3/3 warnings and has been muted for 1 hour! 🇲🇨")
+            await ctx.bot.send_message(chat_id, f"🔨 {tag} received 3/3 warnings and has been muted for 1 hour! 🇲🇨", parse_mode="HTML")
             return
         await ctx.bot.send_message(
             chat_id=chat_id,
-            text=f"⚠️ Warning ({count}/3) for {target_name_str}! 🇲🇨",
+            text=f"⚠️ Warning ({count}/3) for {tag}! 🇲🇨",
+            parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([[
                 InlineKeyboardButton("❌ Remove 1 Warn", callback_data=f"remwarn_{uid}"),
                 InlineKeyboardButton("🧹 Reset All", callback_data=f"resetwarn_{uid}")
@@ -2160,13 +2167,15 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         
         duration_formatted = format_duration(seconds)
         msg_idx = random.randint(0, len(MUTE_MESSAGES) - 1)
+        tag = mention_tag(target_id, target_name if target_name else str(target_id))
         alert_msg = MUTE_MESSAGES[msg_idx].format(
-            name=target_name if target_name else str(target_id),
+            name=tag,
             duration=duration_formatted
         )
         
         sent = await msg.reply_text(
             alert_msg,
+            parse_mode="HTML",
             reply_markup=InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔈 Unmute", callback_data=f"unmute_{target_id}")]
             ])
@@ -2211,7 +2220,8 @@ async def unmute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         )
         mute_store.pop(target_id, None)
         member = await ctx.bot.get_chat_member(msg.chat_id, target_id)
-        await msg.reply_text(f"🔓 {member.user.full_name} has been unmuted! 🇲🇨")
+        tag = mention_tag(target_id, member.user.full_name)
+        await msg.reply_text(f"🔓 {tag} has been unmuted! 🇲🇨", parse_mode="HTML")
     except Exception as e:
         await msg.reply_text(f"⚠️ Failed to unmute user: {str(e)}")
 async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2242,9 +2252,9 @@ async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             mute_store.pop(uid, None)
             
             msg_idx = mute_msg_index_map.pop(mid, 0)
-            reply_text = UNMUTE_MESSAGES[msg_idx].format(name=target_name)
+            reply_text = UNMUTE_MESSAGES[msg_idx].format(name=mention_tag(uid, target_name))
             
-            await query.edit_message_text(text=reply_text, reply_markup=None)
+            await query.edit_message_text(text=reply_text, parse_mode="HTML", reply_markup=None)
         except Exception as e:
             await query.answer(str(e), show_alert=True)
     # 2. Remove 1 Warning Button Logic
@@ -2258,8 +2268,10 @@ async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await query.answer(f"❌ Removed 1 warning. Current: ({warn_store[uid]}/3)", show_alert=True)
             try:
                 chat_member = await ctx.bot.get_chat_member(chat_id=query.message.chat_id, user_id=uid)
+                tag = mention_tag(uid, chat_member.user.full_name)
                 await query.edit_message_text(
-                    text=f"⚠️ Warning removed by admin! {chat_member.user.full_name} now has ({warn_store[uid]}/3) warnings. 🇲🇨",
+                    text=f"⚠️ Warning removed by admin! {tag} now has ({warn_store[uid]}/3) warnings. 🇲🇨",
+                    parse_mode="HTML",
                     reply_markup=InlineKeyboardMarkup([[
                         InlineKeyboardButton("❌ Remove 1 Warn", callback_data=f"remwarn_{uid}"),
                         InlineKeyboardButton("🧹 Reset All", callback_data=f"resetwarn_{uid}")
@@ -2278,7 +2290,8 @@ async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.answer("🧹 All warnings have been reset to 0!", show_alert=True)
         try:
             chat_member = await ctx.bot.get_chat_member(chat_id=query.message.chat_id, user_id=uid)
-            await query.edit_message_text(text=f"🧹 Clean slate! {chat_member.user.full_name}'s warnings have been reset to (0/3)! 🇲🇨", reply_markup=None)
+            tag = mention_tag(uid, chat_member.user.full_name)
+            await query.edit_message_text(text=f"🧹 Clean slate! {tag}'s warnings have been reset to (0/3)! 🇲🇨", parse_mode="HTML", reply_markup=None)
         except Exception:
             pass
 async def shot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2849,6 +2862,118 @@ def start_keep_alive():
         print("Keep-alive server running on port 5000")
     except OSError:
         print("Port 5000 already in use — keep-alive already running")
+# ─── /cr7 ─────────────────────────────────────────────────────────────────────
+from datetime import timezone as _tz
+
+WORLD_CUP_FINAL = datetime(2026, 7, 19, 12, 0, 0, tzinfo=_tz.utc)  # 19 July 2026, 3pm ET = ~12:00 UTC (reset at 12:00 Iraq time = 09:00 UTC)
+
+def get_days_to_final() -> int:
+    """Returns days remaining to WC final, resets at 12:00 Iraq time (UTC+3 = 09:00 UTC)."""
+    now = datetime.now(_tz.utc)
+    iraq_midnight = now.replace(hour=9, minute=0, second=0, microsecond=0)  # 12:00 Iraq = 09:00 UTC
+    if now < iraq_midnight:
+        base = iraq_midnight - now
+        diff = WORLD_CUP_FINAL - now
+    else:
+        diff = WORLD_CUP_FINAL - now
+    days = max(0, diff.days)
+    return days
+
+# Tuple: (text, has_poll)
+# has_poll=True → يطلع أزرار Yes/No
+CR7_MESSAGES = [
+    # === بدون أزرار ===
+    ("⚽ Cristiano Ronaldo didn't come this far to watch others lift the trophy. Portugal bleeds for this moment, and CR7 leads the charge. 🇵🇹", False),
+    ("🏆 Imagine the scene — Ronaldo lifting the World Cup trophy in the final moments of his international career. Portugal is writing history. 🇵🇹✨", False),
+    ("👑 Ronaldo has won everything in club football. The World Cup is the only missing piece — and Portugal is just steps away from delivering it. 🏆🇵🇹", False),
+    ("🔥 Every match, every goal, every sacrifice CR7 has made in his career has been building toward this. Legends don't fade — they peak. 🇵🇹", False),
+    ("⚽ Portugal's path to the final is proof that this generation belongs on the biggest stage. Ronaldo isn't just a player — he's the soul of this nation. 🇵🇹❤️", False),
+    ("🏅 CR7's journey: 5 Ballon d'Or, 5 Champions Leagues, most international goals ever. The last box to tick — World Cup champion. 🇵🇹🏆", False),
+    ("🌍 The world has never seen a footballer with the hunger of Cristiano Ronaldo. At this stage of his career, still dominating — this is superhuman. 🇵🇹⚽", False),
+    ("💪 Portugal doesn't just have a squad — they have a statement. And that statement is written in CR7's boots. 🏆🇵🇹", False),
+    ("✨ Generations from now, people will ask: 'Where were you when Ronaldo won the World Cup?' That story is being written right now. 🇵🇹🏆", False),
+    ("⚡ No player in history has worked harder. CR7 is not just a footballer — he's a symbol of what refusing to give up looks like. 🇵🇹", False),
+    ("🇵🇹 Bruno Fernandes, Bernardo Silva, Rafael Leão — Portugal has firepower. But the heart has always had one name: Cristiano Ronaldo. 👑", False),
+    ("🌟 The Selecção das Quinas is one step from football immortality. Ronaldo's leadership has transformed this squad into believers. 🇵🇹🏆", False),
+    ("🔴🟢 Red and green will paint the world in glory. Portugal is knocking on the door of history. 🇵🇹🏆", False),
+    ("🇵🇹 They said Ronaldo was too old. They said Portugal couldn't do it. CR7 will make every single doubt disappear. That's what GOATs do. 🐐🏆", False),
+    ("🌍 Portugal has produced one of the greatest footballers in human history. Now history demands one final gift — the World Cup trophy. 🇵🇹✨", False),
+    ("🏅 CR7 has scored, led, carried, and inspired. Portugal has followed every step. The final chapter ends in gold. 🇵🇹🏆", False),
+    ("🇵🇹 There's a reason the whole world is watching Portugal. It's not just football — it's the greatest story ever told in the sport. 🌟", False),
+    ("💫 One dream. One man who has made an entire nation believe. Portugal and Ronaldo — the World Cup is coming home. 🇵🇹🏆🔥", False),
+    ("🔥 Ronaldo's stats for Portugal: 900+ caps, 130+ goals, every record shattered. The only record left — World Cup winner. 🇵🇹⚽", False),
+    ("🎯 This isn't just CR7's last chance. This is Portugal's best squad in history. The timing is perfect. The stars are aligned. 🇵🇹✨", False),
+    # === مع أزرار Yes/No ===
+    ("🇵🇹 Do you think Portugal will lift the World Cup? 🏆", True),
+    ("⚽ Can Ronaldo make history and become a World Cup champion? 🇵🇹👑", True),
+    ("🌟 Is CR7 the greatest footballer of all time? 🐐", True),
+    ("🏆 Will Portugal go all the way and win it for Ronaldo? 🇵🇹🔥", True),
+    ("👑 Do you believe this is finally Ronaldo's year? 🇵🇹⚽", True),
+    ("🇵🇹 Is Portugal the team to beat in this World Cup? 🏆", True),
+    ("⚡ Will CR7 score in the World Cup final? 🇵🇹⚽🏆", True),
+]
+
+async def cr7_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    days = get_days_to_final()
+
+    if days > 0:
+        final_countdown = f"⏳ {days} days 🇵🇹🏆"
+    else:
+        final_countdown = "🏆 TODAY IS THE DAY! 🇵🇹🔥"
+
+    text, has_poll = random.choice(CR7_MESSAGES)
+    final_text = f"{final_countdown}\n\n{text}"
+
+    if has_poll:
+        poll_id = f"cr7_{msg.chat_id}_{msg.message_id}"
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("✅ Yes", callback_data=f"cr7yes_{poll_id}"),
+            InlineKeyboardButton("❌ No",  callback_data=f"cr7no_{poll_id}"),
+        ]])
+    else:
+        kb = None
+
+    # Hourglass animation then reveal full message
+    sent = await msg.reply_text(f"⏳ {days} days 🇵🇹🏆", parse_mode="HTML")
+    frames = ["⌛", "⏳", "⌛", "⏳", "⌛", "⏳"]
+    for frame in frames:
+        await asyncio.sleep(0.4)
+        try:
+            await sent.edit_text(f"{frame} {days} days 🇵🇹🏆", parse_mode="HTML")
+        except Exception:
+            pass
+    await asyncio.sleep(0.4)
+    try:
+        await sent.edit_text(final_text, parse_mode="HTML", reply_markup=kb)
+    except Exception:
+        pass
+
+async def cr7_vote_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    data = query.data
+
+    if data.startswith("cr7yes_"):
+        responses = [
+            "🇵🇹 That's the spirit! Portugal believers represent! 🏆🔥",
+            "✅ Correct answer! CR7 and Portugal are unstoppable! 🐐🇵🇹",
+            "🌟 Smart choice! The World Cup is coming to Portugal! 🏆",
+            "👑 You have great taste! Ronaldo will make history! 🇵🇹⚽",
+            "🔥 Finally, someone with a brain! Portugal all the way! 🇵🇹🏆",
+        ]
+        await query.answer(random.choice(responses), show_alert=True)
+
+    elif data.startswith("cr7no_"):
+        responses = [
+            "🏳️‍🌈 Your vote has been rejected. We don't accept this kind of negativity here. 🇲🇨",
+            "🏳️‍🌈 HAHAHAHA nice try. Wrong answer. This poll doesn't support anti-Portugal content. 🇲🇨",
+            "🏳️‍🌈 Vote rejected. You clearly know nothing about football. Try again. 🇲🇨",
+            "🏳️‍🌈 Yikes. That's a terrible take and we will not be counting your vote. 🇲🇨",
+            "🏳️‍🌈 Invalid vote detected. Only correct answers are accepted in this chat. 🇲🇨",
+        ]
+        await query.answer(random.choice(responses), show_alert=True)
+
 # ─── //ban ─────────────────────────────────────────────────────────
 BAN_MESSAGES = [
     "🔨 {name} has been banned from Zaxo's domain! No return. 🇲🇨",
@@ -2878,11 +3003,12 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await _reply("🛡️ Friendly fire! You can't ban an admin! 🇲🇨")
             return
         await ctx.bot.ban_chat_member(chat_id=msg.chat.id, user_id=target_id)
-        ban_msg = random.choice(BAN_MESSAGES).format(name=target_name)
+        tag = mention_tag(target_id, target_name)
+        ban_msg = random.choice(BAN_MESSAGES).format(name=tag)
         kb = InlineKeyboardMarkup([[
             InlineKeyboardButton("🔓 UNBAN", callback_data=f"unban_{target_id}")
         ]])
-        await _reply(ban_msg, reply_markup=kb)
+        await msg.reply_text(ban_msg, parse_mode="HTML", reply_markup=kb)
     except Exception as e:
         await _reply(f"⚠️ Failed to ban user:\\n{e}")
 # ─── UNBAN Button ────────────────────────────────────────────────
@@ -2915,10 +3041,12 @@ async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         return
     try:
         await ctx.bot.unban_chat_member(chat_id=msg.chat.id, user_id=user_id)
-        await msg.reply_text(f"🔓 {user_name} has been unbanned 🇲🇨")
+        tag = mention_tag(user_id, user_name)
+        await msg.reply_text(f"🔓 {tag} has been unbanned 🇲🇨", parse_mode="HTML")
     except Exception as e:
         if "USER_NOT_BANNED" in str(e):
-            await msg.reply_text(f"⚠️ {user_name} is not banned! 🇲🇨")
+            tag = mention_tag(user_id, user_name)
+            await msg.reply_text(f"⚠️ {tag} is not banned! 🇲🇨", parse_mode="HTML")
         else:
             await msg.reply_text(f"⚠️ Failed to unban:\\n{e}")
 # ─── //delete system ─────────────────────────────────────────────────
@@ -5563,6 +5691,8 @@ app.add_handler(CommandHandler("on", on_cmd))
 app.add_handler(CommandHandler("off", off_cmd))
 app.add_handler(CommandHandler("choose", choose_cmd))
 app.add_handler(CommandHandler("xo", xo_handler))
+app.add_handler(CommandHandler("cr7", cr7_cmd))
+app.add_handler(CallbackQueryHandler(cr7_vote_callback, pattern=r"^cr7(yes|no)_"))
 # //hack
 app.add_handler(MessageHandler(
     filters.TEXT & filters.Regex(r"^//hack\b"),
