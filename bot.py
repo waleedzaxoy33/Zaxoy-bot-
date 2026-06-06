@@ -1382,8 +1382,8 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
             p2m = _dm(0, "Zaxoy Bot 🇲🇨")
             
             coin_kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🪙 Heads", callback_data=f"duel_coin_{chat_id_str}_heads"),
-                InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id_str}_tails"),
+                InlineKeyboardButton("🟡 Heads", callback_data=f"duel_coin_{chat_id_str}_heads"),
+                InlineKeyboardButton("⚪ Tails", callback_data=f"duel_coin_{chat_id_str}_tails"),
             ]])
             
             await reply_msg.edit_text(
@@ -5000,8 +5000,8 @@ _DUEL_DEATH = [
 ]
 
 # Hit probability per round (Updated for longer, more exciting games)
-_HIT_ENEMY = {1: 0.05, 2: 0.15, 3: 0.40, 4: 0.70, 5: 1.0}
-_HIT_SELF  = {1: 0.08, 2: 0.20, 3: 0.45, 4: 0.75, 5: 1.0}
+_HIT_ENEMY = {1: 0.01, 2: 0.05, 3: 0.15, 4: 0.35, 5: 0.60, 6: 0.85, 7: 1.0}
+_HIT_SELF  = {1: 0.02, 2: 0.08, 3: 0.20, 4: 0.40, 5: 0.65, 6: 0.90, 7: 1.0}
 
 # ── Helpers ───────────────────────────────────────────────────
 def _dm(uid: int, name: str) -> str:
@@ -5130,8 +5130,8 @@ async def duel_kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             p2m = _dm(existing["p2"], existing["p2_name"])
             
             coin_kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🪙 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
-                InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id}_tails"),
+                InlineKeyboardButton("🟡 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
+                InlineKeyboardButton("⚪ Tails", callback_data=f"duel_coin_{chat_id}_tails"),
             ]])
             
             await msg.reply_to_message.edit_text(
@@ -5300,8 +5300,8 @@ async def duel_accept_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     p2m = _dm(duel["p2"], p2_display_name)
     
     coin_kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🪙 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
-        InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id}_tails"),
+        InlineKeyboardButton("🟡 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
+        InlineKeyboardButton("⚪ Tails", callback_data=f"duel_coin_{chat_id}_tails"),
     ]])
     
     await q.edit_message_text(
