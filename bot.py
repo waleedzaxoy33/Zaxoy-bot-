@@ -1382,8 +1382,8 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
             p2m = _dm(0, "Zaxoy Bot 🇲🇨")
             
             coin_kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🟡 Heads", callback_data=f"duel_coin_{chat_id_str}_heads"),
-                InlineKeyboardButton("⚪ Tails", callback_data=f"duel_coin_{chat_id_str}_tails"),
+                InlineKeyboardButton("🌕 Heads", callback_data=f"duel_coin_{chat_id_str}_heads"),
+                InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id_str}_tails"),
             ]])
             
             await reply_msg.edit_text(
@@ -4933,9 +4933,9 @@ _DUEL_COIN = [
     "🪙 Let the coin choose who pulls the trigger first...",
 ]
 _DUEL_COIN_WIN = [
-    "🟡 <b>{name}</b> wins the toss. They go first.",
-    "🟡 The coin lands on <b>{name}</b>. First move is theirs.",
-    "🟡 <b>{name}</b> called it right. They shoot first.",
+    "🌕 <b>{name}</b> wins the toss. They go first.",
+    "🌕 The coin lands on <b>{name}</b>. First move is theirs.",
+    "🌕 <b>{name}</b> called it right. They shoot first.",
 ]
 _DUEL_TURN = [
     "🎯 <b>{name}</b>'s turn. Choose wisely.",
@@ -5130,8 +5130,8 @@ async def duel_kill_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             p2m = _dm(existing["p2"], existing["p2_name"])
             
             coin_kb = InlineKeyboardMarkup([[
-                InlineKeyboardButton("🟡 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
-                InlineKeyboardButton("⚪ Tails", callback_data=f"duel_coin_{chat_id}_tails"),
+                InlineKeyboardButton("🌕 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
+                InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id}_tails"),
             ]])
             
             await msg.reply_to_message.edit_text(
@@ -5300,8 +5300,8 @@ async def duel_accept_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     p2m = _dm(duel["p2"], p2_display_name)
     
     coin_kb = InlineKeyboardMarkup([[
-        InlineKeyboardButton("🟡 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
-        InlineKeyboardButton("⚪ Tails", callback_data=f"duel_coin_{chat_id}_tails"),
+        InlineKeyboardButton("🌕 Heads", callback_data=f"duel_coin_{chat_id}_heads"),
+        InlineKeyboardButton("🪙 Tails", callback_data=f"duel_coin_{chat_id}_tails"),
     ]])
     
     await q.edit_message_text(
@@ -5352,7 +5352,7 @@ async def duel_coin_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # Animation/Wait effect with Mention
     p1_mention = _dm(duel["p1"], duel["p1_name"])
     p2_mention_coin = _dm(duel["p2"], duel["p2_name"] if duel["p2"] != 0 else "Zaxoy Bot 🇲🇨")
-    coin_frames = ["🪙", "🟡", "🪙", "🟡", "🪙"]
+    coin_frames = ["🌕", "🪙", "🌕", "🪙", "🌕"]
     for frame in coin_frames:
         await q.edit_message_text(
             f"{coin_text}\n\n"
