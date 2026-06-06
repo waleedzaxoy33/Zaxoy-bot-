@@ -2404,6 +2404,9 @@ async def shot_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             pass
     except Exception as e:
         await msg.reply_text(f"⚠️ Shot failed: {str(e)}")
+# Tracks bot "too large" message IDs — reply with video to auto-convert
+VOICE_RETRY_MSGS: set = set()
+
 async def process_video_to_voice(
     video_obj,
     chat_id: int,
@@ -2416,7 +2419,8 @@ async def process_video_to_voice(
         # Check file size — Telegram API limit is 20MB for bots
         file_size = getattr(video_obj, "file_size", None)
         if file_size and file_size > 20 * 1024 * 1024:
-            await ctx.bot.send_message(chat_id, "⚠️ File too large. Max 20MB — send a shorter or compressed video.")
+            sent = await ctx.bot.send_message(chat_id, "⚠️ File too large. Max 20MB — reply to this message with a smaller video and I'll convert it automatically.")
+            VOICE_RETRY_MSGS.add((str(chat_id), sent.message_id))
             return
         # get telegram file
         video_file = await ctx.bot.get_file(video_obj.file_id)
@@ -5521,6 +5525,29 @@ async def duel_fire_cb(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             asyncio.create_task(ai_duel_logic_task(chat_id, ctx, q.message))
 
 
+async def auto_voice_retry(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Auto-convert video if user replies to a 'too large' bot message with a new video."""
+    msg = update.message
+    if not msg or not msg.reply_to_message:
+        return
+    chat_id = msg.chat_id
+    replied_mid = msg.reply_to_message.message_id
+    if (str(chat_id), replied_mid) not in VOICE_RETRY_MSGS:
+        return
+    # Detect video in the new message
+    video_media = None
+    if msg.video:
+        video_media = msg.video
+    elif msg.video_note:
+        video_media = msg.video_note
+    elif msg.document and msg.document.mime_type and msg.document.mime_type.startswith("video/"):
+        video_media = msg.document
+    if not video_media:
+        return
+    # Remove from retry set
+    VOICE_RETRY_MSGS.discard((str(chat_id), replied_mid))
+    await process_video_to_voice(video_media, chat_id=chat_id, ctx=ctx, reply_to_id=msg.message_id)
+
 def main():
     start_keep_alive()
 app = Application.builder().token(BOT_TOKEN).build()
@@ -5613,6 +5640,10 @@ app.add_handler(MessageHandler(
 app.add_handler(MessageHandler(
     filters.TEXT & filters.Regex(r"^//voice\b"),
     voice_cmd
+))
+app.add_handler(MessageHandler(
+    (filters.VIDEO | filters.Document.VIDEO | filters.VIDEO_NOTE) & filters.REPLY,
+    auto_voice_retry
 ))
 # 3. Media Mentions Monitor
 app.add_handler(MessageHandler(
