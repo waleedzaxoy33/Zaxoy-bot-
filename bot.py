@@ -2916,6 +2916,32 @@ CR7_MESSAGES = [
     ("🐐 Argentina won it last time... good for them 👏", "troll", "This year is different. This year belongs to RONALDO 🇵🇹 SUIIIII 🏆"),
 ]
 
+async def _cr7_animate(sent, days: int, final_text: str, kb=None, troll_followup: str = None):
+    """Run hourglass animation in background."""
+    frames = ["⌛", "⏳", "⌛", "⏳", "⌛", "⏳", "⌛"]
+    for frame in frames:
+        await asyncio.sleep(0.35)
+        try:
+            await sent.edit_text(f"{frame} {days} days 🇵🇹🏆", parse_mode="HTML")
+        except Exception:
+            pass
+    await asyncio.sleep(0.35)
+    try:
+        await sent.edit_text(final_text, parse_mode="HTML", reply_markup=kb)
+    except Exception as e:
+        # fallback: send new message
+        try:
+            await sent.reply_text(final_text, parse_mode="HTML", reply_markup=kb)
+        except Exception:
+            pass
+    if troll_followup:
+        await asyncio.sleep(3)
+        try:
+            countdown_line = final_text.split("\n\n")[0]
+            await sent.edit_text(f"{countdown_line}\n\n{troll_followup}", parse_mode="HTML")
+        except Exception:
+            pass
+
 async def cr7_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     days = get_days_to_final()
@@ -2932,23 +2958,7 @@ async def cr7_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         text, _, troll_followup = entry
         final_text = f"{final_countdown}\n\n{text}"
         sent = await msg.reply_text(f"⏳ {days} days 🇵🇹🏆", parse_mode="HTML")
-        frames = ["⌛", "⏳", "⌛", "⏳", "⌛", "⏳"]
-        for frame in frames:
-            await asyncio.sleep(0.4)
-            try:
-                await sent.edit_text(f"{frame} {days} days 🇵🇹🏆", parse_mode="HTML")
-            except Exception:
-                pass
-        await asyncio.sleep(0.4)
-        try:
-            await sent.edit_text(final_text, parse_mode="HTML")
-        except Exception:
-            pass
-        await asyncio.sleep(3)
-        try:
-            await sent.edit_text(f"{final_countdown}\n\n{troll_followup}", parse_mode="HTML")
-        except Exception:
-            pass
+        asyncio.create_task(_cr7_animate(sent, days, final_text, troll_followup=troll_followup))
         return
 
     text, has_poll = entry
@@ -2962,20 +2972,9 @@ async def cr7_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     else:
         kb = None
 
-    # Hourglass animation then reveal full message
+    final_text = f"{final_countdown}\n\n{text}"
     sent = await msg.reply_text(f"⏳ {days} days 🇵🇹🏆", parse_mode="HTML")
-    frames = ["⌛", "⏳", "⌛", "⏳", "⌛", "⏳"]
-    for frame in frames:
-        await asyncio.sleep(0.4)
-        try:
-            await sent.edit_text(f"{frame} {days} days 🇵🇹🏆", parse_mode="HTML")
-        except Exception:
-            pass
-    await asyncio.sleep(0.4)
-    try:
-        await sent.edit_text(final_text, parse_mode="HTML", reply_markup=kb)
-    except Exception:
-        pass
+    asyncio.create_task(_cr7_animate(sent, days, final_text, kb=kb))
 
 async def cr7_vote_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
