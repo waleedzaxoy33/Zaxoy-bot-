@@ -2693,6 +2693,8 @@ async def if_session_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             reply = f"STICKER:{msg.sticker.file_id}"
         elif msg.voice:
             reply = f"VOICE:{msg.voice.file_id}"
+        elif msg.audio:
+            reply = f"VOICE:{msg.audio.file_id}"
         elif msg.text and not msg.text.startswith("//"):
             reply = msg.text.strip()
         if not reply:
