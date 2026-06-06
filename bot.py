@@ -2868,16 +2868,15 @@ from datetime import timezone as _tz
 WORLD_CUP_FINAL = datetime(2026, 7, 19, 12, 0, 0, tzinfo=_tz.utc)  # 19 July 2026, 3pm ET = ~12:00 UTC (reset at 12:00 Iraq time = 09:00 UTC)
 
 def get_days_to_final() -> int:
-    """Returns days remaining to WC final, resets at 12:00 Iraq time (UTC+3 = 09:00 UTC)."""
-    now = datetime.now(_tz.utc)
-    iraq_midnight = now.replace(hour=9, minute=0, second=0, microsecond=0)  # 12:00 Iraq = 09:00 UTC
-    if now < iraq_midnight:
-        base = iraq_midnight - now
-        diff = WORLD_CUP_FINAL - now
-    else:
-        diff = WORLD_CUP_FINAL - now
-    days = max(0, diff.days)
-    return days
+    """Returns days remaining to WC final, resets at 00:00 Iraq time (UTC+3 = 21:00 UTC prev day)."""
+    from datetime import date
+    now_utc = datetime.now(_tz.utc)
+    # Iraq time = UTC+3
+    iraq_time = now_utc + timedelta(hours=3)
+    today_iraq = iraq_time.date()
+    final_date = date(2026, 7, 19)
+    days = (final_date - today_iraq).days
+    return max(0, days)
 
 # Tuple: (text, has_poll)
 # has_poll=True → يطلع أزرار Yes/No
