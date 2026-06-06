@@ -2910,6 +2910,10 @@ CR7_MESSAGES = [
     ("👑 Do you believe this is finally Ronaldo's year? 🇵🇹⚽", True),
     ("🇵🇹 Is Portugal the team to beat in this World Cup? 🏆", True),
     ("⚡ Will CR7 score in the World Cup final? 🇵🇹⚽🏆", True),
+    # === تريقة على الأرجنتين (troll) ===
+    ("😂 Argentina in the final... 🤭", "troll", "SIKE 😭 Nobody's talking about Argentina this year. SUIIIII 🇵🇹🏆"),
+    ("🤔 Wait, is Argentina even still in the tournament? 😂", "troll", "Nobody cares bro. All eyes on Portugal 👀 SUIIIII 🇵🇹🏆"),
+    ("🐐 Argentina won it last time... good for them 👏", "troll", "This year is different. This year belongs to RONALDO 🇵🇹 SUIIIII 🏆"),
 ]
 
 async def cr7_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
@@ -2921,8 +2925,33 @@ async def cr7_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     else:
         final_countdown = "🏆 TODAY IS THE DAY! 🇵🇹🔥"
 
-    text, has_poll = random.choice(CR7_MESSAGES)
-    final_text = f"{final_countdown}\n\n{text}"
+    entry = random.choice(CR7_MESSAGES)
+
+    # Troll type — 3 values
+    if len(entry) == 3:
+        text, _, troll_followup = entry
+        final_text = f"{final_countdown}\n\n{text}"
+        sent = await msg.reply_text(f"⏳ {days} days 🇵🇹🏆", parse_mode="HTML")
+        frames = ["⌛", "⏳", "⌛", "⏳", "⌛", "⏳"]
+        for frame in frames:
+            await asyncio.sleep(0.4)
+            try:
+                await sent.edit_text(f"{frame} {days} days 🇵🇹🏆", parse_mode="HTML")
+            except Exception:
+                pass
+        await asyncio.sleep(0.4)
+        try:
+            await sent.edit_text(final_text, parse_mode="HTML")
+        except Exception:
+            pass
+        await asyncio.sleep(3)
+        try:
+            await sent.edit_text(f"{final_countdown}\n\n{troll_followup}", parse_mode="HTML")
+        except Exception:
+            pass
+        return
+
+    text, has_poll = entry
 
     if has_poll:
         poll_id = f"cr7_{msg.chat_id}_{msg.message_id}"
