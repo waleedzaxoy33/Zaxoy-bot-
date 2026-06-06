@@ -2950,26 +2950,25 @@ async def cr7_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
 async def cr7_vote_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
-    await query.answer()
     data = query.data
 
     if data.startswith("cr7yes_"):
         responses = [
-            "🇵🇹 That's the spirit! Portugal believers represent! 🏆🔥",
-            "✅ Correct answer! CR7 and Portugal are unstoppable! 🐐🇵🇹",
-            "🌟 Smart choice! The World Cup is coming to Portugal! 🏆",
-            "👑 You have great taste! Ronaldo will make history! 🇵🇹⚽",
-            "🔥 Finally, someone with a brain! Portugal all the way! 🇵🇹🏆",
+            "🏆 Nice choice! CR7 and Portugal are unstoppable! 🇵🇹🔥",
+            "🏆 Finally someone with a brain! Portugal all the way! 🇵🇹",
+            "🏆 Correct answer! The World Cup is coming to Portugal! 🇵🇹⚽",
+            "🏆 Smart choice! Ronaldo will make history! 🇵🇹👑",
+            "🏆 That's the spirit! Portugal believers represent! 🇵🇹🔥",
         ]
         await query.answer(random.choice(responses), show_alert=True)
 
     elif data.startswith("cr7no_"):
         responses = [
-            "🏳️‍🌈 Your vote has been rejected. We don't accept this kind of negativity here. 🇲🇨",
-            "🏳️‍🌈 HAHAHAHA nice try. Wrong answer. This poll doesn't support anti-Portugal content. 🇲🇨",
-            "🏳️‍🌈 Vote rejected. You clearly know nothing about football. Try again. 🇲🇨",
-            "🏳️‍🌈 Yikes. That's a terrible take and we will not be counting your vote. 🇲🇨",
-            "🏳️‍🌈 Invalid vote detected. Only correct answers are accepted in this chat. 🇲🇨",
+            "🏳️‍🌈 UR GAY? go back and choose Yes like a man 🇵🇹",
+            "🏳️‍🌈 Wrong answer bro. Go back and press Yes 🇵🇹",
+            "🏳️‍🌈 That vote doesn't count here. Try Yes next time 🇵🇹",
+            "🏳️‍🌈 Yikes. Terrible take. Press Yes and redeem yourself 🇵🇹",
+            "🏳️‍🌈 Invalid vote. Only correct answers accepted here 🇵🇹",
         ]
         await query.answer(random.choice(responses), show_alert=True)
 
