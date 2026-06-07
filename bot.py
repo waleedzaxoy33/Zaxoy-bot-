@@ -5855,7 +5855,7 @@ app.add_handler(MessageHandler(
     top_owner_cmd
 ))
 app.add_handler(CallbackQueryHandler(top_select_callback, pattern=r"^(topsel_|topset_|topback_|toptz_|topadd_)"))
-app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_|topmanage_groups|topdelgroup_|topbangroup_)"))
+app.add_handler(CallbackQueryHandler(top_action_callback, pattern=r"^(topshow_|topsend_|topdel_|topmanage_groups|topdelgroup_|topbangroup_|topmute_|topunmute_)"))
 app.add_handler(InlineQueryHandler(inline_query_handler))
 app.add_handler(ChosenInlineResultHandler(chosen_inline_handler))
 # //top private input
