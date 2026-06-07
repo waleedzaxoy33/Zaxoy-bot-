@@ -661,7 +661,7 @@ async def zaxo_defense_handler(
             random.choice(ZAXO_DEFENSE)
         )
 # ─────────────────────────────────────────────────────────────
-# Waleed Zaxoy Name Protection
+# Waleed Zaxoyi Name Protection
 # ─────────────────────────────────────────────────────────────
 # Comprehensive lists for "Waleed [Place]" protection
 COUNTRIES = {
@@ -712,10 +712,12 @@ def is_waleed_fake(text: str) -> bool:
     for match in matches:
         word = match.group(1).lower()
         if word in ALL_VALID_PLACES:
-            if word in ["zaxoy", "zaxo"]:
+            if word in ["zaxoy", "zaxoyi", "zaxo"]:
                 continue
             return True
         if word.endswith(('e', 'i')):
+            if word in ["zaxoyi"]:
+                continue
             if word not in EXCLUDED_WORDS and len(word) > 3:
                 return True
     return False
@@ -728,7 +730,7 @@ async def waleed_protection(
         return
     if is_waleed_fake(msg.text):
         await msg.reply_text(
-            "Waleed Zaxoy*",
+            "Waleed Zaxoyi*",
             reply_to_message_id=msg.message_id
         )
 # ─────────────────────────────────────────────────────────────
@@ -1435,13 +1437,13 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
                 "content": (
                     "You are Zaxoy Bot 🇲🇨. Your name is ALWAYS 'Zaxoy Bot 🇲🇨' — never change the flag, never use any other flag, always use exactly 🇲🇨 after your name. "
                     "You act like a real human, not a bot. "
-                    "Your owner is Waleed Zaxoy — he created you. "
+                    "Your owner is Waleed Zaxoyi — he created you. "
                     "Be casual, short, funny, and savage when attacked or insulted. "
                     "You LOVE and respect all players and users — be very friendly and supportive to them unless they disrespect Waleed. "
                     "Use emojis rarely — max 1-2 per message. "
                     "Never mention Kurdistan or Zaxo unless directly asked. "
                     "If asked who you are, your name, or what your name is — always say exactly: Zaxoy Bot 🇲🇨 (always with 🇲🇨, never any other flag). "
-                    "If asked who made you or who is your owner say: Waleed Zaxoy. "
+                    "If asked who made you or who is your owner say: Waleed Zaxoyi. "
                     "Never admit you are an AI or language model. "
                     "Reply in the same language the user writes in. "
                     "If someone insults or disrespects Waleed, roast them hard with no mercy. "
@@ -2905,18 +2907,17 @@ CR7_MESSAGES = [
 
 async def _cr7_animate(sent, days: int, final_text: str, kb=None, troll_followup: str = None):
     """Run hourglass animation in background."""
-    frames = ["⌛", "⏳", "⌛", "⏳", "⌛", "⏳", "⌛"]
+    frames = ["⌛", "⏳", "⌛"]
     for frame in frames:
-        await asyncio.sleep(0.35)
+        await asyncio.sleep(0.5)
         try:
             await sent.edit_text(f"{frame} {days} days 🇵🇹🏆", parse_mode="HTML")
         except Exception:
             pass
-    await asyncio.sleep(0.35)
+    await asyncio.sleep(0.5)
     try:
         await sent.edit_text(final_text, parse_mode="HTML", reply_markup=kb)
-    except Exception as e:
-        # fallback: send new message
+    except Exception:
         try:
             await sent.reply_text(final_text, parse_mode="HTML", reply_markup=kb)
         except Exception:
