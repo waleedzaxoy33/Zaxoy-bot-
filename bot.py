@@ -2903,6 +2903,9 @@ CR7_MESSAGES = [
     ("😂 Argentina in the final... 🤭", "troll", "SIKE 😭 Nobody's talking about Argentina this year. SUIIIII 🇵🇹🏆"),
     ("🤔 Wait, is Argentina even still in the tournament? 😂", "troll", "Nobody cares bro. All eyes on Portugal 👀 SUIIIII 🇵🇹🏆"),
     ("🐐 Argentina won it last time... good for them 👏", "troll", "This year is different. This year belongs to RONALDO 🇵🇹 SUIIIII 🏆"),
+    ("🐐 Messi... greatest of all time they said 🤔", "troll", "The debate is over. There was never a debate. SUIIIII 🇵🇹🏆"),
+    ("🏆 Messi won the World Cup... respect 👏", "troll", "Cool. Now watch Ronaldo do it with PORTUGAL 🇵🇹 SUIIIII 🏆"),
+    ("🇦🇷 Messi fans are quiet lately... 🤫", "troll", "Yeah, happens every time Portugal are on the pitch. SUIIIII 🇵🇹🏆"),
 ]
 
 async def _cr7_animate(sent, days: int, final_text: str, kb=None, troll_followup: str = None):
