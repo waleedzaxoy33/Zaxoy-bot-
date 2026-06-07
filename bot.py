@@ -4131,6 +4131,49 @@ def sb_is_group_banned(chat_id: str) -> bool:
     except Exception:
         return False
 
+# ── Notification mute per group ──────────────────────────────────────────────
+def sb_mute_top_notif(chat_id: str):
+    """Mute daily top notification for a group. Records mute time."""
+    try:
+        sb.table("top_notif_mute").upsert({
+            "chat_id": chat_id,
+            "muted_at": datetime.now(timezone.utc).isoformat(),
+            "missed": False
+        }).execute()
+    except Exception as e:
+        logging.error(f"sb_mute_top_notif: {e}")
+
+def sb_unmute_top_notif(chat_id: str):
+    """Unmute daily top notification for a group."""
+    try:
+        sb.table("top_notif_mute").delete().eq("chat_id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"sb_unmute_top_notif: {e}")
+
+def sb_is_top_muted(chat_id: str) -> bool:
+    try:
+        res = sb.table("top_notif_mute").select("chat_id").eq("chat_id", chat_id).execute()
+        return bool(res.data)
+    except Exception:
+        return False
+
+def sb_set_top_missed(chat_id: str, missed: bool):
+    """Mark whether the scheduled send was missed while muted."""
+    try:
+        sb.table("top_notif_mute").update({"missed": missed}).eq("chat_id", chat_id).execute()
+    except Exception as e:
+        logging.error(f"sb_set_top_missed: {e}")
+
+def sb_get_top_missed(chat_id: str) -> bool:
+    try:
+        res = sb.table("top_notif_mute").select("missed").eq("chat_id", chat_id).execute()
+        if res.data:
+            return res.data[0].get("missed", False)
+        return False
+    except Exception:
+        return False
+# ─────────────────────────────────────────────────────────────────────────────
+
 def sb_load_active_groups() -> list:
     try:
         res = sb.table("active_groups").select("chat_id, title").execute()
@@ -4489,7 +4532,6 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             return
         if data.startswith("topsel_"):
             chat_id = data[7:]
-            # Try to get fresh title from Telegram, fallback to stored title in DB
             stored_title = chat_id
             groups = sb_load_active_groups()
             for g in groups:
@@ -4498,7 +4540,6 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     break
             try:
                 chat = await query.bot.get_chat(int(chat_id))
-                # Only use title if it's actually a group/supergroup
                 if chat.type in ("group", "supergroup") and chat.title:
                     title = chat.title
                     sb_track_active_group(chat_id, title)
@@ -4506,11 +4547,17 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
                     title = stored_title
             except Exception:
                 title = stored_title
+            is_muted = sb_is_top_muted(chat_id)
+            mute_label = "🔊 Unmute Notifications" if is_muted else "🔇 Mute Notifications"
+            mute_cb = f"topunmute_{chat_id}" if is_muted else f"topmute_{chat_id}"
             kb = InlineKeyboardMarkup([[
                 InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
                 InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
+            ], [
+                InlineKeyboardButton(mute_label, callback_data=mute_cb),
             ], [InlineKeyboardButton("◀️ Back", callback_data="topback_main")]])
-            await query.edit_message_text(f"📢 <b>{title}</b>", parse_mode="HTML", reply_markup=kb)
+            status = "🔇 Muted" if is_muted else "🔊 Active"
+            await query.edit_message_text(f"📢 <b>{title}</b>\n\nNotifications: {status}", parse_mode="HTML", reply_markup=kb)
             return
     except Exception as e:
         logging.error(f"top_select_callback error [{data}]: {e}")
@@ -4524,6 +4571,55 @@ async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.answer()
         return
     data = query.data
+    if data.startswith("topmute_"):
+        chat_id = data[8:]
+        sb_mute_top_notif(chat_id)
+        await query.answer("🔇 Notifications muted")
+        # Refresh topsel_ view
+        stored_title = chat_id
+        groups = sb_load_active_groups()
+        for g in groups:
+            if g["chat_id"] == chat_id:
+                stored_title = g.get("title") or chat_id
+                break
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
+            InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
+        ], [
+            InlineKeyboardButton("🔊 Unmute Notifications", callback_data=f"topunmute_{chat_id}"),
+        ], [InlineKeyboardButton("◀️ Back", callback_data="topback_main")]])
+        await query.edit_message_text(f"📢 <b>{stored_title}</b>\n\nNotifications: 🔇 Muted", parse_mode="HTML", reply_markup=kb)
+        return
+
+    if data.startswith("topunmute_"):
+        chat_id = data[10:]
+        missed = sb_get_top_missed(chat_id)
+        sb_unmute_top_notif(chat_id)
+        await query.answer("🔊 Notifications unmuted")
+        stored_title = chat_id
+        groups = sb_load_active_groups()
+        for g in groups:
+            if g["chat_id"] == chat_id:
+                stored_title = g.get("title") or chat_id
+                break
+        kb = InlineKeyboardMarkup([[
+            InlineKeyboardButton("👁 Show here", callback_data=f"topshow_{chat_id}"),
+            InlineKeyboardButton("📤 Send to group", callback_data=f"topsend_{chat_id}"),
+        ], [
+            InlineKeyboardButton("🔇 Mute Notifications", callback_data=f"topmute_{chat_id}"),
+        ], [InlineKeyboardButton("◀️ Back", callback_data="topback_main")]])
+        await query.edit_message_text(f"📢 <b>{stored_title}</b>\n\nNotifications: 🔊 Active", parse_mode="HTML", reply_markup=kb)
+        # If schedule was missed while muted → send now
+        if missed:
+            try:
+                rows = sb_load_top_counts(chat_id)
+                if rows:
+                    await send_top_to_group(ctx.bot, chat_id, stored_title, rows, daily=True, test=False)
+                    sb_reset_top_counts(chat_id)
+            except Exception as e:
+                logging.error(f"topunmute send error: {e}")
+        return
+
     if data.startswith("topdel_"):
         uid = data[7:]
         sb_delete_top_mention(uid)
@@ -4786,7 +4882,7 @@ async def chosen_inline_handler(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         name = uid
     sb_save_top_mention(uid, name)
     logging.info(f"Mention saved via inline: {uid} {name}")
-async def send_daily_top(app):
+async def send_daily_top(app, force_chat_id: str = None):
     groups = sb_load_active_groups()
     seen = set()
     for g in groups:
@@ -4794,7 +4890,15 @@ async def send_daily_top(app):
         if chat_id in seen:
             continue
         seen.add(chat_id)
+        # If only sending to one specific group (after unmute)
+        if force_chat_id and chat_id != force_chat_id:
+            continue
         try:
+            # Check if muted
+            if sb_is_top_muted(chat_id):
+                # Mark as missed so when unmuted it sends immediately
+                sb_set_top_missed(chat_id, True)
+                continue
             rows = sb_load_top_counts(chat_id)
             title = g.get("title", "")
             if rows:
