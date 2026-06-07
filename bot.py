@@ -4449,11 +4449,14 @@ async def show_top_settings_menu(query):
             reply_markup=InlineKeyboardMarkup(btns)
         )
     except Exception as e:
-        logging.error(f"show_top_settings_menu error: {e}")
-        try:
-            await query.edit_message_text(f"❌ Error loading settings: {e}")
-        except Exception:
+        if "message is not modified" in str(e).lower():
             pass
+        else:
+            logging.error(f"show_top_settings_menu error: {e}")
+            try:
+                await query.edit_message_text(f"❌ Error loading settings: {e}")
+            except Exception:
+                pass
 async def show_mentions_menu(query):
     try:
         mentions = get_top_mentions()
@@ -4470,11 +4473,14 @@ async def show_mentions_menu(query):
             reply_markup=InlineKeyboardMarkup(btns)
         )
     except Exception as e:
-        logging.error(f"show_mentions_menu error: {e}")
-        try:
-            await query.edit_message_text(f"❌ Error loading mentions: {e}")
-        except Exception:
+        if "message is not modified" in str(e).lower():
             pass
+        else:
+            logging.error(f"show_mentions_menu error: {e}")
+            try:
+                await query.edit_message_text(f"❌ Error loading mentions: {e}")
+            except Exception:
+                pass
 async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -4560,11 +4566,14 @@ async def top_select_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             await query.edit_message_text(f"📢 <b>{title}</b>\n\nNotifications: {status}", parse_mode="HTML", reply_markup=kb)
             return
     except Exception as e:
-        logging.error(f"top_select_callback error [{data}]: {e}")
-        try:
-            await query.edit_message_text(f"❌ Error: {e}")
-        except Exception:
+        if "message is not modified" in str(e).lower():
             pass
+        else:
+            logging.error(f"top_select_callback error [{data}]: {e}")
+            try:
+                await query.edit_message_text(f"❌ Error: {e}")
+            except Exception:
+                pass
 async def top_action_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     if query.from_user.id != OWNER_ID:
