@@ -2872,7 +2872,7 @@ class _KeepAliveHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         self.send_response(200)
         self.end_headers()
-        self.wfile.write(b"Android 18 🇲🇨 is alive!")
+        self.wfile.write("Android 18 🇲🇨 is alive!".encode("utf-8"))
     def log_message(self, format, *args):
         pass
 def start_keep_alive():
