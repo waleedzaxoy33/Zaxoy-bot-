@@ -45,7 +45,28 @@ from telegram.ext import ApplicationHandlerStop
 # ─────────────────────────────────────────────────────────────
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 OWNER_ID = int(os.environ.get("OWNER_ID"))
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+# Rotating Groq API keys — auto-switch when one hits rate limit
+_GROQ_KEYS = [
+    k for k in [
+        os.environ.get("GROQ_API_KEY", ""),
+        os.environ.get("GROQ_API_KEY_2", ""),
+        os.environ.get("GROQ_API_KEY_3", ""),
+    ] if k
+]
+_GROQ_KEY_INDEX = 0
+
+def get_groq_key() -> str:
+    return _GROQ_KEYS[_GROQ_KEY_INDEX] if _GROQ_KEYS else ""
+
+def rotate_groq_key() -> bool:
+    """Rotate to next key. Returns True if rotated, False if all exhausted."""
+    global _GROQ_KEY_INDEX
+    if _GROQ_KEY_INDEX + 1 < len(_GROQ_KEYS):
+        _GROQ_KEY_INDEX += 1
+        return True
+    return False
+
+GROQ_API_KEY = property(get_groq_key)  # keep compat reference
 AI_INSTRUCTIONS = []  # Loaded from Supabase on startup
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -620,7 +641,7 @@ async def ai_is_zaxo_insult(text: str) -> bool:
     # Use Groq AI to understand context intelligently
     try:
         client = openai.OpenAI(
-            api_key=GROQ_API_KEY,
+            api_key=get_groq_key(),
             base_url="https://api.groq.com/openai/v1"
         )
         resp = client.chat.completions.create(
@@ -1509,7 +1530,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
             resp = await client.post(
                 "https://api.groq.com/openai/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {GROQ_API_KEY}",
+                    "Authorization": f"Bearer {get_groq_key()}",
                     "Content-Type": "application/json",
                 },
                 json={
@@ -1521,10 +1542,30 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
         data = resp.json()
         if "choices" in data and len(data["choices"]) > 0:
             answer = data["choices"][0]["message"]["content"]
+        elif "error" in data and "rate_limit" in str(data.get("error", {}).get("code", "")):
+            # Rate limit — try next key silently
+            if rotate_groq_key():
+                # Retry with new key
+                async with httpx.AsyncClient(timeout=30) as client2:
+                    resp2 = await client2.post(
+                        "https://api.groq.com/openai/v1/chat/completions",
+                        headers={
+                            "Authorization": f"Bearer {get_groq_key()}",
+                            "Content-Type": "application/json",
+                        },
+                        json={"model": "llama-3.3-70b-versatile", "messages": messages, "max_tokens": 1024}
+                    )
+                data2 = resp2.json()
+                if "choices" in data2 and data2["choices"]:
+                    answer = data2["choices"][0]["message"]["content"]
+                else:
+                    answer = "⚠️"
+            else:
+                answer = "⚠️"
         else:
-            answer = str(data)
+            answer = "⚠️"
     except Exception as e:
-        answer = f"⚠️ Error: {str(e)}"
+        answer = "⚠️"
     bot_reply = await msg.reply_text(answer)
     # Save to conversation history
     chat_key = str(msg.chat_id)
