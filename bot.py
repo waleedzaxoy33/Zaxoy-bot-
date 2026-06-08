@@ -6162,6 +6162,7 @@ AI_INSTRUCTIONS.extend(sb_load_ai_instructions())  # Load from ai_instructions t
 # ── PM RELAY ──────────────────────────────────────────────────────────────────
 # Maps message_id of forwarded msg in owner's chat -> original sender user_id
 PM_RELAY_MAP: dict[int, int] = {}
+PM_BLOCKED: set[int] = set()  # blocked user IDs
 
 async def pm_relay_incoming(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     """Forward any private message (non-owner) to owner."""
@@ -6170,6 +6171,9 @@ async def pm_relay_incoming(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not msg or not user:
         return
     if user.id == OWNER_ID:
+        return
+    # Silently ignore blocked users
+    if user.id in PM_BLOCKED:
         return
     # Forward to owner
     try:
@@ -6186,7 +6190,10 @@ async def pm_relay_incoming(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         logging.error(f"pm_relay_incoming: {e}")
 
 async def pm_relay_reply(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
-    """Owner replies to a forwarded msg -> send to original sender."""
+    """Owner replies to a forwarded msg -> send to original sender.
+    //block  → block that user (no more relay)
+    //unblock → unblock that user
+    """
     msg = update.effective_message
     if not msg or not msg.reply_to_message:
         return
@@ -6194,8 +6201,23 @@ async def pm_relay_reply(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     target_id = PM_RELAY_MAP.get(replied_id)
     if not target_id:
         return  # Not a relayed message, ignore silently
+
+    text = (msg.text or "").strip()
+
+    # //block
+    if text == "//block":
+        PM_BLOCKED.add(target_id)
+        await msg.reply_text(f"🚫 Blocked <code>{target_id}</code> — messages will be ignored.", parse_mode="HTML")
+        return
+
+    # //unblock
+    if text == "//unblock":
+        PM_BLOCKED.discard(target_id)
+        await msg.reply_text(f"✅ Unblocked <code>{target_id}</code>.", parse_mode="HTML")
+        return
+
     try:
-        await ctx.bot.send_message(chat_id=target_id, text=msg.text)
+        await ctx.bot.send_message(chat_id=target_id, text=text)
         await msg.reply_text("✅ Sent.")
     except Exception as e:
         await msg.reply_text(f"❌ Failed: {e}")
