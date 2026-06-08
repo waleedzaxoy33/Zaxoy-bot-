@@ -45,7 +45,7 @@ from telegram.ext import ApplicationHandlerStop
 # ─────────────────────────────────────────────────────────────
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 OWNER_ID = int(os.environ.get("OWNER_ID"))
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
+GROQ_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GROQ_API_KEY", "")
 AI_INSTRUCTIONS = []  # Loaded from Supabase on startup
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
@@ -621,10 +621,10 @@ async def ai_is_zaxo_insult(text: str) -> bool:
     try:
         client = openai.OpenAI(
             api_key=GROQ_API_KEY,
-            base_url="https://api.groq.com/openai/v1"
+            base_url="https://openrouter.ai/api/v1"
         )
         resp = client.chat.completions.create(
-            model="llama-3.1-8b-instant",
+            model="meta-llama/llama-3.3-70b-instruct:free",
             messages=[
                 {
                     "role": "system",
@@ -1507,13 +1507,13 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
 
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                "https://api.groq.com/openai/v1/chat/completions",
+                "https://openrouter.ai/api/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {GROQ_API_KEY}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "llama-3.1-8b-instant",
+                    "model": "meta-llama/llama-3.3-70b-instruct:free",
                     "messages": messages,
                     "max_tokens": 1024,
                 }
