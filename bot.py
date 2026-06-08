@@ -1582,10 +1582,12 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
         for h in history[-10:]:
             messages.append(h)
 
-        final_prompt = (
-            f"[This message is from Waleed — your owner. Be warm with him, call him Waleed or baby naturally.] {user_input}"
-            if msg.from_user.id == OWNER_ID else user_input
-        )
+        user_name = msg.from_user.full_name if msg.from_user else "someone"
+        if msg.from_user.id == OWNER_ID:
+            final_prompt = f"[This message is from Waleed — your owner. Be warm with him, call him Waleed or baby naturally.] {user_input}"
+        else:
+            final_prompt = f"[This message is from {user_name} — this is NOT Waleed. Be friendly but keep distance. Never call them baby.] {user_input}"
+            
         messages.append({"role": "user", "content": final_prompt})
 
         async with httpx.AsyncClient(timeout=30) as client:
