@@ -1410,6 +1410,8 @@ def sb_is_ai_thread(chat_id: str, message_id: int) -> bool:
 
 # ─── //ask — AI via OpenRouter ─────────────────────────────
 async def stats_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != OWNER_ID:
+        return
     stats = sb_get_ai_stats()
     tokens_used = stats["tokens"]
     questions_count = stats["questions"]
