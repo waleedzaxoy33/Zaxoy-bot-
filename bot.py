@@ -621,10 +621,10 @@ async def ai_is_zaxo_insult(text: str) -> bool:
     try:
         client = openai.OpenAI(
             api_key=GROQ_API_KEY,
-            base_url="https://openrouter.ai/api/v1"
+            base_url="https://api.groq.com/openai/v1"
         )
         resp = client.chat.completions.create(
-            model="meta-llama/llama-3.3-70b-instruct:free",
+            model="llama-3.3-70b-versatile",
             messages=[
                 {
                     "role": "system",
@@ -1507,13 +1507,13 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
 
         async with httpx.AsyncClient(timeout=30) as client:
             resp = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
+                "https://api.groq.com/openai/v1/chat/completions",
                 headers={
                     "Authorization": f"Bearer {GROQ_API_KEY}",
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "meta-llama/llama-3.3-70b-instruct:free",
+                    "model": "llama-3.3-70b-versatile",
                     "messages": messages,
                     "max_tokens": 1024,
                 }
