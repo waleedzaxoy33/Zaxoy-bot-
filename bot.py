@@ -624,7 +624,7 @@ async def ai_is_zaxo_insult(text: str) -> bool:
             base_url="https://api.groq.com/openai/v1"
         )
         resp = client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
+            model="llama-3.1-8b-instant",
             messages=[
                 {
                     "role": "system",
@@ -1513,7 +1513,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
                     "Content-Type": "application/json",
                 },
                 json={
-                    "model": "llama-3.3-70b-versatile",
+                    "model": "llama-3.1-8b-instant",
                     "messages": messages,
                     "max_tokens": 1024,
                 }
