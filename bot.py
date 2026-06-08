@@ -55,6 +55,39 @@ _GROQ_KEYS = [
 ]
 _GROQ_KEY_INDEX = 0
 
+# ─── AI Stats Tracking (Supabase) ───────────────────────────
+def sb_get_ai_stats():
+    """Load AI stats for today from Supabase."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        res = sb.table("ai_stats").select("*").eq("date", today).execute()
+        if res.data:
+            return res.data[0]
+        else:
+            # New day, create entry
+            new_data = {"date": today, "questions": 0, "tokens": 0}
+            sb.table("ai_stats").insert(new_data).execute()
+            return new_data
+    except Exception as e:
+        logging.error(f"sb_get_ai_stats error: {e}")
+        return {"date": today, "questions": 0, "tokens": 0}
+
+def update_ai_stats(tokens: int = 0):
+    """Update AI stats in Supabase."""
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    try:
+        # Get current stats first
+        current = sb_get_ai_stats()
+        new_q = current["questions"] + 1
+        new_t = current["tokens"] + tokens
+        
+        sb.table("ai_stats").update({
+            "questions": new_q,
+            "tokens": new_t
+        }).eq("date", today).execute()
+    except Exception as e:
+        logging.error(f"update_ai_stats error: {e}")
+
 def get_groq_key() -> str:
     return _GROQ_KEYS[_GROQ_KEY_INDEX] if _GROQ_KEYS else ""
 
@@ -1376,6 +1409,33 @@ def sb_is_ai_thread(chat_id: str, message_id: int) -> bool:
     return False
 
 # ─── //ask — AI via OpenRouter ─────────────────────────────
+async def stats_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    stats = sb_get_ai_stats()
+    tokens_used = stats["tokens"]
+    questions_count = stats["questions"]
+
+    total_limit = 300000  # Default daily limit for tokens
+    used_pct = min(100, int((tokens_used / total_limit) * 100))
+    remaining = max(0, total_limit - tokens_used)
+    
+    keys_status = []
+    for i in range(3):
+        if i < len(_GROQ_KEYS):
+            status = "Active" if i == _GROQ_KEY_INDEX else "Standby"
+        else:
+            status = "Not Configured"
+        keys_status.append(f"🔑 Key {i+1}: {status}")
+    
+    stats_text = (
+        "📊 <b>AI Usage Today</b>\n\n"
+        f"❓ <b>Questions:</b> {questions_count}\n"
+        f"💬 <b>Tokens used:</b> ~{tokens_used:,}\n"
+        f"📈 <b>Used:</b> {used_pct}%\n"
+        f"🔋 <b>Remaining:</b> ~{remaining:,}\n\n"
+        + "\n".join(keys_status)
+    )
+    await update.message.reply_text(stats_text, parse_mode="HTML")
+
 async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_question: str = None):
     msg = update.message
     if not msg or not msg.text:
@@ -1542,6 +1602,8 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
         data = resp.json()
         if "choices" in data and len(data["choices"]) > 0:
             answer = data["choices"][0]["message"]["content"]
+            usage = data.get("usage", {})
+            update_ai_stats(usage.get("total_tokens", 0))
         elif "error" in data and "rate_limit" in str(data.get("error", {}).get("code", "")):
             # Rate limit — try next key silently
             if rotate_groq_key():
@@ -1558,6 +1620,8 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
                 data2 = resp2.json()
                 if "choices" in data2 and data2["choices"]:
                     answer = data2["choices"][0]["message"]["content"]
+                    usage2 = data2.get("usage", {})
+                    update_ai_stats(usage2.get("total_tokens", 0))
                 else:
                     answer = "⚠️"
             else:
@@ -1579,7 +1643,7 @@ async def ask_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE, _override_ques
     # Register bot reply message_id as active AI thread (persisted)
     sb_add_ai_thread(chat_key, bot_reply.message_id)
 # ─── //add ────────────────────────────────────────────────────────────
-VALID_CMDS = {"//info", "//id", "//r", "//ask", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top", "//deadchat"}
+VALID_CMDS = {"//info", "//id", "//r", "//ask", "//stats", "//zaxo", "//say", "//st", "//re", "//mute", "//unmute", "//warn" , "//ban" ,"//unban", "//delete", "//hack", "/rps", "/top", "//top", "//deadchat"}
 async def add_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     global admin_perms
     msg = update.message
@@ -1992,6 +2056,8 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await ask_list_cmd(update, ctx)
     elif text.startswith("//ask //reset"):
         await ask_reset_cmd(update, ctx)
+    elif text.startswith("//ask //stats"):
+        await stats_cmd(update, ctx)
     elif text.startswith("//ask"):
         await ask_cmd(update, ctx)
     # (AI thread replies are handled by ai_thread_reply_handler)
