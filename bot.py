@@ -6198,9 +6198,22 @@ async def pm_relay_reply(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     if not msg or not msg.reply_to_message:
         return
     replied_id = msg.reply_to_message.message_id
+
+    # Try memory map first
     target_id = PM_RELAY_MAP.get(replied_id)
+
+    # Fallback: parse user_id from header text — survives restarts
+    # Header format: "📩 <b>Name</b> (<code>123456</code>):"
     if not target_id:
-        return  # Not a relayed message, ignore silently
+        import re as _re
+        replied_text = msg.reply_to_message.text or msg.reply_to_message.caption or ""
+        m = _re.search(r"\((\d{5,})\)", replied_text)
+        if m:
+            target_id = int(m.group(1))
+            PM_RELAY_MAP[replied_id] = target_id  # cache it
+
+    if not target_id:
+        return  # Not a relayed message
 
     text = (msg.text or "").strip()
 
