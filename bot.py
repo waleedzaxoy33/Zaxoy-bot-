@@ -45,7 +45,7 @@ from telegram.ext import ApplicationHandlerStop
 # ─────────────────────────────────────────────────────────────
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 OWNER_ID = int(os.environ.get("OWNER_ID"))
-GROQ_API_KEY = os.environ.get("OPENROUTER_API_KEY") or os.environ.get("GROQ_API_KEY", "")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY", "")
 AI_INSTRUCTIONS = []  # Loaded from Supabase on startup
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
