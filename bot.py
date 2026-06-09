@@ -313,6 +313,16 @@ def save_admin_perms(store: dict[int, set]):
         pass
 admin_perms: dict[int, set] = load_admin_perms()
 deadchat_cooldowns = {}  # chat_id: last_used_time
+
+# ── No-permission random replies ─────────────────────────────
+import random as _rand
+_NO_PERM_REPLIES = [
+    "😒 Not your bot, not your rules. 🇲🇨",
+    "🙄 Cute. But this isn't your kingdom, sweetie. 🇲🇨",
+    "💅 You wish. 🇲🇨",
+]
+def _no_perm() -> str:
+    return _rand.choice(_NO_PERM_REPLIES)
 # Active minutes cooldown: (chat_id, user_id) → last counted message timestamp
 ACTIVE_COOLDOWN: dict[tuple, float] = {}
 def has_perm(user_id: int, cmd: str) -> bool:
@@ -1139,7 +1149,7 @@ async def r_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = msg.from_user.id
     if not has_perm(user_id, "//r"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text(_no_perm())
         return
     text_parts = msg.text.split(None, 1)
     content = text_parts[1].strip() if len(text_parts) > 1 else None
@@ -1906,7 +1916,7 @@ async def admin_list_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def react_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not has_perm(msg.from_user.id, "//re"):
-        await msg.reply_text("⛔ You don't have permission 🇲🇨")
+        await msg.reply_text(_no_perm())
         return
     target = msg.reply_to_message
     if not target:
@@ -1933,7 +1943,7 @@ async def sticker_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     
     if not has_perm(msg.from_user.id, "//st"):
-        await msg.reply_text("⛔ You don't have permission 🇲🇨")
+        await msg.reply_text(_no_perm())
         return
         
     parts = msg.text.strip().split(None, 1)
@@ -1995,14 +2005,14 @@ async def deadchat_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await msg.reply_text("❌ This command only works in groups.")
         return
 
-    # 12-hour Cooldown check
+    # 3-hour Cooldown check
     now = datetime.now()
     last_used = deadchat_cooldowns.get(chat_id)
-    if last_used and (now - last_used) < timedelta(hours=12):
-        remaining = timedelta(hours=12) - (now - last_used)
+    if last_used and (now - last_used) < timedelta(hours=3):
+        remaining = timedelta(hours=3) - (now - last_used)
         hours, remainder = divmod(int(remaining.total_seconds()), 3600)
         minutes, _ = divmod(remainder, 60)
-        await msg.reply_text(f"⏳ This command is on a long cooldown. Please wait {hours}h {minutes}m.")
+        await msg.reply_text(f"⏳ Cooldown active. Please wait {hours}h {minutes}m.")
         return
 
     try:
@@ -2112,6 +2122,8 @@ async def message_router(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     elif text == "//deadchat":
         if msg.from_user.id == OWNER_ID or has_perm(msg.from_user.id, "//deadchat"):
             await deadchat_cmd(update, ctx)
+        else:
+            await msg.reply_text(_no_perm())
     else:
         await zaxo_defense_handler(update, ctx)
         await waleed_protection(update, ctx)
@@ -2235,7 +2247,7 @@ async def warn_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
             except Exception:
                 pass
     if not has_perm(msg.from_user.id, "//warn"):
-        await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await _reply(_no_perm())
         return
     uid, target_name_str = await resolve_target_from_mention(msg, ctx)
     if not uid:
@@ -2278,7 +2290,7 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     user_id = msg.from_user.id
     if not has_perm(user_id, "//mute"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text(_no_perm())
         return
     target_id, target_name = await resolve_target_from_mention(msg, ctx)
     if not target_id:
@@ -2347,7 +2359,7 @@ async def mute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def unmute_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not has_perm(msg.from_user.id, "//unmute"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text(_no_perm())
         return
     target_id, _ = await resolve_target_from_mention(msg, ctx)
     if not target_id:
@@ -2388,7 +2400,7 @@ async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # 1. Unmute Button Logic
     if data.startswith("unmute_"):
         if not has_perm(query.from_user.id, "//mute"):
-            await query.answer("⛔ No permission to unmute!", show_alert=True)
+            await query.answer(_no_perm(), show_alert=True)
             return
         try:
             chat_member = await ctx.bot.get_chat_member(chat_id=query.message.chat_id, user_id=uid)
@@ -2415,7 +2427,7 @@ async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     # 2. Remove 1 Warning Button Logic
     elif data.startswith("remwarn_"):
         if not has_perm(query.from_user.id, "//warn"):
-            await query.answer("💀 Nice try! You don't have permission to modify warnings!", show_alert=True)
+            await query.answer(_no_perm(), show_alert=True)
             return
         current = warn_store.get(uid, 0)
         if current > 0:
@@ -2439,7 +2451,7 @@ async def unmute_button(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
        # 3. Reset All Warnings Button Logic
     elif data.startswith("resetwarn_"):
         if not has_perm(query.from_user.id, "//warn"):
-            await query.answer("💀 Nice try! You don't have permission to modify warnings!", show_alert=True)
+            await query.answer(_no_perm(), show_alert=True)
             return
         warn_store[uid] = 0
         await query.answer("🧹 All warnings have been reset to 0!", show_alert=True)
@@ -3158,7 +3170,7 @@ async def ban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     async def _reply(text, reply_markup=None):
         await msg.reply_text(text, reply_to_message_id=msg.message_id, reply_markup=reply_markup)
     if not has_perm(msg.from_user.id, "//ban"):
-        await _reply("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await _reply(_no_perm())
         return
     target_id, target_name = await resolve_target_from_mention(msg, ctx)
     if not target_id:
@@ -3203,7 +3215,7 @@ async def ban_callback(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def unban_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not has_perm(msg.from_user.id, "//ban"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text(_no_perm())
         return
     user_id, user_name = await resolve_target_from_mention(msg, ctx)
     if not user_id:
@@ -3224,7 +3236,7 @@ DELETE_SESSION = {}  # user_id -> {"step": "waiting"}
 async def delete_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if not has_perm(msg.from_user.id, "//delete"):
-        await msg.reply_text("💀 HAHAHAHAH NICE TRY! You have no power here 🗣️ 🇲🇨")
+        await msg.reply_text(_no_perm())
         return
     text = msg.text.strip() if msg.text else ""
     parts = text.split(None, 1)
@@ -4549,6 +4561,7 @@ async def top_cmd_group(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     uid = msg.from_user.id
     # owner or has //top permission
     if uid != OWNER_ID and not has_perm(uid, "//top"):
+        await msg.reply_text(_no_perm())
         return
     chat_id = str(msg.chat_id)
     rows = sb_load_top_counts(chat_id)
