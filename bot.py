@@ -800,36 +800,63 @@ EXCLUDED_WORDS = {
 }
 
 # Words ending in 'i' that are clearly place nationalities/adjectives (must match these patterns)
-_PLACE_SUFFIX_PATTERNS = re.compile(
-    r"(zaxoyi|zaxoy|kurdi|iraqi|turki|surichi|polandi|shami|masri|kuwaiti|saudi|emirati|"
-    r"bahraini|qatari|omani|yemeni|lubnani|urduni|falastini|amriki|faransi|almani|"
-    r"inglizi|britani|rusi|sini|yabani|hindi|duhoki|slemani|hewleri|moslawi|"
-    r"kaladizei|halabjai|tikriti|baghdadi|basrawi|karbalayi|najafi)$",
-    re.IGNORECASE
-)
+async def ai_is_waleed_fake(text: str) -> bool:
+    """Use AI to detect if someone wrote 'Waleed [non-zaxoyi label]' instead of 'Waleed Zaxoyi'."""
+    # Quick skip — no mention of waleed
+    if "waleed" not in text.lower():
+        return False
 
-def is_waleed_fake(text: str) -> bool:
-    pattern = r'\bWaleed\s+([a-zA-Z]+)\b'
-    matches = re.finditer(pattern, text, re.IGNORECASE)
+    # Clean punctuation inside words (e.g. "polan.di" -> "polandi") then check
+    cleaned = re.sub(r'([a-zA-Z])[.\-_]([a-zA-Z])', r'\1\2', text)
+
+    # Extract what comes after "Waleed"
+    pattern = r'\bWaleed[\s]+([\w]+)\b'
+    matches = list(re.finditer(pattern, cleaned, re.IGNORECASE))
+    if not matches:
+        return False
 
     for match in matches:
         word = match.group(1).lower()
-
-        # Skip zaxo-related words — that's his actual name
+        # Skip his real name — never trigger
         if word in {"zaxoy", "zaxoyi", "zaxo", "zakho"}:
             continue
-
-        # If it's a known valid place name → trigger
-        if word in ALL_VALID_PLACES:
-            return True
-
-        # If it matches a known place-adjective suffix pattern → trigger
-        if _PLACE_SUFFIX_PATTERNS.match(word):
-            return True
-
-        # Do NOT trigger on generic English words ending in e/i
-        # Only trigger if word is NOT in excluded list and NOT a common English word
+        # Ask AI with full context so it understands Kurdish/regional words too
+        try:
+            client = openai.OpenAI(
+                api_key=get_groq_key(),
+                base_url="https://api.groq.com/openai/v1"
+            )
+            resp = client.chat.completions.create(
+                model="llama-3.3-70b-versatile",
+                messages=[
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a strict classifier. Someone wrote \'Waleed\' followed by a word. "
+                            "Your job: decide if that word is a place name, city, country, region, "
+                            "nationality, or origin label — including Kurdish, Arabic, or any non-English regional words. "
+                            "Even if the word is uncommon or misspelled, if it SOUNDS like a place or origin label, answer YES. "
+                            "Answer YES if the word is something like: duhoki, iraqi, kurdi, baghdadi, kerkuki, suli, "
+                            "sulami, suilami, hawlere, bedare, polandi, masri, shami, turki, zaxoyi, or any similar regional word. "
+                            "Answer NO only if it is a plain common English word like: please, mute, hello, thanks, here, "
+                            "sorry, come, want, good, okay, fine, maybe, right, really, already, someone, everyone, "
+                            "inside, online, before, because, people, while, those, these, there, where, love, nice, great. "
+                            "Reply ONLY with YES or NO."
+                        )
+                    },
+                    {"role": "user", "content": f"Waleed {word}"}
+                ],
+                max_tokens=5,
+                temperature=0
+            )
+            answer = resp.choices[0].message.content.strip().upper()
+            if answer == "YES":
+                return True
+        except Exception:
+            if word in ALL_VALID_PLACES:
+                return True
     return False
+
 async def waleed_protection(
     update: Update,
     ctx: ContextTypes.DEFAULT_TYPE
@@ -837,7 +864,7 @@ async def waleed_protection(
     msg = update.message
     if not msg or not msg.text:
         return
-    if is_waleed_fake(msg.text):
+    if await ai_is_waleed_fake(msg.text):
         await msg.reply_text(
             "Waleed Zaxoyi*",
             reply_to_message_id=msg.message_id
