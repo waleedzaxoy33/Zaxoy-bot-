@@ -269,6 +269,32 @@ def sb_save_if_store(store: dict):
             )
     except Exception as e:
         logging.error(f"sb_save_if_store error: {e}")
+
+def sb_load_waleed_store() -> set:
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/waleed_store?select=word",
+            headers=sb_headers(), timeout=10
+        )
+        return {row["word"] for row in r.json()} if r.json() else set()
+    except Exception:
+        return set()
+
+def sb_save_waleed_store(store: set):
+    try:
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/waleed_store?word=neq.ZAXOY_PLACEHOLDER_NONE",
+            headers=sb_headers(), timeout=10
+        )
+        rows = [{"word": w} for w in list(store)]
+        if rows:
+            requests.post(
+                f"{SUPABASE_URL}/rest/v1/waleed_store",
+                headers=sb_headers(),
+                json=rows, timeout=10
+            )
+    except Exception as e:
+        logging.error(f"sb_save_waleed_store error: {e}")
 # ─────────────────────────────────────────────────────────────
 # Mute System Stores & Config
 # ─────────────────────────────────────────────────────────────
@@ -801,60 +827,46 @@ EXCLUDED_WORDS = {
 
 # Words ending in 'i' that are clearly place nationalities/adjectives (must match these patterns)
 async def ai_is_waleed_fake(text: str) -> bool:
-    """Use AI to detect if someone wrote 'Waleed [non-zaxoyi label]' instead of 'Waleed Zaxoyi'."""
-    # Quick skip — no mention of waleed
+    """Detect if someone wrote 'Waleed [word]' where word ends with 'i' or 'e', or is in the custom list."""
     if "waleed" not in text.lower():
         return False
 
-    # Clean punctuation inside words (e.g. "polan.di" -> "polandi") then check
-    cleaned = re.sub(r'([a-zA-Z])[.\-_]([a-zA-Z])', r'\1\2', text)
+    # Clean punctuation and zalgo/decorations inside words
+    # Remove non-alphanumeric characters except spaces
+    cleaned = re.sub(r'[^\w\s]', '', text)
 
-    # Extract what comes after "Waleed"
     pattern = r'\bWaleed[\s]+([\w]+)\b'
     matches = list(re.finditer(pattern, cleaned, re.IGNORECASE))
     if not matches:
         return False
 
+    # Common English words to ignore
+    ignore_words = {
+        "please", "mute", "hello", "thanks", "here", "sorry", "come", "want", "good", "okay", "fine", "maybe",
+        "right", "really", "already", "someone", "everyone", "inside", "online", "before", "because", "people",
+        "while", "those", "these", "there", "where", "love", "nice", "great", "we", "babe", "are", "have", "like",
+        "make", "take", "give", "more", "some", "time", "see", "use", "me", "he", "she", "be"
+    }
+
     for match in matches:
         word = match.group(1).lower()
-        # Skip his real name — never trigger
+        
+        # Skip his real name
         if word in {"zaxoy", "zaxoyi", "zaxo", "zakho"}:
             continue
-        # Ask AI with full context so it understands Kurdish/regional words too
-        try:
-            client = openai.OpenAI(
-                api_key=get_groq_key(),
-                base_url="https://api.groq.com/openai/v1"
-            )
-            resp = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": (
-                            "You are a strict classifier. Someone wrote \'Waleed\' followed by a word. "
-                            "Your job: decide if that word is a place name, city, country, region, "
-                            "nationality, or origin label — including Kurdish, Arabic, or any non-English regional words. "
-                            "Even if the word is uncommon or misspelled, if it SOUNDS like a place or origin label, answer YES. "
-                            "Answer YES if the word is something like: duhoki, iraqi, kurdi, baghdadi, kerkuki, suli, "
-                            "sulami, suilami, hawlere, bedare, polandi, masri, shami, turki, zaxoyi, or any similar regional word. "
-                            "Answer NO only if it is a plain common English word like: please, mute, hello, thanks, here, "
-                            "sorry, come, want, good, okay, fine, maybe, right, really, already, someone, everyone, "
-                            "inside, online, before, because, people, while, those, these, there, where, love, nice, great. "
-                            "Reply ONLY with YES or NO."
-                        )
-                    },
-                    {"role": "user", "content": f"Waleed {word}"}
-                ],
-                max_tokens=5,
-                temperature=0
-            )
-            answer = resp.choices[0].message.content.strip().upper()
-            if answer == "YES":
-                return True
-        except Exception:
-            if word in ALL_VALID_PLACES:
-                return True
+            
+        # Check custom list first
+        if word in waleed_store:
+            return True
+            
+        # Skip common English words
+        if word in ignore_words:
+            continue
+            
+        # Check if it ends with 'i' or 'e'
+        if word.endswith('i') or word.endswith('e'):
+            return True
+            
     return False
 
 async def waleed_protection(
@@ -2850,6 +2862,26 @@ def save_if_store(store: dict):
             json.dump(store, f, ensure_ascii=False, indent=2)
     except Exception:
         pass
+WALEED_STORE_FILE = "waleed_store.json"
+def load_waleed_store() -> set:
+    data = sb_load_waleed_store()
+    if data:
+        return data
+    try:
+        with open(WALEED_STORE_FILE, "r", encoding="utf-8") as f:
+            return set(json.load(f))
+    except Exception:
+        return set()
+
+def save_waleed_store(store: set):
+    sb_save_waleed_store(store)
+    try:
+        with open(WALEED_STORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(store), f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
+waleed_store: set = load_waleed_store()
 if_store: dict = load_if_store()
 # { owner_id: { "step": "waiting_trigger" | "waiting_reply", "trigger": str, "editing": str | None, "edit_type": str | None } }
 if_sessions: dict[int, dict] = {}
@@ -2857,6 +2889,52 @@ class _IfSessionActiveFilter(filters.MessageFilter):
     def filter(self, message):
         return OWNER_ID in if_sessions
 IF_SESSION_ACTIVE = _IfSessionActiveFilter()
+async def waleed_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    msg = update.message
+    if msg.from_user.id != OWNER_ID:
+        return
+    text = msg.text.strip() if msg.text else ""
+
+    if "//list" in text:
+        await show_waleed_list(msg, ctx)
+        return
+
+    parts = text.split(maxsplit=2)
+    if len(parts) < 2:
+        await msg.reply_text("⚠️ Usage: //waleed //add <word> or //waleed //remove <word>")
+        return
+
+    action = parts[1]
+    word = parts[2].strip()
+
+    global waleed_store
+    if action == "//add":
+        waleed_store.add(word.lower())
+        save_waleed_store(waleed_store)
+        await msg.reply_text(f"✅ Added '{word}' to Waleed custom words.")
+    elif action == "//remove":
+        if word.lower() in waleed_store:
+            waleed_store.remove(word.lower())
+            save_waleed_store(waleed_store)
+            await msg.reply_text(f"🗑 Removed '{word}' from Waleed custom words.")
+        else:
+            await msg.reply_text(f"⚠️ '{word}' not found in custom words.")
+    else:
+        await msg.reply_text("⚠️ Usage: //waleed //add <word> or //waleed //remove <word>")
+
+async def show_waleed_list(msg, ctx):
+    global waleed_store
+    waleed_store = load_waleed_store()
+    if not waleed_store:
+        await msg.reply_text("📭 No custom Waleed words yet.")
+        return
+    
+    words_list = "\n".join(sorted(list(waleed_store)))
+    await msg.reply_text(
+        f"📋 *{len(waleed_store)} custom Waleed word(s) saved:*\n`{words_list}`",
+        parse_mode="Markdown"
+    )
+
 async def if_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID:
@@ -6192,6 +6270,10 @@ app.add_handler(CallbackQueryHandler(
 app.add_handler(MessageHandler(
     filters.TEXT & filters.Regex(r"^//if"),
     if_cmd
+))
+app.add_handler(MessageHandler(
+    filters.TEXT & filters.Regex(r"^//waleed"),
+    waleed_cmd
 ))
 app.add_handler(MessageHandler(
     filters.Regex(r"^//delete"),
