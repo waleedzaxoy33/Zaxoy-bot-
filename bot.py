@@ -295,6 +295,32 @@ def sb_save_waleed_store(store: set):
             )
     except Exception as e:
         logging.error(f"sb_save_waleed_store error: {e}")
+
+def sb_load_waleed_ignore() -> set:
+    try:
+        r = requests.get(
+            f"{SUPABASE_URL}/rest/v1/waleed_ignore?select=word",
+            headers=sb_headers(), timeout=10
+        )
+        return {row["word"] for row in r.json()} if r.json() else set()
+    except Exception:
+        return set()
+
+def sb_save_waleed_ignore(store: set):
+    try:
+        requests.delete(
+            f"{SUPABASE_URL}/rest/v1/waleed_ignore?word=neq.ZAXOY_PLACEHOLDER_NONE",
+            headers=sb_headers(), timeout=10
+        )
+        rows = [{"word": w} for w in list(store)]
+        if rows:
+            requests.post(
+                f"{SUPABASE_URL}/rest/v1/waleed_ignore",
+                headers=sb_headers(),
+                json=rows, timeout=10
+            )
+    except Exception as e:
+        logging.error(f"sb_save_waleed_ignore error: {e}")
 # ─────────────────────────────────────────────────────────────
 # Mute System Stores & Config
 # ─────────────────────────────────────────────────────────────
@@ -827,20 +853,18 @@ EXCLUDED_WORDS = {
 
 # Words ending in 'i' that are clearly place nationalities/adjectives (must match these patterns)
 async def ai_is_waleed_fake(text: str) -> bool:
-    """Detect if someone wrote 'Waleed [word]' where word ends with 'i' or 'e', or is in the custom list."""
-    if "waleed" not in text.lower():
+    """Detect if someone wrote 'Waleed/Walid/Waled [word]' where word ends with 'i' or 'e', or is in the custom list."""
+    text_lower = text.lower()
+    if not any(n in text_lower for n in ("waleed", "walid", "waled")):
         return False
 
-    # Clean punctuation and zalgo/decorations inside words
-    # Remove non-alphanumeric characters except spaces
     cleaned = re.sub(r'[^\w\s]', '', text)
 
-    pattern = r'\bWaleed[\s]+([\w]+)\b'
+    pattern = r'\b(?:waleed|walid|waled)[\s]+([\w]+)\b'
     matches = list(re.finditer(pattern, cleaned, re.IGNORECASE))
     if not matches:
         return False
 
-    # Common English words to ignore
     ignore_words = {
         "please", "mute", "hello", "thanks", "here", "sorry", "come", "want", "good", "okay", "fine", "maybe",
         "right", "really", "already", "someone", "everyone", "inside", "online", "before", "because", "people",
@@ -850,23 +874,24 @@ async def ai_is_waleed_fake(text: str) -> bool:
 
     for match in matches:
         word = match.group(1).lower()
-        
-        # Skip his real name
+
         if word in {"zaxoy", "zaxoyi", "zaxo", "zakho"}:
             continue
-            
-        # Check custom list first
+
+        # Force-reply list
         if word in waleed_store:
             return True
-            
-        # Skip common English words
+
+        # Ignore list — never reply
+        if word in waleed_ignore:
+            continue
+
         if word in ignore_words:
             continue
-            
-        # Check if it ends with 'i' or 'e'
+
         if word.endswith('i') or word.endswith('e'):
             return True
-            
+
     return False
 
 async def waleed_protection(
@@ -2863,6 +2888,8 @@ def save_if_store(store: dict):
     except Exception:
         pass
 WALEED_STORE_FILE = "waleed_store.json"
+WALEED_IGNORE_FILE = "waleed_ignore.json"
+
 def load_waleed_store() -> set:
     data = sb_load_waleed_store()
     if data:
@@ -2881,7 +2908,26 @@ def save_waleed_store(store: set):
     except Exception:
         pass
 
+def load_waleed_ignore() -> set:
+    data = sb_load_waleed_ignore()
+    if data:
+        return data
+    try:
+        with open(WALEED_IGNORE_FILE, "r", encoding="utf-8") as f:
+            return set(json.load(f))
+    except Exception:
+        return set()
+
+def save_waleed_ignore(store: set):
+    sb_save_waleed_ignore(store)
+    try:
+        with open(WALEED_IGNORE_FILE, "w", encoding="utf-8") as f:
+            json.dump(list(store), f, ensure_ascii=False, indent=2)
+    except Exception:
+        pass
+
 waleed_store: set = load_waleed_store()
+waleed_ignore: set = load_waleed_ignore()
 if_store: dict = load_if_store()
 # { owner_id: { "step": "waiting_trigger" | "waiting_reply", "trigger": str, "editing": str | None, "edit_type": str | None } }
 if_sessions: dict[int, dict] = {}
@@ -2889,6 +2935,13 @@ class _IfSessionActiveFilter(filters.MessageFilter):
     def filter(self, message):
         return OWNER_ID in if_sessions
 IF_SESSION_ACTIVE = _IfSessionActiveFilter()
+def _extract_waleed_word(text: str) -> str | None:
+    """Extract the word after Waleed/Walid/Waled from a message."""
+    cleaned = re.sub(r'[^\w\s]', '', text)
+    pattern = r'\b(?:waleed|walid|waled)\s+([\w]+)\b'
+    m = re.search(pattern, cleaned, re.IGNORECASE)
+    return m.group(1).lower() if m else None
+
 async def waleed_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
     if msg.from_user.id != OWNER_ID:
@@ -2901,39 +2954,61 @@ async def waleed_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     parts = text.split(maxsplit=2)
     if len(parts) < 2:
-        await msg.reply_text("⚠️ Usage: //waleed //add <word> or //waleed //remove <word>")
+        await msg.reply_text("⚠️ Usage: //waleed //add or //waleed //remove (reply to a message)")
         return
 
     action = parts[1]
-    word = parts[2].strip()
 
-    global waleed_store
+    # Try to get word from replied message first, fallback to inline word
+    word = None
+    if msg.reply_to_message and msg.reply_to_message.text:
+        word = _extract_waleed_word(msg.reply_to_message.text)
+    if not word and len(parts) >= 3:
+        word = parts[2].strip().lower()
+    if not word:
+        await msg.reply_text("⚠️ Reply to a message containing 'Waleed X', or write the word directly.")
+        return
+
+    global waleed_store, waleed_ignore
+
     if action == "//add":
-        waleed_store.add(word.lower())
+        # Remove from ignore if it was there
+        waleed_ignore.discard(word)
+        save_waleed_ignore(waleed_ignore)
+        waleed_store.add(word)
         save_waleed_store(waleed_store)
-        await msg.reply_text(f"✅ Added '{word}' to Waleed custom words.")
+        await msg.reply_text(f"✅ '{word}' — will always trigger reply.")
+
     elif action == "//remove":
-        if word.lower() in waleed_store:
-            waleed_store.remove(word.lower())
-            save_waleed_store(waleed_store)
-            await msg.reply_text(f"🗑 Removed '{word}' from Waleed custom words.")
-        else:
-            await msg.reply_text(f"⚠️ '{word}' not found in custom words.")
+        # Remove from force-reply list, add to ignore list
+        waleed_store.discard(word)
+        save_waleed_store(waleed_store)
+        waleed_ignore.add(word)
+        save_waleed_ignore(waleed_ignore)
+        await msg.reply_text(f"🚫 '{word}' — will never trigger reply.")
+
     else:
-        await msg.reply_text("⚠️ Usage: //waleed //add <word> or //waleed //remove <word>")
+        await msg.reply_text("⚠️ Usage: //waleed //add or //waleed //remove (reply to a message)")
 
 async def show_waleed_list(msg, ctx):
-    global waleed_store
+    global waleed_store, waleed_ignore
     waleed_store = load_waleed_store()
-    if not waleed_store:
-        await msg.reply_text("📭 No custom Waleed words yet.")
-        return
-    
-    words_list = "\n".join(sorted(list(waleed_store)))
-    await msg.reply_text(
-        f"📋 *{len(waleed_store)} custom Waleed word(s) saved:*\n`{words_list}`",
-        parse_mode="Markdown"
-    )
+    waleed_ignore = load_waleed_ignore()
+
+    lines = []
+    if waleed_store:
+        words = "\n".join(f"  • {w}" for w in sorted(waleed_store))
+        lines.append(f"✅ *Always reply ({len(waleed_store)}):*\n{words}")
+    else:
+        lines.append("✅ *Always reply:* empty")
+
+    if waleed_ignore:
+        words = "\n".join(f"  • {w}" for w in sorted(waleed_ignore))
+        lines.append(f"🚫 *Never reply ({len(waleed_ignore)}):*\n{words}")
+    else:
+        lines.append("🚫 *Never reply:* empty")
+
+    await msg.reply_text("\n\n".join(lines), parse_mode="Markdown")
 
 async def if_cmd(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     msg = update.message
