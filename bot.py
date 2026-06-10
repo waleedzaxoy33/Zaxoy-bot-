@@ -750,7 +750,7 @@ REGIONAL_PLACES = {
 }
 
 GLOBAL_CITIES = {
-    "rome", "venice", "florence", "marseille", "nice", "cologne", "prague", "athens", 
+    "rome", "venice", "florence", "marseille", "cologne", "prague", "athens", 
     "seville", "melbourne", "brisbane", "adelaide", "seattle", "baltimore", "providence",
     "anchorage", "dubai", "abu dhabi", "al ain", "muscat", "manama", "doha", "riyadh", 
     "jeddah", "makkah", "madinah", "mumbai", "karachi", "shanghai", "delhi", "nairobi", 
@@ -761,29 +761,74 @@ GLOBAL_CITIES = {
 ALL_VALID_PLACES = COUNTRIES.union(REGIONAL_PLACES).union(GLOBAL_CITIES)
 
 EXCLUDED_WORDS = {
-    "here", "ali", "vali", "the", "be", "me", "he", "she", "we", "are", "fine", 
-    "nice", "like", "time", "more", "some", "make", "take", "come", "give", "life", 
-    "name", "home", "page", "side", "line", "case", "file", "code", "date", "time",
-    "i", "me", "my", "hi", "bye", "see", "be", "we", "the", "ali", "wali", "hadi", "fadi",
-    "sami", "rami", "hani", "zaki", "naji", "shadi", "ghadi", "wadi", "radi", "madi",
-    "hari", "abdi", "hamdi", "mehdi", "fathi", "safi", "bakri", "badri", "shukri", "omri",
+    # Common English words ending in e/i that are NOT place adjectives
+    "here", "the", "be", "me", "he", "she", "we", "are", "fine",
+    "nice", "like", "time", "more", "some", "make", "take", "come", "give", "life",
+    "name", "home", "page", "side", "line", "case", "file", "code", "date",
+    "i", "my", "hi", "bye", "see", "free", "true", "sure", "else", "while",
+    "those", "these", "there", "where", "write", "before", "please", "because",
+    "inside", "outside", "online", "offline", "become", "someone", "everyone",
+    "active", "native", "otive", "otive", "itive", "ative",
+    "private", "public", "simple", "purple", "people", "little", "middle",
+    "handle", "manage", "change", "charge", "choice", "voice", "price", "place",
+    "space", "trace", "grace", "peace", "piece", "dance", "chance", "since",
+    "once", "twice", "whole", "while", "smile", "style", "title", "table",
+    "able", "cable", "stable", "available", "possible", "impossible",
+    "maybe", "above", "alive", "arrive", "achieve", "believe", "receive",
+    "move", "prove", "love", "live", "drive", "five", "nine", "mine", "wine",
+    "fine", "pine", "vine", "shine", "spine", "define", "divine", "online",
+    "invite", "unite", "white", "write", "quite", "quote", "note", "vote",
+    "mute", "cute", "brute", "flute", "route", "shute", "suite", "dude", "rude",
+    "nude", "crude", "prude", "mode", "code", "node", "rode", "role", "pole",
+    "sole", "hole", "mole", "role", "stole", "whole", "joke", "smoke", "spoke",
+    "broke", "choke", "woke", "poke", "slope", "hope", "cope", "rope", "dope",
+    # Common names that end in e/i (not places)
+    "ali", "vali", "wali", "hadi", "fadi", "sami", "rami", "hani", "zaki",
+    "naji", "shadi", "ghadi", "wadi", "radi", "madi", "hari", "abdi", "hamdi",
+    "mehdi", "fathi", "safi", "bakri", "badri", "shukri", "omri", "karimi",
+    "amani", "layli", "dani", "beni", "leni", "mani", "nani", "tani",
+    # Common verbs/adjectives ending in e
+    "hate", "late", "fate", "gate", "rate", "mate", "date", "state", "plate",
+    "create", "update", "delete", "locate", "rotate", "inflate", "debate",
+    "isolate", "operate", "generate", "celebrate", "appreciate", "communicate",
+    # English words that could follow "Waleed" in a sentence
+    "please", "mute", "wants", "goes", "does", "have", "give", "take",
+    "came", "came", "made", "gave", "have", "save", "wave", "brave", "cave",
+    "crave", "shave", "slave", "grave", "knave", "pave", "rave",
+    "close", "those", "prose", "nose", "rose", "pose", "lose", "chose",
+    "froze", "whose", "size", "wise", "rise", "prize", "guise", "disguise",
 }
+
+# Words ending in 'i' that are clearly place nationalities/adjectives (must match these patterns)
+_PLACE_SUFFIX_PATTERNS = re.compile(
+    r"(zaxoyi|zaxoy|kurdi|iraqi|turki|surichi|polandi|shami|masri|kuwaiti|saudi|emirati|"
+    r"bahraini|qatari|omani|yemeni|lubnani|urduni|falastini|amriki|faransi|almani|"
+    r"inglizi|britani|rusi|sini|yabani|hindi|duhoki|slemani|hewleri|moslawi|"
+    r"kaladizei|halabjai|tikriti|baghdadi|basrawi|karbalayi|najafi)$",
+    re.IGNORECASE
+)
 
 def is_waleed_fake(text: str) -> bool:
     pattern = r'\bWaleed\s+([a-zA-Z]+)\b'
     matches = re.finditer(pattern, text, re.IGNORECASE)
-    
+
     for match in matches:
         word = match.group(1).lower()
+
+        # Skip zaxo-related words — that's his actual name
+        if word in {"zaxoy", "zaxoyi", "zaxo", "zakho"}:
+            continue
+
+        # If it's a known valid place name → trigger
         if word in ALL_VALID_PLACES:
-            if word in ["zaxoy", "zaxoyi", "zaxo"]:
-                continue
             return True
-        if word.endswith(('e', 'i')):
-            if word in ["zaxoyi"]:
-                continue
-            if word not in EXCLUDED_WORDS and len(word) > 3:
-                return True
+
+        # If it matches a known place-adjective suffix pattern → trigger
+        if _PLACE_SUFFIX_PATTERNS.match(word):
+            return True
+
+        # Do NOT trigger on generic English words ending in e/i
+        # Only trigger if word is NOT in excluded list and NOT a common English word
     return False
 async def waleed_protection(
     update: Update,
